@@ -354,9 +354,14 @@ async def get_current_user(authorization: str = Header(None)) -> dict:
 # SYSTEM ENDPOINTS
 # =============================================================================
 
-@router.get("/")
+@router.get("/api-info")
 async def root():
-    """Root endpoint - API info"""
+    """
+    API info.
+
+    Lives on /api-info because / now serves the admin panel itself (see main.py).
+    Kept for anything already calling it.
+    """
     return {
         "name": "FV-S Admin Panel API",
         "version": "1.0.0",
@@ -7622,7 +7627,11 @@ async def set_scraper_provider(
         "success": True,
         "message": f"Transport switched to {saved['provider']}",
         **saved,
-        "transport": phone_transport_label(load_veriphone_settings(user_id, USERS_BASE_PATH)),
+        # Pass the user scope: without it the label only consults the
+        # environment and reports "local" even after a successful switch.
+        "transport": phone_transport_label(
+            load_veriphone_settings(user_id, USERS_BASE_PATH), user_id, USERS_BASE_PATH
+        ),
     }
 
 

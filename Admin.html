@@ -2259,55 +2259,59 @@
              * 9) VALIDATOR — hero, tabs, stats, panel header
              * ================================================= */
             /* =================================================
-             * Live scraper API card (phone launch controls)
+             * Scraper API card — lives in Launch Controls beside
+             * the .phone-* furniture, so it borrows their scale:
+             * 16px radius cards, 11px labels, hairline borders,
+             * and the #8a2be2 -> #00e5ff accent.
              * ================================================= */
             .scraper-card {
                 position: relative;
-                margin-bottom: 16px;
                 padding: 16px;
+                margin-bottom: 18px;
                 border-radius: 16px;
                 border: 1px solid var(--border-color);
-                background:
-                    radial-gradient(120% 100% at 0% 0%, rgba(138, 43, 226, 0.10), transparent 55%),
-                    rgba(255, 255, 255, 0.02);
+                background: rgba(255, 255, 255, 0.03);
                 overflow: hidden;
             }
 
-            .scraper-card::before {
+            .scraper-card::after {
                 content: '';
                 position: absolute;
-                inset: 0 0 auto 0;
+                top: 0;
+                left: 0;
+                right: 0;
                 height: 2px;
                 background: linear-gradient(90deg, #8a2be2, #00e5ff);
-                opacity: 0.85;
+                opacity: 0.65;
             }
 
+            /* ---------- header ---------- */
             .scraper-card-head {
                 display: flex;
-                align-items: flex-start;
+                align-items: center;
                 justify-content: space-between;
-                gap: 12px;
+                gap: 10px;
                 margin-bottom: 14px;
             }
 
             .scraper-card-heading {
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                gap: 9px;
                 min-width: 0;
             }
 
             .scraper-card-icon {
-                width: 34px;
-                height: 34px;
-                flex: 0 0 34px;
+                width: 28px;
+                height: 28px;
+                flex: 0 0 28px;
                 display: grid;
                 place-items: center;
-                border-radius: 10px;
-                font-size: 14px;
-                color: #fff;
-                background: linear-gradient(135deg, #8a2be2, #4b0082);
-                box-shadow: 0 6px 16px rgba(138, 43, 226, 0.35);
+                border-radius: 9px;
+                font-size: 12px;
+                color: #00e5ff;
+                background: rgba(0, 229, 255, 0.09);
+                border: 1px solid rgba(0, 229, 255, 0.2);
             }
 
             .scraper-card-title {
@@ -2315,7 +2319,7 @@
                 font-weight: 700;
                 letter-spacing: 0.3px;
                 color: var(--text-white);
-                line-height: 1.2;
+                line-height: 1.25;
             }
 
             .scraper-card-subtitle {
@@ -2325,102 +2329,78 @@
                 line-height: 1.3;
             }
 
-            /* Status pill */
             .scraper-badge {
                 display: inline-flex;
                 align-items: center;
-                gap: 6px;
-                padding: 4px 9px;
+                gap: 5px;
+                padding: 4px 8px;
                 border-radius: 999px;
                 font-size: 9px;
                 font-weight: 800;
-                letter-spacing: 0.7px;
+                letter-spacing: 0.6px;
                 text-transform: uppercase;
                 white-space: nowrap;
                 color: #9aa4b2;
                 background: rgba(255, 255, 255, 0.06);
                 border: 1px solid rgba(255, 255, 255, 0.12);
-                transition: all 0.25s ease;
             }
 
             .scraper-badge-dot {
-                width: 6px;
-                height: 6px;
+                width: 5px;
+                height: 5px;
                 border-radius: 50%;
                 background: currentColor;
-                box-shadow: 0 0 0 0 currentColor;
             }
 
-            .scraper-badge.is-live { color: #4ade80; background: rgba(74, 222, 128, 0.10); border-color: rgba(74, 222, 128, 0.35); }
-            .scraper-badge.is-warn { color: #fbbf24; background: rgba(251, 191, 36, 0.10); border-color: rgba(251, 191, 36, 0.35); }
-            .scraper-badge.is-error { color: #f87171; background: rgba(248, 113, 113, 0.10); border-color: rgba(248, 113, 113, 0.35); }
-            .scraper-badge.is-live .scraper-badge-dot { animation: scraperPulse 2s ease-in-out infinite; }
+            .scraper-badge.is-live { color: #4ade80; background: rgba(74, 222, 128, 0.1); border-color: rgba(74, 222, 128, 0.32); }
+            .scraper-badge.is-warn { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.32); }
+            .scraper-badge.is-error { color: #f87171; background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.32); }
 
-            @keyframes scraperPulse {
-                0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); }
-                50% { box-shadow: 0 0 0 4px rgba(74, 222, 128, 0); }
-            }
-
-            /* Provider tiles */
+            /* ---------- provider tiles ---------- */
             .scraper-provider-grid {
                 display: grid;
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 8px;
                 margin-bottom: 14px;
             }
 
             .scraper-provider-tile {
                 position: relative;
-                display: grid;
-                grid-template-columns: 22px 1fr;
-                grid-template-rows: auto auto;
-                column-gap: 8px;
-                row-gap: 1px;
+                display: flex;
                 align-items: center;
-                padding: 10px;
+                gap: 8px;
+                min-width: 0;
+                padding: 9px 10px;
                 text-align: left;
                 cursor: pointer;
                 border-radius: 11px;
                 border: 1px solid rgba(255, 255, 255, 0.08);
-                background: rgba(0, 0, 0, 0.28);
+                background: rgba(0, 0, 0, 0.25);
                 color: var(--text-white);
                 font-family: 'Montserrat', sans-serif;
-                transition: all 0.2s ease;
+                transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
             }
 
             .scraper-provider-tile:hover {
                 border-color: rgba(0, 229, 255, 0.35);
                 background: rgba(0, 229, 255, 0.05);
-                transform: translateY(-1px);
             }
 
             .scraper-provider-tile.is-active {
-                border-color: rgba(138, 43, 226, 0.7);
-                background: linear-gradient(135deg, rgba(138, 43, 226, 0.18), rgba(0, 229, 255, 0.08));
-                box-shadow: 0 0 0 1px rgba(138, 43, 226, 0.35), 0 8px 20px rgba(138, 43, 226, 0.18);
-            }
-
-            .scraper-provider-tile.is-active::after {
-                content: '\f00c';
-                font-family: 'Font Awesome 6 Free';
-                font-weight: 900;
-                position: absolute;
-                top: 7px;
-                right: 8px;
-                font-size: 8px;
-                color: #4ade80;
+                border-color: rgba(138, 43, 226, 0.65);
+                background: linear-gradient(135deg, rgba(138, 43, 226, 0.18), rgba(0, 229, 255, 0.07));
             }
 
             .scraper-tile-icon {
-                grid-row: 1 / span 2;
+                flex: 0 0 24px;
+                width: 24px;
+                height: 24px;
                 display: grid;
                 place-items: center;
-                width: 22px;
-                height: 22px;
                 border-radius: 7px;
                 font-size: 10px;
                 color: #00e5ff;
-                background: rgba(0, 229, 255, 0.10);
+                background: rgba(0, 229, 255, 0.09);
             }
 
             .scraper-provider-tile.is-active .scraper-tile-icon {
@@ -2428,10 +2408,17 @@
                 background: linear-gradient(135deg, #8a2be2, #00e5ff);
             }
 
+            .scraper-tile-body {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 0;
+                flex: 1 1 auto;
+            }
+
             .scraper-tile-name {
                 font-size: 11px;
                 font-weight: 700;
-                letter-spacing: 0.2px;
                 line-height: 1.2;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -2439,34 +2426,51 @@
             }
 
             .scraper-tile-meta {
+                display: flex;
+                align-items: center;
+                gap: 5px;
                 font-size: 9px;
-                color: var(--text-gray);
                 line-height: 1.2;
+                color: var(--text-gray);
             }
 
             .scraper-tile-state {
-                position: absolute;
-                bottom: 6px;
-                right: 8px;
+                display: inline-flex;
+                align-items: center;
+                padding: 1px 5px;
+                border-radius: 999px;
                 font-size: 8px;
                 font-weight: 700;
-                letter-spacing: 0.4px;
+                letter-spacing: 0.3px;
                 text-transform: uppercase;
-                color: rgba(255, 255, 255, 0.28);
+                color: rgba(255, 255, 255, 0.35);
+                background: rgba(255, 255, 255, 0.06);
             }
 
-            .scraper-tile-state.is-ready { color: #4ade80; }
-            .scraper-tile-state.is-env { color: #fbbf24; }
+            .scraper-tile-state.is-ready { color: #4ade80; background: rgba(74, 222, 128, 0.12); }
+            .scraper-tile-state.is-env { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
 
-            /* Fields */
+            /* The tick only exists on the active tile, so it reserves no room. */
+            .scraper-tile-tick {
+                display: none;
+                flex: 0 0 auto;
+                font-size: 9px;
+                color: #4ade80;
+            }
+
+            .scraper-provider-tile.is-active .scraper-tile-tick { display: block; }
+
+            /* ---------- fields ---------- */
             .scraper-form { margin-bottom: 12px; }
 
             .scraper-form-row {
                 display: grid;
-                grid-template-columns: 1fr 92px;
+                grid-template-columns: minmax(0, 1fr) 74px;
                 gap: 8px;
                 margin-bottom: 10px;
             }
+
+            .scraper-field { min-width: 0; }
 
             .scraper-field-label {
                 display: block;
@@ -2478,133 +2482,179 @@
                 margin-bottom: 5px;
             }
 
-            .scraper-input-group { position: relative; display: flex; align-items: center; }
+            .scraper-input-group {
+                position: relative;
+                display: flex;
+                align-items: center;
+                min-width: 0;
+            }
 
             .scraper-input-icon {
                 position: absolute;
-                left: 10px;
-                font-size: 10px;
-                color: rgba(255, 255, 255, 0.35);
+                left: 9px;
+                font-size: 9px;
+                color: rgba(255, 255, 255, 0.3);
                 pointer-events: none;
             }
 
             .scraper-input {
                 width: 100%;
-                padding: 9px 32px 9px 28px;
+                min-width: 0;
+                padding: 8px 30px 8px 26px;
                 font-family: 'Montserrat', sans-serif;
                 font-size: 11px;
                 color: var(--text-white);
-                background: rgba(0, 0, 0, 0.45);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(0, 0, 0, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.09);
                 border-radius: 9px;
-                transition: all 0.2s ease;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
             }
 
-            .scraper-input-plain { padding: 9px 10px; }
+            .scraper-input-plain { padding: 8px 9px; }
 
-            .scraper-input::placeholder { color: rgba(255, 255, 255, 0.25); }
+            .scraper-input::placeholder { color: rgba(255, 255, 255, 0.22); }
 
             .scraper-input:focus {
                 outline: none;
-                border-color: rgba(0, 229, 255, 0.5);
-                box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.1);
-                background: rgba(0, 0, 0, 0.6);
+                border-color: rgba(0, 229, 255, 0.45);
+                box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.08);
             }
 
             .scraper-input-reveal {
                 position: absolute;
-                right: 8px;
+                right: 6px;
                 display: grid;
                 place-items: center;
-                width: 22px;
-                height: 22px;
+                width: 20px;
+                height: 20px;
                 padding: 0;
                 border: none;
                 border-radius: 6px;
                 cursor: pointer;
-                color: rgba(255, 255, 255, 0.4);
+                color: rgba(255, 255, 255, 0.35);
                 background: transparent;
-                font-size: 10px;
-                transition: all 0.2s ease;
+                font-size: 9px;
+                transition: color 0.2s ease, background 0.2s ease;
             }
 
             .scraper-input-reveal:hover { color: #00e5ff; background: rgba(0, 229, 255, 0.1); }
 
-            /* Premium proxy switch */
+            /* ---------- premium proxy switch ---------- */
             .scraper-switch-row {
                 display: flex;
                 align-items: center;
                 gap: 10px;
-                padding: 8px 10px;
-                margin-bottom: 10px;
-                border-radius: 9px;
-                background: rgba(0, 0, 0, 0.22);
-                border: 1px solid rgba(255, 255, 255, 0.05);
+                padding: 9px 10px;
+                margin-bottom: 12px;
+                border-radius: 10px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.2);
                 cursor: pointer;
             }
 
-            .scraper-switch-row .proxy-toggle-switch { width: 38px; height: 21px; flex: 0 0 38px; }
+            .scraper-switch-row .proxy-toggle-switch {
+                width: 36px;
+                height: 20px;
+                flex: 0 0 36px;
+            }
+
             .scraper-switch-row .proxy-toggle-slider { border-width: 1px; }
-            .scraper-switch-row .proxy-toggle-slider::before { height: 15px; width: 15px; left: 2px; bottom: 2px; }
-            .scraper-switch-row .proxy-toggle-switch input:checked + .proxy-toggle-slider::before { transform: translateX(17px); }
 
-            .scraper-switch-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-            .scraper-switch-title { font-size: 10px; font-weight: 700; color: var(--text-white); }
-            .scraper-switch-note { font-size: 9px; color: var(--text-gray); line-height: 1.35; }
+            .scraper-switch-row .proxy-toggle-slider::before {
+                width: 14px;
+                height: 14px;
+                left: 2px;
+                bottom: 2px;
+            }
 
-            /* Actions */
-            .scraper-actions { display: flex; gap: 6px; align-items: stretch; }
+            .scraper-switch-row .proxy-toggle-switch input:checked + .proxy-toggle-slider::before {
+                transform: translateX(16px);
+            }
+
+            .scraper-switch-text {
+                display: flex;
+                flex-direction: column;
+                gap: 1px;
+                min-width: 0;
+            }
+
+            .scraper-switch-title {
+                font-size: 10px;
+                font-weight: 700;
+                color: var(--text-white);
+                line-height: 1.3;
+            }
+
+            .scraper-switch-note {
+                font-size: 9px;
+                line-height: 1.35;
+                color: var(--text-gray);
+            }
+
+            /* ---------- actions ---------- */
+            .scraper-actions {
+                display: flex;
+                align-items: stretch;
+                gap: 6px;
+            }
 
             .scraper-btn {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 gap: 6px;
-                padding: 9px 12px;
+                padding: 9px 11px;
                 font-family: 'Montserrat', sans-serif;
-                font-size: 11px;
+                font-size: 10px;
                 font-weight: 700;
-                letter-spacing: 0.2px;
+                letter-spacing: 0.3px;
                 color: var(--text-white);
-                background: rgba(255, 255, 255, 0.07);
+                background: rgba(255, 255, 255, 0.06);
                 border: 1px solid rgba(255, 255, 255, 0.1);
                 border-radius: 9px;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                white-space: nowrap;
+                transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
             }
 
             .scraper-btn:hover:not(:disabled) {
-                background: rgba(255, 255, 255, 0.14);
-                border-color: rgba(255, 255, 255, 0.25);
+                background: rgba(255, 255, 255, 0.12);
+                border-color: rgba(255, 255, 255, 0.22);
                 transform: translateY(-1px);
             }
 
-            .scraper-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+            .scraper-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
             .scraper-btn-primary {
                 flex: 1 1 auto;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
                 color: #0b0d12;
-                border: none;
+                border-color: transparent;
                 background: linear-gradient(135deg, #00e5ff, #8a2be2);
-                box-shadow: 0 6px 18px rgba(0, 229, 255, 0.18);
             }
 
             .scraper-btn-primary:hover:not(:disabled) {
+                border-color: transparent;
                 background: linear-gradient(135deg, #33ebff, #a04dff);
-                border: none;
-                box-shadow: 0 8px 24px rgba(138, 43, 226, 0.35);
             }
 
-            .scraper-btn-ghost { flex: 0 0 auto; padding: 9px 10px; background: transparent; }
+            .scraper-btn-ghost {
+                flex: 0 0 auto;
+                padding: 9px 10px;
+                background: transparent;
+                border-color: rgba(255, 255, 255, 0.1);
+            }
 
-            /* Status + footer */
+            /* ---------- status + footer ---------- */
             .scraper-status {
                 display: flex;
-                gap: 8px;
                 align-items: flex-start;
+                gap: 7px;
                 padding: 8px 10px;
                 border-radius: 9px;
-                background: rgba(0, 0, 0, 0.22);
+                background: rgba(0, 0, 0, 0.2);
                 border-left: 2px solid rgba(255, 255, 255, 0.14);
                 font-size: 10px;
                 line-height: 1.5;
@@ -2612,14 +2662,14 @@
                 word-break: break-word;
             }
 
-            .scraper-status-icon { font-size: 10px; margin-top: 2px; opacity: 0.7; flex: 0 0 auto; }
+            .scraper-status-icon { flex: 0 0 auto; margin-top: 2px; font-size: 9px; opacity: 0.75; }
             .scraper-status.is-live { border-left-color: #4ade80; color: #b9f6ca; }
-            .scraper-status.is-live .scraper-status-icon { color: #4ade80; }
+            .scraper-status.is-live .scraper-status-icon { color: #4ade80; opacity: 1; }
             .scraper-status.is-warn { border-left-color: #fbbf24; color: #fde68a; }
-            .scraper-status.is-warn .scraper-status-icon { color: #fbbf24; }
+            .scraper-status.is-warn .scraper-status-icon { color: #fbbf24; opacity: 1; }
             .scraper-status.is-error { border-left-color: #f87171; color: #fecaca; }
-            .scraper-status.is-error .scraper-status-icon { color: #f87171; }
-            .scraper-status.is-busy .scraper-status-icon { color: #00e5ff; animation: scraperSpin 1s linear infinite; }
+            .scraper-status.is-error .scraper-status-icon { color: #f87171; opacity: 1; }
+            .scraper-status.is-busy .scraper-status-icon { color: #00e5ff; opacity: 1; animation: scraperSpin 1s linear infinite; }
 
             @keyframes scraperSpin { to { transform: rotate(360deg); } }
 
@@ -2628,27 +2678,42 @@
                 align-items: center;
                 justify-content: space-between;
                 gap: 8px;
-                margin-top: 8px;
+                margin-top: 10px;
             }
 
-            .scraper-cost { font-size: 9px; line-height: 1.45; color: rgba(255, 255, 255, 0.38); flex: 1 1 auto; }
+            .scraper-cost {
+                flex: 1 1 auto;
+                min-width: 0;
+                font-size: 9px;
+                line-height: 1.45;
+                color: rgba(255, 255, 255, 0.35);
+            }
 
             .scraper-credits {
-                font-size: 9px;
-                font-weight: 700;
-                letter-spacing: 0.3px;
-                white-space: nowrap;
+                flex: 0 0 auto;
                 padding: 3px 8px;
                 border-radius: 999px;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.2px;
+                white-space: nowrap;
                 color: #00e5ff;
                 background: rgba(0, 229, 255, 0.08);
-                border: 1px solid rgba(0, 229, 255, 0.25);
+                border: 1px solid rgba(0, 229, 255, 0.22);
             }
 
-            .scraper-credits.is-low { color: #f87171; background: rgba(248, 113, 113, 0.08); border-color: rgba(248, 113, 113, 0.3); }
+            .scraper-credits.is-low {
+                color: #f87171;
+                background: rgba(248, 113, 113, 0.08);
+                border-color: rgba(248, 113, 113, 0.28);
+            }
 
-            /* Advanced */
-            .scraper-advanced { margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px; }
+            /* ---------- advanced ---------- */
+            .scraper-advanced {
+                margin-top: 12px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(255, 255, 255, 0.06);
+            }
 
             .scraper-advanced summary {
                 display: flex;
@@ -2664,18 +2729,30 @@
 
             .scraper-advanced summary::-webkit-details-marker { display: none; }
             .scraper-advanced summary:hover { color: var(--text-white); }
-            .scraper-chevron { font-size: 8px; transition: transform 0.2s ease; }
+
+            .scraper-chevron {
+                font-size: 7px;
+                transition: transform 0.2s ease;
+            }
+
             .scraper-advanced[open] .scraper-chevron { transform: rotate(90deg); }
 
             .scraper-advanced-body { padding-top: 10px; }
-            .scraper-advanced-note { font-size: 9px; line-height: 1.5; color: var(--text-gray); margin-top: 8px; }
 
-            /* The offline engine needs no credentials */
+            .scraper-advanced-note {
+                margin-top: 8px;
+                font-size: 9px;
+                line-height: 1.5;
+                color: var(--text-gray);
+            }
+
+            /* The offline engine reads no key, so hide the form for it. */
             .scraper-card.is-local .scraper-form { display: none; }
 
-            @media (max-width: 420px) {
-                .scraper-provider-grid { grid-template-columns: repeat(2, 1fr); }
-                .scraper-form-row { grid-template-columns: 1fr; }
+            @media (max-width: 380px) {
+                .scraper-form-row { grid-template-columns: minmax(0, 1fr); }
+                .scraper-field-compact { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 8px; }
+                .scraper-field-compact .scraper-field-label { margin-bottom: 0; }
             }
 
             .validator-hero-header {
@@ -23377,39 +23454,52 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                             <button type="button" class="scraper-provider-tile" data-provider="scrapingbee"
                                                     onclick="switchScraperProvider('scrapingbee')">
                                                 <span class="scraper-tile-icon"><i class="fas fa-bug"></i></span>
-                                                <span class="scraper-tile-name">ScrapingBee</span>
-                                                <span class="scraper-tile-meta">5 credits</span>
-                                                <span class="scraper-tile-state" data-state-for="scrapingbee">No key</span>
+                                                <span class="scraper-tile-body">
+                                                    <span class="scraper-tile-name">ScrapingBee</span>
+                                                    <span class="scraper-tile-meta">
+                                                        5 credits
+                                                        <span class="scraper-tile-state" data-state-for="scrapingbee">No key</span>
+                                                    </span>
+                                                </span>
+                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
                                             </button>
                                             <button type="button" class="scraper-provider-tile" data-provider="decodo"
                                                     onclick="switchScraperProvider('decodo')">
                                                 <span class="scraper-tile-icon"><i class="fas fa-shield-halved"></i></span>
-                                                <span class="scraper-tile-name">Decodo</span>
-                                                <span class="scraper-tile-meta">flat plan</span>
-                                                <span class="scraper-tile-state" data-state-for="decodo">No key</span>
+                                                <span class="scraper-tile-body">
+                                                    <span class="scraper-tile-name">Decodo</span>
+                                                    <span class="scraper-tile-meta">
+                                                        flat plan
+                                                        <span class="scraper-tile-state" data-state-for="decodo">No key</span>
+                                                    </span>
+                                                </span>
+                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
                                             </button>
                                             <button type="button" class="scraper-provider-tile" data-provider="browser-use"
                                                     onclick="switchScraperProvider('browser-use')">
                                                 <span class="scraper-tile-icon"><i class="fas fa-window-restore"></i></span>
-                                                <span class="scraper-tile-name">Browser Use</span>
-                                                <span class="scraper-tile-meta">$5/GB</span>
-                                                <span class="scraper-tile-state" data-state-for="browser-use">No key</span>
+                                                <span class="scraper-tile-body">
+                                                    <span class="scraper-tile-name">Browser Use</span>
+                                                    <span class="scraper-tile-meta">
+                                                        $5/GB
+                                                        <span class="scraper-tile-state" data-state-for="browser-use">No key</span>
+                                                    </span>
+                                                </span>
+                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
                                             </button>
                                             <button type="button" class="scraper-provider-tile" data-provider="local"
                                                     onclick="switchScraperProvider('local')">
                                                 <span class="scraper-tile-icon"><i class="fas fa-microchip"></i></span>
-                                                <span class="scraper-tile-name">Offline</span>
-                                                <span class="scraper-tile-meta">free</span>
-                                                <span class="scraper-tile-state" data-state-for="local">Ready</span>
+                                                <span class="scraper-tile-body">
+                                                    <span class="scraper-tile-name">Offline</span>
+                                                    <span class="scraper-tile-meta">
+                                                        free
+                                                        <span class="scraper-tile-state" data-state-for="local">Ready</span>
+                                                    </span>
+                                                </span>
+                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
                                             </button>
                                         </div>
-                                        <select id="scraperProviderSelect" style="display: none;" aria-hidden="true">
-                                            <option value="scrapingbee">ScrapingBee</option>
-                                            <option value="decodo">Decodo</option>
-                                            <option value="browser-use">Browser Use</option>
-                                            <option value="local">Offline tables</option>
-                                        </select>
-
                                         <div class="scraper-form" id="scraperForm">
                                             <div class="scraper-form-row">
                                                 <div class="scraper-field">
@@ -23420,13 +23510,13 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                                autocomplete="off" spellcheck="false" placeholder="Paste key…"
                                                                onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
                                                         <button type="button" class="scraper-input-reveal"
-                                                                onclick="toggleKeyVisibility()" title="Show / hide">
+                                                                onclick="toggleKeyVisibility()" title="Show / hide key">
                                                             <i class="fas fa-eye" id="scraperRevealIcon"></i>
                                                         </button>
                                                     </div>
                                                 </div>
                                                 <div class="scraper-field scraper-field-compact">
-                                                    <label class="scraper-field-label" for="scraperProxyCountry">Proxy country</label>
+                                                    <label class="scraper-field-label" for="scraperProxyCountry">Country</label>
                                                     <input type="text" id="scraperProxyCountry" class="scraper-input scraper-input-plain"
                                                            autocomplete="off" maxlength="2" placeholder="any">
                                                 </div>
@@ -23439,7 +23529,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                 </span>
                                                 <span class="scraper-switch-text">
                                                     <span class="scraper-switch-title">Premium proxy</span>
-                                                    <span class="scraper-switch-note">ScrapingBee: 25 credits per number instead of 5</span>
+                                                    <span class="scraper-switch-note">25 credits per number instead of 5</span>
                                                 </span>
                                             </label>
 
@@ -23839,7 +23929,18 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
     <script>
         // Server Configuration - Set this to your server URL
         // Hardcoded server URL for production use
-        const SERVER_URL = 'http://83.229.83.19:8000';
+        // Same origin when the panel is served by the app itself (the normal
+        // case: http://localhost:8000). Falls back to the legacy host when the
+        // file is opened straight from disk, and can be overridden per browser.
+        const SERVER_URL = (() => {
+            const override = localStorage.getItem('fvs_server_url');
+            if (override) return override.replace(/\/$/, '');
+            const { protocol, host } = window.location;
+            if (protocol.startsWith('http') && host) {
+                return protocol + '//' + host;
+            }
+            return 'http://83.229.83.19:8000';
+        })();
         
         // Auth State
         let authToken = localStorage.getItem('fvs_token');

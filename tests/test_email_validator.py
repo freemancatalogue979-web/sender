@@ -1558,3 +1558,22 @@ def test_scraper_report_distinguishes_saved_from_env_keys(tmp_path, monkeypatch)
     env_report = asyncio.run(api.get_scraper_provider(user))
     assert env_report["sources"]["decodo"] == "environment"
     assert env_report["configured"]["decodo"] is True
+
+
+def test_switch_endpoint_reports_the_new_transport(tmp_path, monkeypatch):
+    """
+    Regression: POST /validator/scraper said "transport": "local" after a
+    successful switch, because it built the label without the user scope.
+    """
+    import asyncio
+    import api
+
+    _isolate_provider_env(monkeypatch)
+    monkeypatch.setattr(api, "USERS_BASE_PATH", tmp_path)
+    user = {"user_id": "switchuser"}
+
+    ev.save_scrapingbee_settings("switchuser", tmp_path, {"api_key": "SB-SWITCH"})
+    result = asyncio.run(api.set_scraper_provider({"provider": "scrapingbee"}, user))
+
+    assert result["provider"] == "scrapingbee"
+    assert result["transport"] == "scrapingbee"

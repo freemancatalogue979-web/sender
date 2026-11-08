@@ -1060,3 +1060,37 @@ Why each piece earns its space:
   someone to paste a key into a transport that never reads one.
 
 **170 tests passing.**
+
+### Why the preview was broken (and the panel looked dead)
+
+Two infrastructure faults, both mine, both invisible in a screenshot:
+
+1. **`Admin.html` hardcoded `SERVER_URL = 'http://83.229.83.19:8000'`.** Served
+   from any other host, every `fetch` left the page's origin, hung, and failed.
+   The card sat on "Loading configuration…" and its buttons did nothing — it
+   was not badly styled, it was dead. It now resolves to `window.location`
+   (same origin), with `localStorage.fvs_server_url` as an override and the old
+   IP kept only for `file://`.
+2. **`/` returned JSON, not the panel.** `api.py` had `@router.get("/")`
+   returning `{name, version, status}`, and it won over the one in `main.py`, so
+   `http://localhost:8000` showed an API hello instead of the UI. The panel is
+   now served at `/` (and `/admin`); the JSON moved to `/api-info`.
+
+Third fault, found by driving the served endpoints: **`POST /validator/scraper`
+reported `"transport": "local"` after a successful switch**, because it built
+the label without the user scope. Same class of bug as the two before it — a
+loader called without `user_id` sees only the environment.
+
+### Redone at the phone section's scale
+
+The first card was sized like a settings page, not like the phone panel it sits
+in. Rebuilt to the section's own furniture: 16px radius and `rgba(255,255,255,.03)`
+like `.phone-power-cell`, 11px tile labels, 9px meta, hairline borders, the same
+`proxy-toggle-switch`, and the `#8a2be2 → #00e5ff` hairline across the top.
+
+Also removed the overlap: the status pill was absolutely positioned and collided
+with the "5 credits" label, and the header repeated "Scraper API / Where every
+number check is sent / SCRAPINGBEE" in three ways. Now: icon, title, pill in one
+row; cost and key-state in one line per tile.
+
+**171 tests passing.**

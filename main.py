@@ -6,6 +6,7 @@ Automatic module installation and server initialization
 import uvicorn
 import socket
 import sys
+from pathlib import Path
 import subprocess
 import time
 import os
@@ -88,10 +89,10 @@ ensure_dependencies()
 
 # Now import the rest
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from config import config, USERS_BASE_PATH
 from database import DatabaseManager
 from api import (
@@ -263,6 +264,48 @@ def find_available_port(start_port):
         if not is_port_in_use(port):
             return port
     return None
+
+
+# =============================================================================
+# ADMIN PANEL (static pages)
+# =============================================================================
+# The panel is a standalone HTML file with no build step, so serve it from the
+# same origin as the API. Previously it had to be opened from disk, which meant
+# its hardcoded SERVER_URL was the only way to reach the backend.
+
+PANEL_ROOT = Path(__file__).resolve().parent
+
+
+@app.get("/", include_in_schema=False)
+async def serve_panel():
+    """The admin panel itself, so http://host:8000 opens the UI."""
+    page = PANEL_ROOT / "Admin.html"
+    if not page.exists():
+        return JSONResponse(
+            {"name": "FV-S Admin Panel API", "version": "1.0.0", "status": "online",
+             "panel": "not found", "docs_url": "/docs"}
+        )
+    return FileResponse(page, media_type="text/html")
+
+
+@app.get("/admin", include_in_schema=False)
+async def serve_admin_alias():
+    return await serve_panel()
+
+
+@app.get("/user.html", include_in_schema=False)
+async def serve_user_page():
+    page = PANEL_ROOT / "user.html"
+    if not page.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(page, media_type="text/html")
+
+
+@app.get("/api-info", include_in_schema=False)
+async def api_info():
+    """What ``/`` used to return: a machine-readable hello."""
+    return {"name": "FV-S Admin Panel API", "version": "1.0.0", "status": "online",
+            "docs_url": "/docs"}
 
 
 if __name__ == "__main__":
