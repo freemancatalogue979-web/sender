@@ -1,4 +1,6 @@
 # Core dependencies for FV-S Admin Panel
+# Note: email/phone validation runs entirely through the Decodo scraping API;
+# there is no Playwright/Bright Data browser dependency.
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 pydantic==2.5.3
@@ -8,7 +10,6 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.1.2
 email-validator==2.1.0
 aiosmtplib==3.0.1
-playwright==1.41.0
 
 # Database - SQLite (auto-initializes)
 SQLAlchemy==2.0.25

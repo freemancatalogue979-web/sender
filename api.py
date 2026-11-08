@@ -198,9 +198,10 @@ from functions import (
     create_phone_validation_session,
     format_phone_number,
     process_phone_validation,
-    # Email validation functions
+    # Email validation functions (Decodo-only transport)
     create_email_validation_session,
     process_email_validation_batch,
+    DEFAULT_VALIDATION_BATCH_SIZE,
     # Validator session functions
     get_validator_session,
     get_active_validator_session,
@@ -6771,6 +6772,16 @@ async def get_email_validator_status(current_user: dict = Depends(get_current_us
     user_id = current_user["user_id"]
     
     active = get_active_validator_session(user_id, USERS_BASE_PATH, "email")
+
+    # Nothing drives validation server-side (the UI polls), so a session left
+    # mid-run by a closed tab would otherwise sit at "running" forever. If the
+    # queue is drained, close it out so the panel is honest.
+    if active and not active.get("queue"):
+        result = await asyncio.to_thread(
+            process_email_validation_batch, user_id, USERS_BASE_PATH, active["session_id"]
+        )
+        if result.get("completed") or result.get("success"):
+            active = get_active_validator_session(user_id, USERS_BASE_PATH, "email")
     
     if active:
         return {
@@ -6794,10 +6805,15 @@ async def get_email_validator_status(current_user: dict = Depends(get_current_us
 
 @validator_router.get("/email/lists")
 async def get_email_lists_for_validation(current_user: dict = Depends(get_current_user)):
-    """Get email lists that can be used for validation"""
+    """Get email lists that can be used for validation.
+
+    Lists are stored one file per list under ``emails/`` (see
+    ``list_email_lists``), which is also what ``/email/start`` reads, so this
+    endpoint must use the same source or the picker and the start call drift.
+    """
     user_id = current_user["user_id"]
-    email_lists = read_user_data(user_id, USERS_BASE_PATH, FileNames.EMAIL_LISTS, [])
-    
+    email_lists = list_email_lists(user_id, USERS_BASE_PATH)
+
     return {"lists": email_lists, "total": len(email_lists)}
 
 
@@ -6817,14 +6833,12 @@ async def start_email_validation(
             detail="A validation process is already running for this user. Please wait for it to complete."
         )
     
-    # Get parameters
+    # Get parameters. Decodo is the only transport, so the caller no longer
+    # chooses a proxy pool or a browser backend.
     email_list_id = request_data.get("email_list_id")
     import_content = request_data.get("import_content")
     list_name = request_data.get("list_name")
-    use_proxy = request_data.get("use_proxy", True)
-    proxy_type = request_data.get("proxy_type", "brightdata")
-    browser_api = request_data.get("browser_api", True)
-    batch_size = request_data.get("batch_size", 3)
+    batch_size = request_data.get("batch_size", DEFAULT_VALIDATION_BATCH_SIZE)
     
     emails = []
     is_import = False
@@ -6856,9 +6870,6 @@ async def start_email_validation(
         list_id=email_list_id,
         list_name=list_name,
         is_import=is_import,
-        use_proxy=use_proxy,
-        proxy_type=proxy_type,
-        browser_api=browser_api,
         batch_size=batch_size
     )
     
@@ -7233,7 +7244,10 @@ async def validate_phone_number(
     """Process next phone number"""
     user_id = current_user["user_id"]
     
-    result = process_phone_validation(user_id, USERS_BASE_PATH, session_id)
+    # process_phone_validation does blocking HTTP; keep it off the event loop.
+    result = await asyncio.to_thread(
+        process_phone_validation, user_id, USERS_BASE_PATH, session_id
+    )
     
     if not result.get("success") and not result.get("completed"):
         raise HTTPException(status_code=400, detail=result.get("error"))
@@ -7298,16 +7312,57 @@ async def resume_phone_validation(
 # VALIDATOR PROXY CONFIG ENDPOINTS
 # =============================================================================
 
+@validator_router.get("/decodo/config")
+async def get_decodo_validator_config(current_user: dict = Depends(get_current_user)):
+    """
+    Get the user's Decodo configuration.
+
+    The API key is never returned -- only whether one is configured and which
+    key source supplies it (user config vs. server environment).
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import load_decodo_settings
+
+    settings = load_decodo_settings(user_id, USERS_BASE_PATH)
+    has_key = bool(settings.get("api_key"))
+
+    return {
+        "configured": has_key,
+        "api_url": settings.get("api_url"),
+        "target_url": settings.get("target_url"),
+        "target_type": settings.get("target_type"),
+        "source": "user" if (USERS_BASE_PATH / f"fv-s-{user_id}" / "validator-config" / "decodo.json").exists() else ("environment" if has_key else None),
+    }
+
+
 @validator_router.get("/proxy/config")
 async def get_validator_proxy_config(current_user: dict = Depends(get_current_user)):
-    """Get Bright Data browser API configuration"""
+    """Deprecated alias of GET /validator/decodo/config."""
+    return await get_decodo_validator_config(current_user)
+
+
+@validator_router.post("/decodo/config")
+async def save_decodo_validator_config(
+    config_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save Decodo settings for this user.
+
+    Accepted keys: ``api_key`` (write-only, encrypted at rest), ``api_url``,
+    ``target_url``, ``target_type``. Omitting ``api_key`` leaves the stored
+    key untouched.
+    """
     user_id = current_user["user_id"]
-    
-    browser_url = get_brightdata_browser_url(user_id, USERS_BASE_PATH)
-    
+
+    from email_validator import save_decodo_settings
+
+    saved = save_decodo_settings(user_id, USERS_BASE_PATH, config_data)
     return {
-        "browser_url": browser_url,
-        "use_browser_api": True
+        "success": True,
+        "message": "Decodo configuration saved",
+        **saved,
     }
 
 
@@ -7316,74 +7371,31 @@ async def save_validator_proxy_config(
     config_data: dict,
     current_user: dict = Depends(get_current_user)
 ):
-    """Save Bright Data browser API configuration"""
+    """Deprecated alias of POST /validator/decodo/config."""
+    return await save_decodo_validator_config(config_data, current_user)
+
+
+@validator_router.post("/decodo/test")
+async def test_decodo_config(current_user: dict = Depends(get_current_user)):
+    """Run one real lookup to prove the configured key and site work."""
     user_id = current_user["user_id"]
-    
-    browser_url = config_data.get("browser_url")
-    use_browser_api = config_data.get("use_browser_api", True)
-    
-    # Ensure validator-config directory exists
-    user_folder = USERS_BASE_PATH / f"fv-s-{user_id}"
-    validator_config_dir = user_folder / "validator-config"
-    validator_config_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save configuration
-    browser_config_file = validator_config_dir / "browser.json"
-    
-    with open(browser_config_file, 'w', encoding='utf-8') as f:
-        json.dump({
-            "browser_url": browser_url,
-            "use_browser_api": use_browser_api
-        }, f, indent=2)
-    
-    return {"success": True, "message": "Configuration saved"}
 
+    from email_validator import load_decodo_settings, validate_one
 
-@validator_router.post("/zerobounce/credentials")
-async def save_zerobounce_credentials(
-    credentials: dict,
-    current_user: dict = Depends(get_current_user)
-):
-    """Save ZeroBounce account credentials for login session"""
-    user_id = current_user["user_id"]
-    
-    # Extract credentials
-    zb_email = credentials.get("email")
-    zb_password = credentials.get("password")
-    
-    if not zb_email or not zb_password:
-        return {"success": False, "error": "Email and password required"}
-    
-    # Ensure validator-config directory exists
-    user_folder = USERS_BASE_PATH / f"fv-s-{user_id}"
-    validator_config_dir = user_folder / "validator-config"
-    validator_config_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save ZeroBounce credentials
-    creds_file = validator_config_dir / "zerobounce.json"
-    
-    with open(creds_file, 'w', encoding='utf-8') as f:
-        json.dump({
-            "email": zb_email,
-            "password": zb_password
-        }, f)
-    
-    return {"success": True, "message": "ZeroBounce credentials saved"}
+    settings = load_decodo_settings(user_id, USERS_BASE_PATH)
+    if not settings.get("api_key"):
+        raise HTTPException(
+            status_code=400,
+            detail="No Decodo API key configured. Set FV_S_DECODO_API_KEY or save one here.",
+        )
 
-
-@validator_router.get("/zerobounce/credentials")
-async def get_zerobounce_credentials(current_user: dict = Depends(get_current_user)):
-    """Get if ZeroBounce credentials are saved (no password returned)"""
-    user_id = current_user["user_id"]
-    
-    user_folder = USERS_BASE_PATH / f"fv-s-{user_id}"
-    validator_config_dir = user_folder / "validator-config"
-    creds_file = validator_config_dir / "zerobounce.json"
-    
-    if not creds_file.exists():
-        return {"configured": False}
-    
-    return {"configured": True}
+    result = validate_one("test@example.com", settings, check_dns=False)
+    return {
+        "success": not result.get("error"),
+        "error": result.get("error"),
+        "status": result.get("status"),
+        "site": result.get("site"),
+    }
 
 
 # =============================================================================

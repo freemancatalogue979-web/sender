@@ -36716,13 +36716,18 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                             const emailResult = {
                                 email: result.email,
                                 is_valid: result.valid,
-                                reason: result.reason || (result.valid ? 'Valid email' : 'Invalid email'),
+                                reason: result.reason || (result.valid ? 'Valid email' : 'No conclusive result'),
                                 error: result.error,
                                 suggestion: result.did_you_mean,
                                 mx_record: result.mx_record,
                                 disposable: result.sub_status === 'disposable' ? true : undefined,
                                 status: result.status,
-                                sub_status: result.sub_status
+                                sub_status: result.sub_status,
+                                // Decodo verdict detail (see email_validator.py)
+                                category: result.category,
+                                confidence: result.confidence,
+                                site: result.site,
+                                domain: result.domain
                             };
                             addEmailLogEntry(0, 0, 0, 'processing', emailResult);
                         });
@@ -37063,13 +37068,24 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 const providerIconClass = getProviderIconClass(email);
 
                 // Update stats
+                const isCatchAll = emailResult.status === 'catch_all';
+                const isUnknown = emailResult.status === 'unknown' && !emailResult.error;
+
                 if (isValid === true) {
                     entryStatus = 'valid';
-                    statusText = emailResult.sub_status === 'catch-all' ? 'Catch-All' : 'Valid';
+                    statusText = isCatchAll ? 'Catch-All' : 'Valid';
                     iconClass = 'valid';
                     emailLogStats.valid++;
-                    reason = emailResult.reason || (emailResult.sub_status === 'catch-all' ? 'Domain accepts all emails' : 'Email format and domain are valid');
-                    score = emailResult.sub_status === 'catch-all' ? 75 : 95;
+                    reason = emailResult.reason || (isCatchAll ? 'Domain accepts all recipients' : 'Mailbox verified');
+                    score = Number.isFinite(emailResult.confidence) ? emailResult.confidence : (isCatchAll ? 60 : 95);
+                } else if (isUnknown) {
+                    // A verifier that could not decide must never render as "Invalid".
+                    entryStatus = 'info';
+                    statusText = 'Unknown';
+                    iconClass = 'info';
+                    emailLogStats.failed++;
+                    reason = emailResult.reason || 'Verifier returned no conclusive result';
+                    score = 0;
                 } else if (isValid === false) {
                     entryStatus = 'invalid';
                     statusText = emailResult.sub_status === 'disposable' ? 'Disposable' : (emailResult.status === 'undeliverable' ? 'Undeliverable' : 'Invalid');

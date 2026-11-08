@@ -47,8 +47,7 @@ def test_get_encryption_key_is_urlsafe_b64(fixed_secret, monkeypatch):
 
 def test_hardcoded_secrets_removed():
     """No live credentials should be committed in config defaults."""
-    from config import proxy_config, decodo_config, browser_config
+    from config import proxy_config, decodo_config
     assert proxy_config.hardcoded_proxy_username == ""
     assert proxy_config.hardcoded_proxy_password == ""
     assert decodo_config.api_key == ""
-    assert browser_config.browser_url == ""

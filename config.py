@@ -167,7 +167,7 @@ def setup_directories():
 
 def load_env_config():
     """Load configuration from environment variables (optional)"""
-    global config, proxy_config, decodo_config, browser_config
+    global config, proxy_config, decodo_config
 
     # Override with environment variables if set
     if os.getenv("FV_S_HOST"):
@@ -201,10 +201,6 @@ def load_env_config():
     # Decodo scraping API key
     if os.getenv("FV_S_DECODO_API_KEY"):
         decodo_config.api_key = os.getenv("FV_S_DECODO_API_KEY")
-
-    # Bright Data browser URL (contains embedded credentials)
-    if os.getenv("FV_S_BROWSER_URL"):
-        browser_config.browser_url = os.getenv("FV_S_BROWSER_URL")
 
 
 # =============================================================================
@@ -416,28 +412,6 @@ class DecodoApiConfig(BaseModel):
 
 
 decodo_config = DecodoApiConfig()
-
-
-# =============================================================================
-# BROWSER AUTOMATION CONFIGURATION
-# =============================================================================
-
-class BrowserConfig(BaseModel):
-    """Browser automation settings for email/phone validation.
-
-    The Bright Data browser URL (which embeds credentials) is supplied via the
-    FV_S_BROWSER_URL environment variable so nothing secret is committed.
-    """
-    use_browser_api: bool = False  # True = Bright Data, False = Local Playwright
-
-    browser_url: str = ""
-
-    # Local Playwright settings
-    local_browser_headless: bool = True  # Default, auto-overridden if display available
-    local_browser_timeout: int = 30
-
-
-browser_config = BrowserConfig()
 
 
 # =============================================================================
