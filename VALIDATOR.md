@@ -1094,3 +1094,26 @@ number check is sent / SCRAPINGBEE" in three ways. Now: icon, title, pill in one
 row; cost and key-state in one line per tile.
 
 **171 tests passing.**
+
+### Rebuilt in the app's own vocabulary
+
+The second attempt invented a tile grid and pill badges that existed nowhere else
+in the product. Rebuilt from parts the panel already has:
+
+| Element | Reused from |
+|---|---|
+| Transport picker | `.form-group` + `.form-label` + `.montserrat-select` + `.select-arrow` |
+| Key / country / veriphone fields | `.form-control` |
+| Save / Test / Refresh | `.montserrat-btn` with `.btn-icon` + `.btn-text` spans |
+| Premium proxy | `proxy-toggle-switch` (the proxy page's own switch) |
+| Card header icon | inline `<svg>` with `fill="currentColor"` |
+
+Only the shell (card, status line, credit pill) is new. Everything a user
+recognises — label style, dropdown chrome, button shape, switch, iconography —
+is the component they already know from the rest of the panel.
+
+The dropdown replaced the four tiles because the app already uses
+`.montserrat-select` everywhere, and four tiles in a ~300px column was a grid
+fighting its container.
+
+**171 tests passing.**

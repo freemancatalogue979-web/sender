@@ -2259,10 +2259,10 @@
              * 9) VALIDATOR — hero, tabs, stats, panel header
              * ================================================= */
             /* =================================================
-             * Scraper API card — lives in Launch Controls beside
-             * the .phone-* furniture, so it borrows their scale:
-             * 16px radius cards, 11px labels, hairline borders,
-             * and the #8a2be2 -> #00e5ff accent.
+             * Scraper transport card
+             * Reuses the app's own parts: .form-label, .montserrat-select
+             * + .select-arrow, .montserrat-btn, .proxy-toggle-switch.
+             * Only the shell and the small status/foot strip are new.
              * ================================================= */
             .scraper-card {
                 position: relative;
@@ -2280,25 +2280,23 @@
                 top: 0;
                 left: 0;
                 right: 0;
-                height: 2px;
+                height: 3px;
                 background: linear-gradient(90deg, #8a2be2, #00e5ff);
-                opacity: 0.65;
+                opacity: 0.6;
             }
 
-            /* ---------- header ---------- */
             .scraper-card-head {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
                 gap: 10px;
-                margin-bottom: 14px;
+                margin-bottom: 16px;
             }
 
             .scraper-card-heading {
                 display: flex;
                 align-items: center;
                 gap: 9px;
-                min-width: 0;
             }
 
             .scraper-card-icon {
@@ -2307,8 +2305,7 @@
                 flex: 0 0 28px;
                 display: grid;
                 place-items: center;
-                border-radius: 9px;
-                font-size: 12px;
+                border-radius: 8px;
                 color: #00e5ff;
                 background: rgba(0, 229, 255, 0.09);
                 border: 1px solid rgba(0, 229, 255, 0.2);
@@ -2316,17 +2313,9 @@
 
             .scraper-card-title {
                 font-size: 13px;
-                font-weight: 700;
-                letter-spacing: 0.3px;
+                font-weight: 600;
                 color: var(--text-white);
-                line-height: 1.25;
-            }
-
-            .scraper-card-subtitle {
-                font-size: 10px;
-                color: var(--text-gray);
-                margin-top: 2px;
-                line-height: 1.3;
+                letter-spacing: 0.3px;
             }
 
             .scraper-badge {
@@ -2356,131 +2345,35 @@
             .scraper-badge.is-warn { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.32); }
             .scraper-badge.is-error { color: #f87171; background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.32); }
 
-            /* ---------- provider tiles ---------- */
-            .scraper-provider-grid {
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 8px;
-                margin-bottom: 14px;
-            }
+            /* Field group: the panel's own label size, tightened for this column. */
+            .scraper-field { margin-bottom: 12px; }
+            .scraper-field .form-label { margin-bottom: 7px; font-size: 10px; }
 
-            .scraper-provider-tile {
-                position: relative;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                min-width: 0;
-                padding: 9px 10px;
-                text-align: left;
-                cursor: pointer;
-                border-radius: 11px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                background: rgba(0, 0, 0, 0.25);
-                color: var(--text-white);
-                font-family: 'Montserrat', sans-serif;
-                transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
-            }
-
-            .scraper-provider-tile:hover {
-                border-color: rgba(0, 229, 255, 0.35);
-                background: rgba(0, 229, 255, 0.05);
-            }
-
-            .scraper-provider-tile.is-active {
-                border-color: rgba(138, 43, 226, 0.65);
-                background: linear-gradient(135deg, rgba(138, 43, 226, 0.18), rgba(0, 229, 255, 0.07));
-            }
-
-            .scraper-tile-icon {
-                flex: 0 0 24px;
-                width: 24px;
-                height: 24px;
-                display: grid;
-                place-items: center;
-                border-radius: 7px;
-                font-size: 10px;
-                color: #00e5ff;
-                background: rgba(0, 229, 255, 0.09);
-            }
-
-            .scraper-provider-tile.is-active .scraper-tile-icon {
-                color: #fff;
-                background: linear-gradient(135deg, #8a2be2, #00e5ff);
-            }
-
-            .scraper-tile-body {
-                display: flex;
-                flex-direction: column;
-                gap: 2px;
-                min-width: 0;
-                flex: 1 1 auto;
-            }
-
-            .scraper-tile-name {
-                font-size: 11px;
-                font-weight: 700;
-                line-height: 1.2;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-
-            .scraper-tile-meta {
-                display: flex;
-                align-items: center;
-                gap: 5px;
+            .scraper-field-note {
+                margin-top: 6px;
                 font-size: 9px;
-                line-height: 1.2;
-                color: var(--text-gray);
-            }
-
-            .scraper-tile-state {
-                display: inline-flex;
-                align-items: center;
-                padding: 1px 5px;
-                border-radius: 999px;
-                font-size: 8px;
-                font-weight: 700;
-                letter-spacing: 0.3px;
-                text-transform: uppercase;
+                line-height: 1.4;
                 color: rgba(255, 255, 255, 0.35);
-                background: rgba(255, 255, 255, 0.06);
             }
 
-            .scraper-tile-state.is-ready { color: #4ade80; background: rgba(74, 222, 128, 0.12); }
-            .scraper-tile-state.is-env { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
-
-            /* The tick only exists on the active tile, so it reserves no room. */
-            .scraper-tile-tick {
-                display: none;
-                flex: 0 0 auto;
-                font-size: 9px;
-                color: #4ade80;
+            /* Reuse .montserrat-select, only shrink it to the card's scale. */
+            .scraper-select {
+                padding: 10px 34px 10px 12px;
+                font-size: 12px;
+                font-weight: 500;
+                border-radius: 10px;
             }
 
-            .scraper-provider-tile.is-active .scraper-tile-tick { display: block; }
-
-            /* ---------- fields ---------- */
-            .scraper-form { margin-bottom: 12px; }
+            .scraper-card .select-arrow { right: 13px; font-size: 10px; }
 
             .scraper-form-row {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) 74px;
+                grid-template-columns: minmax(0, 1fr) 66px;
                 gap: 8px;
-                margin-bottom: 10px;
+                align-items: start;
             }
 
-            .scraper-field { min-width: 0; }
-
-            .scraper-field-label {
-                display: block;
-                font-size: 9px;
-                font-weight: 700;
-                letter-spacing: 0.6px;
-                text-transform: uppercase;
-                color: var(--text-gray);
-                margin-bottom: 5px;
-            }
+            .scraper-form-row .scraper-field { margin-bottom: 0; }
 
             .scraper-input-group {
                 position: relative;
@@ -2489,36 +2382,17 @@
                 min-width: 0;
             }
 
-            .scraper-input-icon {
-                position: absolute;
-                left: 9px;
-                font-size: 9px;
-                color: rgba(255, 255, 255, 0.3);
-                pointer-events: none;
-            }
-
             .scraper-input {
                 width: 100%;
                 min-width: 0;
-                padding: 8px 30px 8px 26px;
-                font-family: 'Montserrat', sans-serif;
-                font-size: 11px;
-                color: var(--text-white);
-                background: rgba(0, 0, 0, 0.4);
-                border: 1px solid rgba(255, 255, 255, 0.09);
-                border-radius: 9px;
-                transition: border-color 0.2s ease, box-shadow 0.2s ease;
+                padding: 10px 30px 10px 12px;
+                font-size: 12px;
+                border-radius: 10px;
             }
 
-            .scraper-input-plain { padding: 8px 9px; }
+            .scraper-field-compact .scraper-input { padding: 10px 10px; text-align: center; }
 
             .scraper-input::placeholder { color: rgba(255, 255, 255, 0.22); }
-
-            .scraper-input:focus {
-                outline: none;
-                border-color: rgba(0, 229, 255, 0.45);
-                box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.08);
-            }
 
             .scraper-input-reveal {
                 position: absolute;
@@ -2539,7 +2413,6 @@
 
             .scraper-input-reveal:hover { color: #00e5ff; background: rgba(0, 229, 255, 0.1); }
 
-            /* ---------- premium proxy switch ---------- */
             .scraper-switch-row {
                 display: flex;
                 align-items: center;
@@ -2552,102 +2425,35 @@
                 cursor: pointer;
             }
 
-            .scraper-switch-row .proxy-toggle-switch {
-                width: 36px;
-                height: 20px;
-                flex: 0 0 36px;
-            }
-
+            .scraper-switch-row .proxy-toggle-switch { width: 36px; height: 20px; flex: 0 0 36px; }
             .scraper-switch-row .proxy-toggle-slider { border-width: 1px; }
+            .scraper-switch-row .proxy-toggle-slider::before { width: 14px; height: 14px; left: 2px; bottom: 2px; }
+            .scraper-switch-row .proxy-toggle-switch input:checked + .proxy-toggle-slider::before { transform: translateX(16px); }
 
-            .scraper-switch-row .proxy-toggle-slider::before {
-                width: 14px;
-                height: 14px;
-                left: 2px;
-                bottom: 2px;
-            }
+            .scraper-switch-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+            .scraper-switch-title { font-size: 10px; font-weight: 700; color: var(--text-white); line-height: 1.3; }
+            .scraper-switch-note { font-size: 9px; line-height: 1.35; color: var(--text-gray); }
 
-            .scraper-switch-row .proxy-toggle-switch input:checked + .proxy-toggle-slider::before {
-                transform: translateX(16px);
-            }
-
-            .scraper-switch-text {
-                display: flex;
-                flex-direction: column;
-                gap: 1px;
-                min-width: 0;
-            }
-
-            .scraper-switch-title {
-                font-size: 10px;
-                font-weight: 700;
-                color: var(--text-white);
-                line-height: 1.3;
-            }
-
-            .scraper-switch-note {
-                font-size: 9px;
-                line-height: 1.35;
-                color: var(--text-gray);
-            }
-
-            /* ---------- actions ---------- */
+            /* Buttons are .montserrat-btn; only their fit in this column is new. */
             .scraper-actions {
                 display: flex;
                 align-items: stretch;
                 gap: 6px;
+                margin-bottom: 12px;
             }
 
-            .scraper-btn {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: 6px;
+            .scraper-actions .montserrat-btn {
                 padding: 9px 11px;
-                font-family: 'Montserrat', sans-serif;
-                font-size: 10px;
-                font-weight: 700;
-                letter-spacing: 0.3px;
-                color: var(--text-white);
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 9px;
-                cursor: pointer;
+                font-size: 11px;
+                border-radius: 10px;
+                gap: 6px;
+                justify-content: center;
                 white-space: nowrap;
-                transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
             }
 
-            .scraper-btn:hover:not(:disabled) {
-                background: rgba(255, 255, 255, 0.12);
-                border-color: rgba(255, 255, 255, 0.22);
-                transform: translateY(-1px);
-            }
+            .scraper-actions .montserrat-btn-primary { flex: 1 1 auto; min-width: 0; }
+            .scraper-actions .montserrat-btn .btn-icon { font-size: 11px; }
 
-            .scraper-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-
-            .scraper-btn-primary {
-                flex: 1 1 auto;
-                min-width: 0;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                color: #0b0d12;
-                border-color: transparent;
-                background: linear-gradient(135deg, #00e5ff, #8a2be2);
-            }
-
-            .scraper-btn-primary:hover:not(:disabled) {
-                border-color: transparent;
-                background: linear-gradient(135deg, #33ebff, #a04dff);
-            }
-
-            .scraper-btn-ghost {
-                flex: 0 0 auto;
-                padding: 9px 10px;
-                background: transparent;
-                border-color: rgba(255, 255, 255, 0.1);
-            }
-
-            /* ---------- status + footer ---------- */
             .scraper-status {
                 display: flex;
                 align-items: flex-start;
@@ -2675,22 +2481,13 @@
 
             .scraper-foot {
                 display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 8px;
-                margin-top: 10px;
+                justify-content: flex-end;
+                margin-top: 8px;
             }
 
-            .scraper-cost {
-                flex: 1 1 auto;
-                min-width: 0;
-                font-size: 9px;
-                line-height: 1.45;
-                color: rgba(255, 255, 255, 0.35);
-            }
+            .scraper-foot:empty { display: none; }
 
             .scraper-credits {
-                flex: 0 0 auto;
                 padding: 3px 8px;
                 border-radius: 999px;
                 font-size: 9px;
@@ -2708,7 +2505,6 @@
                 border-color: rgba(248, 113, 113, 0.28);
             }
 
-            /* ---------- advanced ---------- */
             .scraper-advanced {
                 margin-top: 12px;
                 padding-top: 10px;
@@ -2729,30 +2525,19 @@
 
             .scraper-advanced summary::-webkit-details-marker { display: none; }
             .scraper-advanced summary:hover { color: var(--text-white); }
-
-            .scraper-chevron {
-                font-size: 7px;
-                transition: transform 0.2s ease;
-            }
-
+            .scraper-chevron { font-size: 7px; transition: transform 0.2s ease; }
             .scraper-advanced[open] .scraper-chevron { transform: rotate(90deg); }
+            .scraper-advanced-body { padding-top: 12px; }
+            .scraper-advanced-note { margin-top: 2px; font-size: 9px; line-height: 1.5; color: var(--text-gray); }
 
-            .scraper-advanced-body { padding-top: 10px; }
-
-            .scraper-advanced-note {
-                margin-top: 8px;
-                font-size: 9px;
-                line-height: 1.5;
-                color: var(--text-gray);
-            }
-
-            /* The offline engine reads no key, so hide the form for it. */
-            .scraper-card.is-local .scraper-form { display: none; }
+            /* The offline engine reads no key. */
+            .scraper-card.is-local #scraperKeyFields,
+            .scraper-card.is-local #scraperSaveBtn { display: none; }
 
             @media (max-width: 380px) {
                 .scraper-form-row { grid-template-columns: minmax(0, 1fr); }
-                .scraper-field-compact { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 8px; }
-                .scraper-field-compact .scraper-field-label { margin-bottom: 0; }
+                .scraper-field-compact { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: 8px; }
+                .scraper-field-compact .form-label { margin-bottom: 0; }
             }
 
             .validator-hero-header {
@@ -23431,18 +23216,19 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                 <div class="phone-command-panel">
                                     <h4><i class="fas fa-rocket"></i> Launch Controls</h4>
 
-                                    <!-- Live scraper API panel.
-                                         A connection card: pick a transport, paste its
-                                         key, save. Applies to the next batch with no
-                                         env edit and no restart. -->
+                                    <!-- Scraper transport: which service renders the
+                                         veriphone page. Dropdown + fields + buttons in
+                                         the panel's own vocabulary; a key pasted here
+                                         applies to the next batch, no restart. -->
                                     <div class="scraper-card">
                                         <div class="scraper-card-head">
                                             <div class="scraper-card-heading">
-                                                <div class="scraper-card-icon"><i class="fas fa-plug"></i></div>
-                                                <div>
-                                                    <div class="scraper-card-title">Scraper API</div>
-                                                    <div class="scraper-card-subtitle">Where every number check is sent</div>
-                                                </div>
+                                                <span class="scraper-card-icon">
+                                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+                                                        <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
+                                                    </svg>
+                                                </span>
+                                                <span class="scraper-card-title">Scraper</span>
                                             </div>
                                             <span id="phoneTransportBadge" class="scraper-badge">
                                                 <span class="scraper-badge-dot"></span>
@@ -23450,74 +23236,40 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                             </span>
                                         </div>
 
-                                        <div class="scraper-provider-grid" id="scraperProviderGrid">
-                                            <button type="button" class="scraper-provider-tile" data-provider="scrapingbee"
-                                                    onclick="switchScraperProvider('scrapingbee')">
-                                                <span class="scraper-tile-icon"><i class="fas fa-bug"></i></span>
-                                                <span class="scraper-tile-body">
-                                                    <span class="scraper-tile-name">ScrapingBee</span>
-                                                    <span class="scraper-tile-meta">
-                                                        5 credits
-                                                        <span class="scraper-tile-state" data-state-for="scrapingbee">No key</span>
-                                                    </span>
-                                                </span>
-                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
-                                            </button>
-                                            <button type="button" class="scraper-provider-tile" data-provider="decodo"
-                                                    onclick="switchScraperProvider('decodo')">
-                                                <span class="scraper-tile-icon"><i class="fas fa-shield-halved"></i></span>
-                                                <span class="scraper-tile-body">
-                                                    <span class="scraper-tile-name">Decodo</span>
-                                                    <span class="scraper-tile-meta">
-                                                        flat plan
-                                                        <span class="scraper-tile-state" data-state-for="decodo">No key</span>
-                                                    </span>
-                                                </span>
-                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
-                                            </button>
-                                            <button type="button" class="scraper-provider-tile" data-provider="browser-use"
-                                                    onclick="switchScraperProvider('browser-use')">
-                                                <span class="scraper-tile-icon"><i class="fas fa-window-restore"></i></span>
-                                                <span class="scraper-tile-body">
-                                                    <span class="scraper-tile-name">Browser Use</span>
-                                                    <span class="scraper-tile-meta">
-                                                        $5/GB
-                                                        <span class="scraper-tile-state" data-state-for="browser-use">No key</span>
-                                                    </span>
-                                                </span>
-                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
-                                            </button>
-                                            <button type="button" class="scraper-provider-tile" data-provider="local"
-                                                    onclick="switchScraperProvider('local')">
-                                                <span class="scraper-tile-icon"><i class="fas fa-microchip"></i></span>
-                                                <span class="scraper-tile-body">
-                                                    <span class="scraper-tile-name">Offline</span>
-                                                    <span class="scraper-tile-meta">
-                                                        free
-                                                        <span class="scraper-tile-state" data-state-for="local">Ready</span>
-                                                    </span>
-                                                </span>
-                                                <i class="fas fa-circle-check scraper-tile-tick"></i>
-                                            </button>
+                                        <div class="form-group scraper-field">
+                                            <label class="form-label" for="scraperProviderSelect">
+                                                Transport
+                                            </label>
+                                            <div class="select-wrapper">
+                                                <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select"
+                                                        onchange="switchScraperProvider(this.value)">
+                                                    <option value="scrapingbee">ScrapingBee</option>
+                                                    <option value="decodo">Decodo</option>
+                                                    <option value="browser-use">Browser Use</option>
+                                                    <option value="local">Offline — free, no network</option>
+                                                </select>
+                                                <i class="fas fa-chevron-down select-arrow"></i>
+                                            </div>
+                                            <div class="scraper-field-note" id="scraperProviderNote">5 credits per number</div>
                                         </div>
-                                        <div class="scraper-form" id="scraperForm">
+
+                                        <div id="scraperKeyFields">
                                             <div class="scraper-form-row">
-                                                <div class="scraper-field">
-                                                    <label class="scraper-field-label" for="scraperApiKey">API key</label>
+                                                <div class="form-group scraper-field">
+                                                    <label class="form-label" for="scraperApiKey">API key</label>
                                                     <div class="scraper-input-group">
-                                                        <i class="fas fa-key scraper-input-icon"></i>
-                                                        <input type="password" id="scraperApiKey" class="scraper-input"
-                                                               autocomplete="off" spellcheck="false" placeholder="Paste key…"
+                                                        <input type="password" id="scraperApiKey" class="form-control scraper-input"
+                                                               autocomplete="off" spellcheck="false" placeholder="Paste key"
                                                                onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
                                                         <button type="button" class="scraper-input-reveal"
-                                                                onclick="toggleKeyVisibility()" title="Show / hide key">
+                                                                onclick="toggleKeyVisibility()" title="Show or hide the key">
                                                             <i class="fas fa-eye" id="scraperRevealIcon"></i>
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <div class="scraper-field scraper-field-compact">
-                                                    <label class="scraper-field-label" for="scraperProxyCountry">Country</label>
-                                                    <input type="text" id="scraperProxyCountry" class="scraper-input scraper-input-plain"
+                                                <div class="form-group scraper-field scraper-field-compact">
+                                                    <label class="form-label" for="scraperProxyCountry">Country</label>
+                                                    <input type="text" id="scraperProxyCountry" class="form-control scraper-input"
                                                            autocomplete="off" maxlength="2" placeholder="any">
                                                 </div>
                                             </div>
@@ -23532,21 +23284,23 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                     <span class="scraper-switch-note">25 credits per number instead of 5</span>
                                                 </span>
                                             </label>
+                                        </div>
 
-                                            <div class="scraper-actions">
-                                                <button type="button" class="scraper-btn scraper-btn-primary"
-                                                        id="scraperSaveBtn" onclick="saveScraperKey()">
-                                                    <i class="fas fa-bolt"></i> Save &amp; Activate
-                                                </button>
-                                                <button type="button" class="scraper-btn" id="scraperTestBtn"
-                                                        onclick="testScraperProvider()">
-                                                    <i class="fas fa-vial"></i> Test
-                                                </button>
-                                                <button type="button" class="scraper-btn scraper-btn-ghost"
-                                                        onclick="loadScraperPanel()" title="Re-read from the server">
-                                                    <i class="fas fa-rotate"></i>
-                                                </button>
-                                            </div>
+                                        <div class="scraper-actions">
+                                            <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
+                                                    id="scraperSaveBtn" onclick="saveScraperKey()">
+                                                <span class="btn-icon"><i class="fas fa-bolt"></i></span>
+                                                <span class="btn-text">Save &amp; Activate</span>
+                                            </button>
+                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                    id="scraperTestBtn" onclick="testScraperProvider()">
+                                                <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                <span class="btn-text">Test</span>
+                                            </button>
+                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                    onclick="loadScraperPanel()" title="Re-read from the server">
+                                                <span class="btn-icon"><i class="fas fa-sync-alt"></i></span>
+                                            </button>
                                         </div>
 
                                         <div class="scraper-status" id="scraperStatusLine">
@@ -23555,32 +23309,34 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                         </div>
 
                                         <div class="scraper-foot">
-                                            <span id="scraperCostHint" class="scraper-cost">—</span>
                                             <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
                                         </div>
 
                                         <details class="scraper-advanced">
                                             <summary>
                                                 <i class="fas fa-chevron-right scraper-chevron"></i>
-                                                Optional: veriphone JSON API key
+                                                veriphone JSON API key
                                             </summary>
                                             <div class="scraper-advanced-body">
-                                                <div class="scraper-field">
-                                                    <label class="scraper-field-label" for="veriphoneApiKey">veriphone key</label>
-                                                    <input type="password" id="veriphoneApiKey" class="scraper-input scraper-input-plain"
+                                                <div class="form-group scraper-field">
+                                                    <label class="form-label" for="veriphoneApiKey">veriphone key</label>
+                                                    <input type="password" id="veriphoneApiKey" class="form-control scraper-input"
                                                            autocomplete="off" placeholder="Bypasses scraping entirely">
                                                 </div>
                                                 <div class="scraper-actions">
-                                                    <button type="button" class="scraper-btn" onclick="saveVeriphoneKey()">
-                                                        <i class="fas fa-key"></i> Save
+                                                    <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                            onclick="saveVeriphoneKey()">
+                                                        <span class="btn-icon"><i class="fas fa-key"></i></span>
+                                                        <span class="btn-text">Save</span>
                                                     </button>
-                                                    <button type="button" class="scraper-btn scraper-btn-ghost" onclick="testVeriphoneKey()">
-                                                        <i class="fas fa-vial"></i> Test
+                                                    <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                            onclick="testVeriphoneKey()">
+                                                        <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                        <span class="btn-text">Test</span>
                                                     </button>
                                                 </div>
                                                 <div class="scraper-advanced-note">
-                                                    A veriphone key wins over the transport above — it queries the
-                                                    JSON API directly, so no scraping credits are spent.
+                                                    Queries the JSON API directly, so no scraping credits are spent.
                                                 </div>
                                             </div>
                                         </details>
@@ -23929,17 +23685,14 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
     <script>
         // Server Configuration - Set this to your server URL
         // Hardcoded server URL for production use
-        // Same origin when the panel is served by the app itself (the normal
-        // case: http://localhost:8000). Falls back to the legacy host when the
-        // file is opened straight from disk, and can be overridden per browser.
+        // Same origin, always. The panel is served by the app it talks to, so
+        // http://localhost:8000 works and so does any host it is deployed on.
+        // localStorage.fvs_server_url can point it somewhere else if ever needed
+        // (e.g. opening the file straight from disk, which has no origin).
         const SERVER_URL = (() => {
             const override = localStorage.getItem('fvs_server_url');
             if (override) return override.replace(/\/$/, '');
-            const { protocol, host } = window.location;
-            if (protocol.startsWith('http') && host) {
-                return protocol + '//' + host;
-            }
-            return 'http://83.229.83.19:8000';
+            return window.location.origin;
         })();
         
         // Auth State
@@ -38362,10 +38115,17 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         // field is write-only and the status line is the only feedback.
         // ------------------------------------------------------------------
         const SCRAPER_COSTS = {
-            scrapingbee: 'ScrapingBee renders the page with JS (5 credits each; 25 with the premium proxy). A failed render is not charged.',
-            decodo: 'Decodo is billed per request against your flat plan, not per number.',
-            'browser-use': 'Browser Use runs one cloud browser per number: $0.02/browser-hour plus $5/GB proxy traffic.',
-            local: 'Offline engine: no network, no credits. It cannot supply a carrier for US/CA numbers.'
+            scrapingbee: '5 credits per number. A failed render is not charged.',
+            decodo: 'Billed per request against your plan, not per number.',
+            'browser-use': '$0.02/browser-hour plus $5/GB proxy traffic.',
+            local: 'No network, no credits. No carrier for US/CA numbers.'
+        };
+
+        const SCRAPER_LABELS = {
+            scrapingbee: 'ScrapingBee',
+            decodo: 'Decodo',
+            'browser-use': 'Browser Use',
+            local: 'Offline'
         };
 
         const SCRAPER_NEEDS_KEY = { scrapingbee: true, decodo: true, 'browser-use': true, local: false };
@@ -38392,8 +38152,18 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         }
 
         function scraperProviderLabel(value) {
-            return { scrapingbee: 'ScrapingBee', decodo: 'Decodo',
-                     'browser-use': 'Browser Use', local: 'Offline tables' }[value] || value;
+            return SCRAPER_LABELS[value] || value;
+        }
+
+        function scraperApplyProvider(provider) {
+            const select = document.getElementById('scraperProviderSelect');
+            if (select && select.value !== provider) select.value = provider;
+
+            const note = document.getElementById('scraperProviderNote');
+            if (note) note.textContent = SCRAPER_COSTS[provider] || '';
+
+            const card = document.querySelector('.scraper-card');
+            if (card) card.classList.toggle('is-local', provider === 'local');
         }
 
         function toggleKeyVisibility() {
@@ -38405,44 +38175,6 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             if (icon) icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
         }
 
-        // Paint the tiles: which one is active, and which have a credential.
-        function scraperPaint(data) {
-            const chosen = data.provider;
-            document.querySelectorAll('.scraper-provider-tile').forEach(tile => {
-                const id = tile.dataset.provider;
-                const active = id === chosen;
-                tile.classList.toggle('is-active', active);
-                tile.setAttribute('aria-pressed', active ? 'true' : 'false');
-
-                const state = tile.querySelector('.scraper-tile-state');
-                if (!state) return;
-                const source = (data.sources || {})[id];
-                const ready = (data.configured || {})[id];
-                state.className = 'scraper-tile-state';
-                if (!SCRAPER_NEEDS_KEY[id]) {
-                    state.textContent = ready ? 'Ready' : 'Missing';
-                    state.classList.add(ready ? 'is-ready' : '');
-                } else if (source === 'user') {
-                    state.textContent = 'Saved';
-                    state.classList.add('is-ready');
-                } else if (source === 'environment') {
-                    state.textContent = 'Env';
-                    state.classList.add('is-env');
-                } else {
-                    state.textContent = 'No key';
-                }
-            });
-
-            const card = document.querySelector('.scraper-card');
-            if (card) card.classList.toggle('is-local', chosen === 'local');
-
-            const select = document.getElementById('scraperProviderSelect');
-            if (select) select.value = chosen;
-
-            const hint = document.getElementById('scraperCostHint');
-            if (hint) hint.textContent = SCRAPER_COSTS[chosen] || '';
-        }
-
         async function loadScraperPanel() {
             try {
                 const response = await fetchWithAuth('/validator/scraper');
@@ -38451,7 +38183,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     return;
                 }
                 const data = await response.json();
-                scraperPaint(data);
+                scraperApplyProvider(data.provider);
 
                 const label = data.label || scraperProviderLabel(data.provider);
                 const ready = (data.configured || {})[data.provider];
@@ -38494,7 +38226,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 }
                 const numbers = Math.floor(Number(remaining) / 5);
                 el.textContent = Number(remaining).toLocaleString() + ' credits · ~' +
-                                 numbers.toLocaleString() + ' numbers';
+                                 numbers.toLocaleString() + ' numbers left';
                 el.className = 'scraper-credits' + (Number(remaining) < 500 ? ' is-low' : '');
                 el.style.display = 'inline-block';
             } catch (error) {
@@ -38508,14 +38240,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         }
 
         async function switchScraperProvider(provider) {
-            const hint = document.getElementById('scraperCostHint');
-            if (hint) hint.textContent = SCRAPER_COSTS[provider] || '';
-            document.querySelectorAll('.scraper-provider-tile').forEach(tile => {
-                tile.classList.toggle('is-active', tile.dataset.provider === provider);
-            });
-            const card = document.querySelector('.scraper-card');
-            if (card) card.classList.toggle('is-local', provider === 'local');
-
+            scraperApplyProvider(provider);
             try {
                 const response = await fetchWithAuth('/validator/scraper', {
                     method: 'POST',

@@ -1165,7 +1165,8 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        const SERVER_URL = 'https://relevance-rouge-seventh-exhibitions.trycloudflare.com';
+        // Same origin: this page is served by the same app as the API.
+        const SERVER_URL = window.location.origin;
         let users = [];
         let deletedUsers = [];
         let currentTab = 'active';
