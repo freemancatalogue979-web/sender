@@ -338,6 +338,40 @@ the scrape path keeps `site = veriphone`.
 - **`to_e164` honours the country hint** — the hint always wins over prefix
   guessing, so `7069977249` + `NG` is `+2347069977249`, not `+7069977249`.
 
+### Why there is no keyless JSON endpoint (checked, not assumed)
+
+The homepage says "Try it free — no account required". That is true of the
+**page**, not of a public endpoint. Both playable endpoints reject a keyless
+call:
+
+```
+GET https://api.veriphone.io/v3/verify?phone=+14236319525
+→ 400 {"status":"error","code":400,"type":"Missing Parameter",
+       "message":"Required parameter key is missing or empty"}
+
+GET https://api.veriphone.io/v2/verify?phone=+14236319525
+→ 400 same error
+
+GET https://veriphone.io/api/v2/verify?phone=+14236319525
+→ 404 (that path is not served; the site is a static app)
+```
+
+Their documentation states the key is read from, in order, the
+`Authorization: Bearer` header, a `key` cookie, or the `key` query parameter,
+and that a key comes from the free signup (1,000 credits/month, no card).
+
+So the request the homepage checker issues is a *keyed* request made from
+inside their JavaScript, using a key or session token that only exists in their
+browser page. Replicating it from a server would mean lifting their credential
+out of their bundle, which is not something this code should do: it would be
+using someone else's key, it would break the moment they rotate it, and it is
+against their terms.
+
+**Conclusion:** there is no free, keyless JSON path to copy. The free path *is*
+the page, and that is exactly the path this validator already drives through
+Decodo. Nothing is missing — the transport in use with no key configured is the
+free one.
+
 ### Configuration
 
 | Transport  | When it runs                                   | What it needs        |
