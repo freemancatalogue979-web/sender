@@ -649,3 +649,71 @@ renewed — and it is optional, because the free engine covers the common cases.
 stays unknown, disposable and role addresses, SMTP accept/reject/no-answer,
 batch order, free-provider flagging, and that the probe never raises on a dead
 host.
+
+
+---
+
+## 19. Which scraping provider to spend the $5 on
+
+Decodo web scraping remains **the default for email and phone**, exactly as
+before. Nothing was switched off. What changed is that the provider is now a
+setting rather than a hard dependency:
+
+```
+FV_S_SCRAPER_PROVIDER=decodo        # default, unchanged behaviour
+FV_S_SCRAPER_PROVIDER=browser-use   # metered remote Chromium
+provider: "browser-use"             # per-user override in saved settings
+```
+
+Both the email and phone paths call `scrape_site(adapter, value, settings)`. The
+adapter still owns the selectors and the parser, so swapping the transport never
+touches validation logic — a new provider only has to produce the same rendered
+text.
+
+### The constraint that decides this
+
+**$5, once, never renewed.** That eliminates anything that requires a recurring
+plan, and it eliminates "free tiers" dressed up as trials:
+
+| Provider | Entry price | Recurring? | $5 usable? |
+|---|---|---|---|
+| **Decodo** | $19 plan | yes | ✗ — this is the blocker |
+| ScrapingBee | $49/mo | yes | ✗ |
+| ScrapingAnt | $19/mo | yes | ✗ (10k credits/mo free, no card) |
+| Firecrawl | from ~$16/mo | yes | ✗ |
+| Scrape.do | $29/mo | yes | ✗ |
+| **Browser Use** | **$0.02/browser-hour** | **no** | **✓ — $5 = ~250 browser-hours** |
+| **ScrapeBadger** | $10 one-time pack | **no** | ~half a pack; another one-off option |
+
+Every credit-based provider charges **5–10× for JavaScript rendering**, which is
+exactly what these verifier pages need. A $5 slice of a credit plan that bills JS
+at 5–10 credits buys very few renderings. Browser time does not multiply.
+
+### Recommendation
+
+**Use the $5 on Browser Use.** It is the only listed provider where $5 is a
+first-class amount: metered by the minute, no minimum, no renewal, credits do not
+expire, and no JS multiplier. At ~5 s per page, $5 covers roughly 250 browser
+hours — far more scraper runs than a $5 sliver of any $19–$49 monthly plan.
+
+```
+FV_S_SCRAPER_PROVIDER=browser-use
+FV_S_BROWSER_USE_API_KEY=...
+```
+
+Leave `FV_S_SCRAPER_PROVIDER` unset and Decodo is driven exactly as before.
+
+Two cost traps to avoid with Browser Use: leave `proxy_country_code` blank
+(residential traffic is $5/GB versus $0.20/GB direct), and never leak a browser —
+the stop call is what ends the meter, and it is already in a `finally` block.
+
+### The safety net is still there, not instead
+
+If neither Decodo nor an alternative key is configured, email falls back to the
+DNS/SMTP engine and phone to libphonenumber. That path is a **fallback**, not a
+replacement: with a provider key present, the provider runs first, exactly as
+before.
+
+**133 tests passing.** New: Decodo is the default provider, per-settings and env
+overrides, `scrape_site` driving Decodo without touching Browser Use, Browser Use
+without touching Decodo, and full email validation through the swapped transport.

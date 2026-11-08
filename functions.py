@@ -10476,26 +10476,33 @@ async def process_email_validation_batch(
         })
         return {"success": True, "completed": True}
 
-    # Pick the transport: a Decodo key buys a scraped verifier verdict; without
-    # one we fall back to the free engine (syntax + MX + reputation + optional
-    # SMTP) rather than failing every address.
+    # Decodo web scraping is the primary transport, as before. Any configured
+    # scraping provider (Decodo or an alternative) is used first; the free
+    # offline engine is only the safety net when no provider key exists, so the
+    # app degrades instead of failing every address.
     results = []
-    if decodo_settings.get("api_key"):
-        email_transport = "decodo"
+    provider_settings = decodo_settings if decodo_settings.get("api_key") else None
+
+    if provider_settings is None:
+        try:
+            from avatar_scraper import load_scraper_settings  # alternative provider
+            alt = load_scraper_settings(user_id, base_path)
+            if alt.get("api_key"):
+                provider_settings = alt
+        except Exception:
+            alt = None
+
+    if provider_settings and provider_settings.get("api_key"):
+        email_transport = provider_settings.get("provider") or "decodo"
         validation_results = await validate_emails_async(
-            list(current_batch), decodo_settings
+            list(current_batch), provider_settings
         )
-    elif is_offline_engine_available():
+    else:
         email_transport = "local"
         validation_results = await validate_emails_offline_async(
             list(current_batch),
             check_dns=True,
             smtp_probe=bool(os.getenv("FV_S_SMTP_PROBE", "1") == "1"),
-        )
-    else:
-        email_transport = "decodo"
-        validation_results = await validate_emails_async(
-            list(current_batch), decodo_settings
         )
     
     # Process results

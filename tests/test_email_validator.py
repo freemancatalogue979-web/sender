@@ -1047,3 +1047,66 @@ def test_offline_email_flags_free_provider(monkeypatch):
 
 def test_smtp_probe_never_raises_on_a_dead_host():
     assert ev._smtp_probe("host.invalid.zzz", "a@b.com", timeout=0.5) is None
+
+
+# =============================================================================
+# PROVIDER SWAP — Decodo stays the default, others plug into the same adapters
+# =============================================================================
+
+def test_decodo_is_the_default_provider(monkeypatch):
+    monkeypatch.delenv("FV_S_SCRAPER_PROVIDER", raising=False)
+    assert ev.active_scraper_provider({}) == "decodo"
+    assert ev.active_scraper_provider(None) == "decodo"
+
+
+def test_provider_can_be_overridden_per_settings_or_env(monkeypatch):
+    assert ev.active_scraper_provider({"provider": "browser-use"}) == "browser-use"
+    monkeypatch.setenv("FV_S_SCRAPER_PROVIDER", "decodo")
+    assert ev.active_scraper_provider({}) == "decodo"
+
+
+def test_scrape_site_uses_decodo_by_default(monkeypatch):
+    seen = {}
+
+    def fake_decodo(value, adapter, settings):
+        seen["value"] = value
+        seen["adapter"] = adapter.name
+        return "<html><body><pre>Email Status Valid</pre></body></html>"
+
+    monkeypatch.setattr(ev, "_call_decodo", fake_decodo)
+    out = ev.scrape_site(ev._ADAPTERS["skrapp"], "a@b.com", {"provider": "decodo"})
+    assert seen["adapter"] == "skrapp"
+    assert "Email Status Valid" in out
+
+
+def test_scrape_site_can_use_browser_use_without_touching_decodo(monkeypatch):
+    called = {"decodo": 0, "browser": 0}
+
+    monkeypatch.setattr(ev, "_call_decodo", lambda *a: called.__setitem__("decodo", 1))
+    monkeypatch.setattr(
+        ev, "_run_browser_use_scrape",
+        lambda adapter, value, settings: called.__setitem__("browser", 1) or "page text",
+    )
+    monkeypatch.setattr(ev, "load_browser_use_settings", lambda *a, **k: {"api_key": "k"})
+
+    out = ev.scrape_site(ev._ADAPTERS["skrapp"], "a@b.com", {"provider": "browser-use"})
+    assert out == "page text"
+    assert called["decodo"] == 0
+    assert called["browser"] == 1
+
+
+def test_email_validation_works_through_the_provider_swap(monkeypatch):
+    """The same adapter+parser drives whichever provider is configured."""
+    monkeypatch.setattr(
+        ev, "_run_browser_use_scrape",
+        lambda adapter, value, settings: (
+            "Email Status Valid\nSyntax Valid\nMX Record Found\n"
+            "SMTP Provider google\nDomain gmail.com\n"
+        ),
+    )
+    monkeypatch.setattr(ev, "load_browser_use_settings", lambda *a, **k: {"api_key": "k"})
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["gmail-smtp-in.l.google.com"]))
+
+    result = ev.validate_one("someone@gmail.com", {"provider": "browser-use", "api_key": "k"})
+    assert result["status"] == ev.STATUS_VALID
+    assert result["site"] == "skrapp"

@@ -729,6 +729,44 @@ def extract_html(payload: Any) -> Optional[str]:
     return None
 
 
+def active_scraper_provider(settings: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Which scraping provider to drive.
+
+    ``decodo`` is the default and behaves exactly as before. ``browser-use``
+    swaps the same adapter (same selectors, same parse) onto a metered remote
+    Chromium, which matters when a flat plan lapses but a few dollars remain.
+    Override per user with ``provider`` in the saved settings, or globally with
+    ``FV_S_SCRAPER_PROVIDER``.
+    """
+    import os
+
+    if settings and settings.get("provider"):
+        return str(settings["provider"]).strip().lower()
+    return (os.getenv("FV_S_SCRAPER_PROVIDER") or "decodo").strip().lower()
+
+
+def scrape_site(
+    adapter: "SiteAdapter",
+    value: str,
+    settings: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Render one verifier page through the active provider and return its text.
+
+    Provider-agnostic on purpose: the adapter owns the selectors and the parser,
+    so adding a provider never touches the validation logic.
+    """
+    provider = active_scraper_provider(settings)
+
+    if provider == "browser-use":
+        return _run_browser_use_scrape(adapter, value, load_browser_use_settings())
+
+    return extract_html(
+        _call_decodo(value, adapter, settings if settings is not None else load_decodo_settings())
+    )
+
+
 def _call_decodo(
     email: str,
     adapter: _SiteAdapter,
@@ -812,7 +850,7 @@ def validate_one(
     domain = result["domain"] or ""
 
     try:
-        html = _call_decodo(email, adapter, settings)
+        html = scrape_site(adapter, email, settings)
     except DecodoError as exc:
         result["error"] = str(exc)
         return result
@@ -2007,7 +2045,7 @@ def validate_phone_via_decodo(
     result["e164"] = e164
 
     try:
-        html = _call_decodo(e164, adapter, settings)
+        html = scrape_site(adapter, e164, settings)
     except DecodoError as exc:
         result["error"] = str(exc)
         return result
