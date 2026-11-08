@@ -7477,6 +7477,40 @@ async def test_veriphone_config(current_user: dict = Depends(get_current_user)):
     }
 
 
+@validator_router.get("/browser-use/config")
+async def get_browser_use_config(current_user: dict = Depends(get_current_user)):
+    """Browser Use cloud browser settings (the key itself is never returned)."""
+    user_id = current_user["user_id"]
+
+    from email_validator import is_browser_use_available, load_browser_use_settings
+
+    settings = load_browser_use_settings(user_id, USERS_BASE_PATH)
+    cfg = USERS_BASE_PATH / f"fv-s-{user_id}" / "validator-config" / "browseruse.json"
+
+    return {
+        "configured": bool(settings.get("api_key")),
+        "installed": is_browser_use_available(),
+        "proxy_country_code": settings.get("proxy_country_code") or "",
+        "browser_timeout": settings.get("browser_timeout"),
+        "source": "user" if cfg.exists() else ("environment" if settings.get("api_key") else None),
+        "notes": "Optional. $0.02/browser-hour; leave the proxy country blank to avoid $5/GB traffic.",
+    }
+
+
+@validator_router.post("/browser-use/config")
+async def save_browser_use_config(
+    config_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save Browser Use credentials (write-only, encrypted at rest)."""
+    user_id = current_user["user_id"]
+
+    from email_validator import save_browser_use_settings
+
+    saved = save_browser_use_settings(user_id, USERS_BASE_PATH, config_data)
+    return {"success": True, "message": "Browser Use configuration saved", **saved}
+
+
 @validator_router.post("/decodo/test")
 async def test_decodo_config(current_user: dict = Depends(get_current_user)):
     """Run one real lookup to prove the configured key and site work."""

@@ -747,3 +747,219 @@ def test_phone_start_queues_numbers_verbatim_and_infers_country(tmp_path, monkey
     assert session["queue"] == ["07069977249", "+14155552671"]
     assert session["country_code"] == "NG"
     assert response["transport"] in ("veriphone-api", "local", "decodo-scrape")
+
+
+# =============================================================================
+# PHONE VALIDATOR — optional Browser Use cloud browser (CDP)
+# =============================================================================
+
+def test_browser_use_requires_a_key(monkeypatch):
+    result = ev.validate_phone_via_browser_use("+2347069977249", "NG", settings={})
+    assert result["error"]
+    assert "API key" in result["error"]
+    assert result["valid"] is False
+
+
+def test_browser_use_unavailable_without_the_sdk(monkeypatch):
+    monkeypatch.setattr(ev, "is_browser_use_available", lambda: False)
+    result = ev.validate_phone_via_browser_use(
+        "+2347069977249", "NG", settings={"api_key": "k"}
+    )
+    assert "unavailable" in result["error"]
+
+
+VP_PAGE = (
+    "Number +234 706 997 7249\nType mobile\nCarrier MTN\n"
+    "Country Nigeria (NG)\nValid Valid\n"
+)
+
+
+def test_browser_use_renders_the_page_and_classifies(monkeypatch):
+    """Happy path: adapter drives the page, classify_phone decides the verdict."""
+    captured = {}
+
+    def fake_scrape(adapter, value, settings):
+        captured["adapter"] = adapter
+        assert value == "+2347069977249"
+        return VP_PAGE
+
+    monkeypatch.setattr(ev, "_run_browser_use_scrape", fake_scrape)
+    monkeypatch.setattr(ev, "is_browser_use_available", lambda: True)
+
+    result = ev.validate_phone_via_browser_use(
+        "07069977249", "NG", settings={"api_key": "k"}
+    )
+    assert captured["adapter"].name == "veriphone"
+    assert result["site"] == "browser-use"
+    assert result["status"] == ev.STATUS_VALID
+    assert result["carrier"] == "MTN"
+    assert result["valid"] is True
+
+
+def test_browser_use_failure_is_an_error_not_an_invalid(monkeypatch):
+    def boom(*a, **k):
+        raise ev.DecodoError("browser died")
+
+    monkeypatch.setattr(ev, "_run_browser_use_scrape", boom)
+    monkeypatch.setattr(ev, "is_browser_use_available", lambda: True)
+
+    result = ev.validate_phone_via_browser_use(
+        "+2347069977249", "NG", settings={"api_key": "k"}
+    )
+    assert result["error"] == "browser died"
+    assert result["status"] != ev.STATUS_INVALID
+
+
+def test_browser_use_is_only_used_when_explicitly_chosen(monkeypatch):
+    """The free offline engine stays the default even if the SDK is installed."""
+    called = {"browser": 0}
+    monkeypatch.setattr(ev, "is_browser_use_available", lambda: True)
+    monkeypatch.setattr(
+        ev, "validate_phone_via_browser_use",
+        lambda *a, **k: called.__setitem__("browser", called["browser"] + 1),
+    )
+
+    ev.validate_phone("07069977249", "NG", settings={"api_key": ""}, decodo_settings={})
+    assert called["browser"] == 0
+
+    ev.validate_phone(
+        "07069977249", "NG",
+        settings={"api_key": ""}, decodo_settings={"transport": "browser-use"},
+    )
+    assert called["browser"] == 1
+
+
+def test_browser_use_stops_the_browser_even_when_the_page_fails(monkeypatch):
+    """
+    Billing runs until stop(), so the stop call must happen on failure too.
+    Rendering is faked; the SDK client and Playwright are stubbed.
+    """
+    events = []
+
+    class FakeSession:
+        id = "sess-1"
+        cdp_url = "ws://cdp"
+
+    class FakeBrowsers:
+        async def create(self, **kwargs):
+            events.append(("create", kwargs))
+            return FakeSession()
+
+        async def stop(self, session_id):
+            events.append(("stop", session_id))
+
+    class FakeClient:
+        def __init__(self, api_key=None, **kw):
+            self.browsers = FakeBrowsers()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    class FakePage:
+        def set_default_navigation_timeout(self, ms):
+            pass
+
+        def goto(self, url, wait_until=None):
+            events.append(("goto", url))
+            raise RuntimeError("navigation exploded")
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    class FakeContext:
+        pages = []
+
+        def new_page(self):
+            return FakePage()
+
+    class FakeChromium:
+        def connect_over_cdp(self, url, timeout=None):
+            events.append(("cdp", url))
+            raise RuntimeError("could not attach")
+
+    class FakePW:
+        chromium = FakeChromium()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class FakePlaywrightModule:
+        @staticmethod
+        def sync_playwright():
+            return FakePW()
+
+    import sys
+    import types
+
+    fake_sdk = types.ModuleType("browser_use_sdk")
+    v4 = types.ModuleType("browser_use_sdk.v4")
+    v4.AsyncBrowserUse = FakeClient
+    fake_sdk.v4 = v4
+    fake_pw = types.ModuleType("playwright")
+    fake_pw.sync_api = FakePlaywrightModule()
+
+    monkeypatch.setitem(sys.modules, "browser_use_sdk", fake_sdk)
+    monkeypatch.setitem(sys.modules, "browser_use_sdk.v4", v4)
+    monkeypatch.setitem(sys.modules, "playwright", fake_pw)
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", FakePlaywrightModule())
+    monkeypatch.setattr(ev, "is_browser_use_available", lambda: True)
+
+    with pytest.raises(ev.DecodoError):
+        ev._run_browser_use_scrape(ev._ADAPTERS["veriphone"], "+2347069977249", {"api_key": "k"})
+
+    kinds = [e[0] for e in events]
+    assert "create" in kinds
+    assert ("stop", "sess-1") in events, f"browser was not stopped: {events}"
+    # A proxy is only enabled when configured (residential traffic costs extra).
+    create_kwargs = [e[1] for e in events if e[0] == "create"][0]
+    assert create_kwargs.get("proxy_country_code") is None
+
+
+def test_browser_use_settings_are_encrypted(tmp_path, monkeypatch):
+    monkeypatch.setenv("FV_S_SECRET_KEY", "s3cret")
+    monkeypatch.delenv("FV_S_BROWSER_USE_API_KEY", raising=False)
+
+    saved = ev.save_browser_use_settings(
+        "u9", tmp_path, {"api_key": "bu-secret", "proxy_country_code": "US", "browser_timeout": 15}
+    )
+    assert saved["has_api_key"] is True
+
+    raw = (tmp_path / "fv-s-u9" / "validator-config" / "browseruse.json").read_text()
+    assert "bu-secret" not in raw
+
+    loaded = ev.load_browser_use_settings("u9", tmp_path)
+    assert loaded["api_key"] == "bu-secret"
+    assert loaded["proxy_country_code"] == "us"
+    assert loaded["browser_timeout"] == 15
+
+
+def test_browser_use_gets_its_own_credentials_not_decodos(monkeypatch):
+    """Regression: the browser-use branch was handed Decodo's settings."""
+    seen = {}
+
+    def fake(browser_settings):
+        seen["key"] = browser_settings.get("api_key")
+        out = ev._blank_phone_result("+2347069977249", "NG")
+        out["status"] = ev.STATUS_VALID
+        out["valid"] = True
+        out["site"] = "browser-use"
+        return out
+
+    monkeypatch.setattr(
+        ev, "validate_phone_via_browser_use",
+        lambda number, cc, s=None: fake(s or {}),
+    )
+
+    ev.validate_phone(
+        "+2347069977249", "NG",
+        settings={"api_key": ""},
+        decodo_settings={"transport": "browser-use", "api_key": "DECODO-KEY"},
+        browser_use_settings={"api_key": "BROWSER-USE-KEY"},
+    )
+    assert seen["key"] == "BROWSER-USE-KEY"

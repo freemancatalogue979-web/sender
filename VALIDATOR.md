@@ -504,3 +504,81 @@ phone validation falls back to the old Decodo scrape — the shift is graceful, 
 Decodo asserted uncalled, the scrape fallback when the package is missing, the
 unknown-verdict fall-through (with and without Decodo configured), plus the
 earlier API, E.164, echo-guard and queue regressions.
+
+
+---
+
+## 17. Optional third transport: Browser Use cloud browser
+
+`browser_use_sdk.v4` can create a remote Chromium and hand back a `cdp_url`. That
+is now wired as a phone transport behind the same `SiteAdapter` interface as the
+Decodo scrape, so the result shape is unchanged (`site: "browser-use"`).
+
+It is **opt-in**, not the default. The offline engine answers phone numbers for
+free, and this costs money per minute, so it only runs when a session explicitly
+asks for it.
+
+### Cost, from their published rates
+
+| Meter | Rate |
+|---|---|
+| Browser time | **$0.02 / browser-hour** (per-minute billing, 1-minute minimum) |
+| Managed residential proxy | $5 / GB — **skipped unless a country is set** |
+| Direct / BYO-proxy traffic | $0.20 / GB |
+| CAPTCHA solving | $0.10 each (only if enabled) |
+
+The session timeout is charged up front and refunded on stop, so **a browser that
+is never stopped bills the whole timeout**. The engine therefore stops the
+browser in a `finally` block that survives a dead page or a failed CDP attach —
+there is a regression test asserting `stop` runs when navigation explodes.
+
+`proxy_country_code` is passed through as `None` when unset: leaving it blank is
+roughly 25× cheaper for traffic than the residential proxy. That is the opposite
+of the snippet this was modelled on, which hard-coded `"us"`.
+
+### Wiring
+
+```
+session transport = "browser-use"
+  → validate_phone(..., browser_use_settings=...)      # its OWN credentials
+  → create browser (timeout, optional proxy country)
+  → playwright connect_over_cdp(cdp_url)
+  → adapter.browser_actions() drives #phone-input / #checker-submit
+  → VeriphoneAdapter.parse → classify_phone
+  → finally: stop(browser.id)                          # stops the meter
+```
+
+Settings are encrypted at rest in `validator-config/browseruse.json`, with
+`FV_S_BROWSER_USE_API_KEY` as the env fallback. `GET|POST
+/validator/browser-use/config` exposes `configured`, `installed`,
+`proxy_country_code` and `browser_timeout` — never the key. The Admin phone tab
+has a collapsible key/proxy form.
+
+### Two bugs this pass caught
+
+1. **Wrong credentials were passed.** The first wiring handed the browser-use
+   branch *Decodo's* settings dict, so its own key check always failed with "No
+   Browser Use API key configured" even when one was saved. It now takes a
+   separate `browser_use_settings` argument, with a regression test asserting
+   Decodo's key never reaches it.
+2. **Stop on failure.** Covered above; billing would otherwise continue to the
+   timeout.
+
+### Honest assessment of the trade
+
+For **phone numbers this is not an improvement** — the offline engine already
+answers them for $0.00 in ~5 ms, versus $0.02/hour plus a browser round trip.
+Where it earns its place is **email**: scraping skrapp.io needs a browser, and a
+metered $0.02/hour with no subscription is a better fit for a $19/month
+flat-rate constraint than a fixed plan.
+
+It also dodges the problem that killed the keyless-veriphone idea: this is *our*
+own Browser Use account, billed legitimately, not someone else's embedded key.
+
+**Not yet migrated:** the email path still runs through Decodo. Moving it is a
+one-line transport switch now that the engine exists, but it should be done with
+a real key in hand rather than blind.
+
+**117 tests passing.** New coverage: key required, SDK-missing guard, happy-path
+render and classify, failure-becomes-error (not invalid), offline-still-default,
+stop-on-failure, encrypted settings round-trip, and the Decodo-key leak.

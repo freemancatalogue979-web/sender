@@ -32,3 +32,9 @@ dnspython>=2.4.0
 # against per-country numbering plans and resolves carrier, line type and
 # region with no network call and no API credits. Free, BSD/Apache licensed.
 phonenumbers>=8.13.0
+
+# Optional third transport: Browser Use cloud Chromium over CDP ($0.02/hr).
+# Not required to run the app - phone validation defaults to the offline engine
+# and falls back to Decodo when these are absent.
+# browser-use-sdk>=3.12.0
+# playwright>=1.40.0

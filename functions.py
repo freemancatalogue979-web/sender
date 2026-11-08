@@ -44,6 +44,8 @@ def phone_transport_label(veriphone_settings: dict = None) -> str:
         return "veriphone-api"
     if is_offline_engine_available():
         return "local"
+    if is_browser_use_available():
+        return "browser-use"
     return "decodo-scrape"
 
 
@@ -57,7 +59,9 @@ from email_validator import (  # noqa: E402
     save_veriphone_settings,
     validate_emails,
     validate_emails_async,
+    is_browser_use_available,
     is_offline_engine_available,
+    load_browser_use_settings,
     validate_phone,
     validate_phones_async,
     validate_phone_via_decodo,
@@ -10967,10 +10971,20 @@ async def process_phone_validation(
 
     country_code = session.get('country_code') or ""
     veriphone_settings = load_veriphone_settings(user_id, base_path)
-    transport = phone_transport_label(veriphone_settings)
+    browser_use_settings = load_browser_use_settings(user_id, base_path)
+
+    # The session may pin a transport (e.g. browser-use); otherwise the default
+    # order applies. Passed via decodo_settings so validate_phone can see it.
+    transport = session.get('transport')
+    if not transport or transport == 'decodo-scrape':
+        transport = phone_transport_label(veriphone_settings)
+    decodo_settings = dict(decodo_settings or {})
+    if session.get('transport'):
+        decodo_settings['transport'] = session['transport']
 
     validation_results = await validate_phones_async(
-        list(current_batch), country_code, decodo_settings, veriphone_settings
+        list(current_batch), country_code, decodo_settings, veriphone_settings,
+        browser_use_settings,
     )
 
     results = []

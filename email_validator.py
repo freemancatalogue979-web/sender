@@ -1233,6 +1233,208 @@ def _result_from_veriphone_api(payload: Dict[str, Any], phone_number: str, e164:
 
 
 # =============================================================================
+# BROWSER USE CLOUD — optional remote Chromium, driven over CDP
+# =============================================================================
+#
+# A third phone transport, behind the same adapter interface as the Decodo
+# scrape, so the result shape does not change. It exists for email validation
+# more than phones: the offline engine already answers phone numbers for free.
+#
+# Cost model, from their published rates: $0.02 per browser-hour (billed by the
+# minute, one-minute minimum) plus $5/GB for managed residential proxy traffic
+# or $0.20/GB direct, and optionally $0.10 per solved CAPTCHA. The browser is
+# charged to its timeout up front and refunded when stopped, so the stop call in
+# the finally block is what keeps a failed run from billing the full timeout.
+
+BROWSER_USE_API_URL = "https://api.browser-use.com"
+BROWSER_USE_BROWSER_TIMEOUT_S = 60
+BROWSER_USE_NAV_TIMEOUT_MS = 30000
+BROWSER_USE_SETTLE_MS = 2500
+
+
+def load_browser_use_settings(
+    user_id: Optional[str] = None,
+    base_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """
+    Resolve Browser Use cloud settings for a user.
+
+    Precedence: saved user config -> ``FV_S_BROWSER_USE_API_KEY`` env -> empty.
+    ``proxy_country_code`` is passed to the API verbatim; blank means no proxy,
+    which is also the cheap option (direct traffic is $0.20/GB, managed
+    residential is $5/GB).
+    """
+    import os
+
+    settings: Dict[str, Any] = {
+        "api_key": "",
+        "proxy_country_code": "",
+        "browser_timeout": BROWSER_USE_BROWSER_TIMEOUT_S,
+    }
+
+    if user_id and base_path:
+        cfg_file = Path(base_path) / f"fv-s-{user_id}" / "validator-config" / "browseruse.json"
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                settings["api_key"] = decrypt_secret(saved.get("api_key", "") or "")
+                settings["proxy_country_code"] = saved.get("proxy_country_code") or ""
+                if saved.get("browser_timeout"):
+                    settings["browser_timeout"] = int(saved["browser_timeout"])
+            except Exception as exc:
+                logger.warning("Could not read browser-use config for %s: %s", user_id, exc)
+
+    if not settings["api_key"]:
+        settings["api_key"] = os.getenv("FV_S_BROWSER_USE_API_KEY", "")
+
+    return settings
+
+
+def save_browser_use_settings(
+    user_id: str,
+    base_path: Path,
+    data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Persist Browser Use settings. The API key is encrypted at rest."""
+    cfg_dir = Path(base_path) / f"fv-s-{user_id}" / "validator-config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = cfg_dir / "browseruse.json"
+
+    existing: Dict[str, Any] = {}
+    if cfg_file.exists():
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except Exception:
+            existing = {}
+
+    raw_key = (data.get("api_key") or "").strip()
+    if raw_key:
+        existing["api_key"] = encrypt_secret(raw_key)
+
+    if "proxy_country_code" in data:
+        existing["proxy_country_code"] = (data.get("proxy_country_code") or "").strip().lower()
+    if data.get("browser_timeout"):
+        try:
+            existing["browser_timeout"] = max(10, min(int(data["browser_timeout"]), 240))
+        except (TypeError, ValueError):
+            pass
+
+    with open(cfg_file, "w", encoding="utf-8") as f:
+        json.dump(existing, f, indent=2)
+
+    return {
+        "has_api_key": bool(existing.get("api_key")),
+        "proxy_country_code": existing.get("proxy_country_code") or "",
+        "browser_timeout": existing.get("browser_timeout") or BROWSER_USE_BROWSER_TIMEOUT_S,
+    }
+
+
+def is_browser_use_available() -> bool:
+    """True when the SDK and its transport deps are importable."""
+    try:
+        import browser_use_sdk.v4  # noqa: F401
+        import playwright.async_api  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+def _run_browser_use_scrape(
+    adapter: "SiteAdapter",
+    value: str,
+    settings: Dict[str, Any],
+) -> str:
+    """
+    Render one page in a Browser Use cloud browser and return its text.
+
+    Synchronous on purpose: the batch processor already runs each number in a
+    thread pool, and the SDK's async client would need its own event loop to
+    drive Playwright's async API here.
+    """
+    try:
+        from browser_use_sdk.v4 import AsyncBrowserUse
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:  # pragma: no cover - import guard
+        raise DecodoError(
+            "Browser Use transport unavailable: install browser-use-sdk and playwright"
+        ) from exc
+
+    api_key = settings.get("api_key")
+    if not api_key:
+        raise DecodoError(
+            "No Browser Use API key configured. Set FV_S_BROWSER_USE_API_KEY."
+        )
+
+    try:
+        timeout = int(settings.get("browser_timeout") or BROWSER_USE_BROWSER_TIMEOUT_S)
+    except (TypeError, ValueError):
+        timeout = BROWSER_USE_BROWSER_TIMEOUT_S
+
+    async def _create():
+        async with AsyncBrowserUse(api_key=api_key) as client:
+            return await client.browsers.create(
+                proxy_country_code=settings.get("proxy_country_code") or None,
+                timeout=timeout,
+            )
+
+    try:
+        session = asyncio.run(_create())
+    except Exception as exc:
+        raise DecodoError(f"Browser Use could not create a browser: {exc}") from exc
+
+    session_id = getattr(session, "id", None)
+    cdp_url = getattr(session, "cdp_url", None)
+    if not cdp_url:
+        raise DecodoError("Browser Use returned no CDP URL")
+
+    try:
+        with sync_playwright() as pw:
+            try:
+                browser = pw.chromium.connect_over_cdp(cdp_url, timeout=BROWSER_USE_NAV_TIMEOUT_MS)
+            except Exception as exc:
+                raise DecodoError(f"Could not attach to the Browser Use session: {exc}") from exc
+
+            try:
+                context = browser.contexts[0] if browser.contexts else browser.new_context()
+                page = context.pages[0] if context.pages else context.new_page()
+                page.set_default_navigation_timeout(BROWSER_USE_NAV_TIMEOUT_MS)
+                page.goto(adapter.url, wait_until="domcontentloaded")
+
+                for action in adapter.browser_actions(value):
+                    kind = action.get("type")
+                    if kind == "wait":
+                        page.wait_for_timeout(int(float(action.get("wait_time_s", 1)) * 1000))
+                    elif kind == "click":
+                        page.click(action["selector"]["value"], timeout=BROWSER_USE_NAV_TIMEOUT_MS)
+                    elif kind == "input":
+                        page.fill(action["selector"]["value"], action.get("value", ""))
+
+                page.wait_for_timeout(BROWSER_USE_SETTLE_MS)
+                text = extract_html(page.content())
+                if not text:
+                    raise DecodoError("Browser Use returned an empty page")
+                return text
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+    finally:
+        # Billing runs until the browser stops or its timeout expires. This is
+        # the call that stops the meter, so it must survive any failure above.
+        async def _stop():
+            async with AsyncBrowserUse(api_key=api_key) as client:
+                return await client.browsers.stop(session_id)
+
+        try:
+            asyncio.run(_stop())
+        except Exception:
+            pass
+
+
+# =============================================================================
 # PHONE VALIDATION, OFFLINE — free, no API, no credits
 # =============================================================================
 #
@@ -1401,11 +1603,78 @@ def validate_phone_offline(
     return out
 
 
+def validate_phone_via_browser_use(
+    phone_number: str,
+    country_code: str = "",
+    settings: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Validate one number by rendering veriphone.io in a Browser Use cloud browser.
+
+    Same contract as ``validate_phone_via_decodo``: the adapter decides where to
+    type and what to read, ``classify_phone`` decides the verdict, and any
+    transport failure becomes ``error`` rather than a silent "invalid".
+    """
+    result = _blank_phone_result(phone_number, country_code)
+    result["site"] = "browser-use"
+
+    if not phone_number:
+        result["error"] = "Empty phone number"
+        return result
+
+    settings = settings if settings is not None else load_browser_use_settings()
+    if not settings.get("api_key"):
+        result["error"] = (
+            "No Browser Use API key configured. Set FV_S_BROWSER_USE_API_KEY or save "
+            "one in the validator settings."
+        )
+        return result
+    if not is_browser_use_available():
+        result["error"] = (
+            "Browser Use transport unavailable: install browser-use-sdk and playwright"
+        )
+        return result
+
+    adapter = _ADAPTERS["veriphone"]
+    e164 = to_e164(phone_number, country_code)
+    result["e164"] = e164
+
+    try:
+        html = _run_browser_use_scrape(adapter, e164, settings)
+    except DecodoError as exc:
+        result["error"] = str(exc)
+        return result
+    except Exception as exc:
+        result["error"] = f"Browser Use failed: {exc}"
+        return result
+
+    raw = adapter.parse(html)
+    status, reason, confidence = classify_phone(raw)
+    result["raw"] = raw
+    result["status"] = status
+    result["valid"] = status == STATUS_VALID
+    result["reason"] = reason
+    result["confidence"] = confidence
+    result["category"] = (
+        "deliverable" if status == STATUS_VALID
+        else "undeliverable" if status == STATUS_INVALID
+        else "unknown"
+    )
+    result["formatted_number"] = raw.get("number") or e164
+    result["line_type"] = raw.get("line_type")
+    result["carrier"] = raw.get("carrier")
+    result["country"] = raw.get("country")
+    result["region"] = raw.get("region")
+    result["city"] = raw.get("city")
+    return result
+
+
 def validate_phone(
     phone_number: str,
     country_code: str = "",
     settings: Optional[Dict[str, Any]] = None,
     decodo_settings: Optional[Dict[str, Any]] = None,
+    browser_use_settings: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Validate a phone number, preferring the veriphone JSON API.
@@ -1450,6 +1719,20 @@ def validate_phone(
             result["e164"] = e164
             result["error"] = str(exc)
             return result
+
+    # An explicitly requested browser transport wins over the free engine: the
+    # operator asked for it, and it is the only path that can render a page the
+    # offline tables cannot answer. Note it takes its OWN credentials -- passing
+    # the Decodo settings here silently failed the key check.
+    chosen = (decodo_settings or {}).get("transport") or (settings or {}).get("transport")
+    if chosen == "browser-use":
+        return validate_phone_via_browser_use(
+            phone_number,
+            country_code,
+            browser_use_settings
+            if browser_use_settings is not None
+            else load_browser_use_settings(),
+        )
 
     # No API key. Validate locally first: this costs nothing and settles the
     # overwhelming majority of numbers (well-formed, assigned, carrier known).
@@ -1554,6 +1837,7 @@ async def validate_phones_async(
     country_code: str = "",
     settings: Optional[Dict[str, Any]] = None,
     veriphone_settings: Optional[Dict[str, Any]] = None,
+    browser_use_settings: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Concurrent wrapper used by the batch endpoint."""
     numbers = [n for n in (numbers or []) if isinstance(n, str)]
@@ -1567,6 +1851,7 @@ async def validate_phones_async(
                 country_code,
                 settings=veriphone_settings,
                 decodo_settings=settings,
+                browser_use_settings=browser_use_settings,
             )
         except Exception as exc:  # never let one number sink the batch
             logger.exception("Phone validation crashed for %s", number)
