@@ -32,15 +32,38 @@ logger = logging.getLogger(__name__)
 # There is no Playwright browser and no ZeroBounce account in this codebase;
 # every lookup is a Decodo Web Scraping API request (see email_validator.py).
 # ---------------------------------------------------------------------------
-def is_scrapingbee_configured() -> bool:
-    """True when a ScrapingBee key is available (env or saved)."""
+def is_decodo_configured(user_id: str = None, base_path=None) -> bool:
+    """True when a Decodo key is available (env, or saved for this user)."""
     try:
-        return bool(load_scrapingbee_settings().get("api_key"))
+        return bool(load_decodo_settings(user_id, base_path).get("api_key"))
     except Exception:
         return False
 
 
-def phone_transport_label(veriphone_settings: dict = None) -> str:
+def is_browser_use_configured(user_id: str = None, base_path=None) -> bool:
+    """True when a Browser Use key is available (env, or saved for this user)."""
+    try:
+        return bool(load_browser_use_settings(user_id, base_path).get("api_key"))
+    except Exception:
+        return False
+
+
+def is_scrapingbee_configured(user_id: str = None, base_path=None) -> bool:
+    """
+    True when a ScrapingBee key is available.
+
+    Pass user_id/base_path to count a key saved through the admin panel; without
+    them only the environment is consulted, which made a freshly pasted key look
+    absent and left the transport labelled "local".
+    """
+    try:
+        return bool(load_scrapingbee_settings(user_id, base_path).get("api_key"))
+    except Exception:
+        return False
+
+
+def phone_transport_label(veriphone_settings: dict = None, user_id: str = None,
+                          base_path: Path = None) -> str:
     """
     Which transport phone validation will use.
 
@@ -50,7 +73,22 @@ def phone_transport_label(veriphone_settings: dict = None) -> str:
     """
     if (veriphone_settings or {}).get("api_key"):
         return "veriphone-api"
-    if is_scrapingbee_configured():
+
+    # A provider the operator picked in the admin panel wins over the inferred
+    # order, provided its credential is actually there. This is what makes the
+    # switch live: save a key, flip the selector, and the next batch uses it.
+    chosen = load_scraper_provider(user_id, base_path)
+    if chosen == "scrapingbee" and is_scrapingbee_configured(user_id, base_path):
+        return "scrapingbee"
+    if chosen == "browser-use" and is_browser_use_configured(user_id, base_path):
+        return "browser-use"
+    if chosen == "local" and is_offline_engine_available():
+        return "local"
+    if chosen == "decodo" and is_decodo_configured(user_id, base_path):
+        return "decodo-scrape"
+
+    # Inferred order: a ScrapingBee key saved by anyone in this install is used.
+    if is_scrapingbee_configured(user_id, base_path):
         return "scrapingbee"
     if is_offline_engine_available():
         return "local"
@@ -74,6 +112,7 @@ from email_validator import (  # noqa: E402
     is_offline_engine_available,
     load_browser_use_settings,
     load_scrapingbee_settings,
+    load_scraper_provider,
     validate_phone,
     validate_phones_async,
     validate_phone_via_decodo,
@@ -10832,7 +10871,9 @@ def create_phone_validation_session(
         "current_number": None,
         "list_name": list_name or f"Phone Validation {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "country_code": country_code,
-        "transport": phone_transport_label(load_veriphone_settings(user_id, base_path)),
+        "transport": phone_transport_label(
+            load_veriphone_settings(user_id, base_path), user_id, base_path
+        ),
         "site": "veriphone",
         "batch_size": batch_size,
         "results": [],
@@ -11006,19 +11047,20 @@ async def process_phone_validation(
     country_code = session.get('country_code') or ""
     veriphone_settings = load_veriphone_settings(user_id, base_path)
     browser_use_settings = load_browser_use_settings(user_id, base_path)
+    scrapingbee_settings = load_scrapingbee_settings(user_id, base_path)
 
     # The session may pin a transport (e.g. browser-use); otherwise the default
     # order applies. Passed via decodo_settings so validate_phone can see it.
     transport = session.get('transport')
     if not transport or transport == 'decodo-scrape':
-        transport = phone_transport_label(veriphone_settings)
+        transport = phone_transport_label(veriphone_settings, user_id, base_path)
     decodo_settings = dict(decodo_settings or {})
     if session.get('transport'):
         decodo_settings['transport'] = session['transport']
 
     validation_results = await validate_phones_async(
         list(current_batch), country_code, decodo_settings, veriphone_settings,
-        browser_use_settings,
+        browser_use_settings, scrapingbee_settings,
     )
 
     results = []

@@ -301,6 +301,78 @@ def save_veriphone_settings(
 
 
 # =============================================================================
+# SCRAPER PROVIDER SELECTION (persisted per user)
+# =============================================================================
+#
+# The choice of which transport drives the veriphone / email checker used to be
+# environment-only (FV_S_SCRAPER_PROVIDER). The admin panel now sets it per user
+# so a key can be dropped in and switched live, with no restart.
+
+SCRAPER_PROVIDERS = ("scrapingbee", "decodo", "browser-use", "local")
+SCRAPER_PROVIDER_LABELS = {
+    "scrapingbee": "ScrapingBee",
+    "decodo": "Decodo",
+    "browser-use": "Browser Use",
+    "local": "Offline tables (free)",
+}
+
+
+def load_scraper_provider(
+    user_id: Optional[str] = None,
+    base_path: Optional[Path] = None,
+) -> str:
+    """
+    Which provider this user has picked.
+
+    Precedence: saved choice → ``FV_S_SCRAPER_PROVIDER`` → ``decodo`` (the
+    historical default, so an untouched install behaves exactly as before).
+    """
+    import os
+
+    if user_id and base_path:
+        cfg_file = Path(base_path) / f"fv-s-{user_id}" / "validator-config" / "scraper.json"
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                chosen = (saved.get("provider") or "").strip().lower()
+                if chosen in SCRAPER_PROVIDERS:
+                    return chosen
+            except Exception as exc:
+                logger.warning("Could not read scraper provider for %s: %s", user_id, exc)
+
+    env_choice = (os.getenv("FV_S_SCRAPER_PROVIDER") or "").strip().lower()
+    if env_choice in SCRAPER_PROVIDERS:
+        return env_choice
+    return "decodo"
+
+
+def save_scraper_provider(
+    user_id: str,
+    base_path: Path,
+    provider: str,
+) -> Dict[str, Any]:
+    """Persist the chosen provider. Rejects anything not in SCRAPER_PROVIDERS."""
+    provider = (provider or "").strip().lower()
+    if provider not in SCRAPER_PROVIDERS:
+        raise ValueError(
+            f"Unknown provider {provider!r}. Use one of: {', '.join(SCRAPER_PROVIDERS)}"
+        )
+
+    cfg_dir = Path(base_path) / f"fv-s-{user_id}" / "validator-config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = cfg_dir / "scraper.json"
+
+    with open(cfg_file, "w", encoding="utf-8") as f:
+        json.dump(
+            {"provider": provider, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S")},
+            f,
+            indent=2,
+        )
+    return {"provider": provider}
+
+
+# =============================================================================
 # HTML → TEXT
 # =============================================================================
 
@@ -929,6 +1001,14 @@ def active_scraper_provider(settings: Optional[Dict[str, Any]] = None) -> str:
 
     if settings and settings.get("provider"):
         return str(settings["provider"]).strip().lower()
+
+    # Saved per-user choice (the admin panel), then the env default.
+    try:
+        saved = load_scraper_provider()
+    except Exception:
+        saved = ""
+    if saved:
+        return saved
     return (os.getenv("FV_S_SCRAPER_PROVIDER") or "decodo").strip().lower()
 
 
@@ -2224,6 +2304,7 @@ def validate_phone(
     settings: Optional[Dict[str, Any]] = None,
     decodo_settings: Optional[Dict[str, Any]] = None,
     browser_use_settings: Optional[Dict[str, Any]] = None,
+    scrapingbee_settings: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Validate a phone number, preferring the veriphone JSON API.
@@ -2278,14 +2359,21 @@ def validate_phone(
     chosen = (
         (decodo_settings or {}).get("transport")
         or (settings or {}).get("transport")
+        or load_scraper_provider()   # saved in the admin panel; beats the env
         or os.getenv("FV_S_SCRAPER_PROVIDER")
         or ""
     ).strip().lower()
 
     if chosen == "scrapingbee":
-        return validate_phone_via_scrapingbee(
-            phone_number, country_code, load_scrapingbee_settings()
+        # Use the credentials the batch layer resolved for THIS user; falling
+        # back to load_scrapingbee_settings() with no user scope only ever sees
+        # the environment, which made a panel-saved key fail every number.
+        sb = (
+            scrapingbee_settings
+            or (decodo_settings or {}).get("scrapingbee")
+            or load_scrapingbee_settings()
         )
+        return validate_phone_via_scrapingbee(phone_number, country_code, sb)
     if chosen == "browser-use":
         return validate_phone_via_browser_use(
             phone_number,
@@ -2294,6 +2382,9 @@ def validate_phone(
             if browser_use_settings is not None
             else load_browser_use_settings(),
         )
+
+    if chosen == "local" and is_offline_engine_available():
+        return validate_phone_offline(phone_number, country_code)
 
     # No API key. Validate locally first: this costs nothing and settles the
     # overwhelming majority of numbers (well-formed, assigned, carrier known).
@@ -2310,6 +2401,46 @@ def validate_phone(
 
     # Offline engine not installed: fall back to scraping through Decodo.
     return validate_phone_via_decodo(phone_number, country_code, decodo_settings)
+
+
+def test_scrapingbee_transport(settings: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Prove a ScrapingBee key works by rendering one real number.
+
+    Uses the live phone adapter, so it exercises the same js_scenario and the
+    same parser a batch run would. Costs 5 credits on success and nothing on a
+    failed render. Never raises: the caller is a form in the admin panel.
+    """
+    result: Dict[str, Any] = {
+        "success": False,
+        "site": "scrapingbee",
+        "carrier": None,
+        "country": None,
+        "credits": None,
+        "error": None,
+    }
+
+    settings = settings or {}
+    if not settings.get("api_key"):
+        result["error"] = "No ScrapingBee API key configured"
+        return result
+
+    try:
+        lookup = validate_phone_via_scrapingbee("+14155552671", "US", settings)
+    except Exception as exc:  # a form must not 500
+        result["error"] = f"ScrapingBee test failed: {exc}"
+        return result
+
+    result["error"] = lookup.get("error")
+    result["carrier"] = lookup.get("carrier")
+    result["country"] = lookup.get("country")
+    result["status"] = lookup.get("status")
+    result["success"] = not lookup.get("error") and bool(
+        lookup.get("carrier") or lookup.get("country")
+    )
+    if not result["success"] and not result["error"]:
+        result["error"] = "The page rendered but showed no result grid"
+    return result
 
 
 def validate_phone_via_decodo(
@@ -2399,6 +2530,7 @@ async def validate_phones_async(
     settings: Optional[Dict[str, Any]] = None,
     veriphone_settings: Optional[Dict[str, Any]] = None,
     browser_use_settings: Optional[Dict[str, Any]] = None,
+    scrapingbee_settings: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Concurrent wrapper used by the batch endpoint."""
     numbers = [n for n in (numbers or []) if isinstance(n, str)]
@@ -2413,6 +2545,7 @@ async def validate_phones_async(
                 settings=veriphone_settings,
                 decodo_settings=settings,
                 browser_use_settings=browser_use_settings,
+                scrapingbee_settings=scrapingbee_settings,
             )
         except Exception as exc:  # never let one number sink the batch
             logger.exception("Phone validation crashed for %s", number)

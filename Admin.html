@@ -2258,6 +2258,86 @@
             /* =================================================
              * 9) VALIDATOR — hero, tabs, stats, panel header
              * ================================================= */
+            /* Live scraper API panel (phone launch controls) */
+            .scraper-live-panel {
+                margin-bottom: 14px;
+                padding: 12px;
+                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+            }
+            .scraper-live-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            .scraper-live-title {
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.6px;
+                text-transform: uppercase;
+                color: var(--text-gray);
+            }
+            .scraper-live-title i { color: #8a2be2; margin-right: 4px; }
+            .scraper-live-badge {
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                padding: 3px 9px;
+                border-radius: 999px;
+                color: #9aa4b2;
+                background: rgba(255, 255, 255, 0.07);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                white-space: nowrap;
+            }
+            .scraper-live-input {
+                width: 100%;
+                margin-bottom: 6px;
+                font-size: 12px;
+            }
+            .scraper-live-check {
+                display: flex;
+                align-items: flex-start;
+                gap: 6px;
+                font-size: 10px;
+                color: var(--text-gray);
+                margin: 4px 0 8px;
+                cursor: pointer;
+            }
+            .scraper-live-check input { margin-top: 2px; }
+            .scraper-live-actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-bottom: 8px;
+            }
+            .scraper-live-status {
+                font-size: 11px;
+                line-height: 1.5;
+                color: var(--text-gray);
+                padding: 7px 9px;
+                border-radius: 6px;
+                background: rgba(0, 0, 0, 0.18);
+                border-left: 2px solid rgba(255, 255, 255, 0.12);
+                word-break: break-word;
+            }
+            .scraper-live-status.is-live { border-left-color: #4ade80; color: #b9f6ca; }
+            .scraper-live-status.is-warn { border-left-color: #fbbf24; color: #fde68a; }
+            .scraper-live-status.is-error { border-left-color: #f87171; color: #fecaca; }
+            .scraper-live-hint {
+                font-size: 10px;
+                line-height: 1.5;
+                color: var(--text-gray);
+                margin-top: 6px;
+            }
+            .scraper-live-summary {
+                font-size: 11px;
+                color: var(--text-gray);
+                cursor: pointer;
+            }
+
             .validator-hero-header {
                 flex-direction: column;
                 align-items: flex-start;
@@ -22934,67 +23014,77 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                 <div class="phone-command-panel">
                                     <h4><i class="fas fa-rocket"></i> Launch Controls</h4>
 
-                                    <!-- Phone transport. Default is veriphone.io's own
-                                         free checker (no account) driven through
-                                         Decodo; a key is an optional shortcut. -->
-                                    <div style="margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
-                                            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-gray);">Transport</span>
-                                            <span id="phoneTransportBadge" style="font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 999px; color: #9aa4b2; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);">checking…</span>
+                                    <!-- Live scraper API panel.
+                                         Pick a transport, paste its key, save: the
+                                         next batch uses it immediately. No env edit,
+                                         no restart. -->
+                                    <div class="scraper-live-panel">
+                                        <div class="scraper-live-head">
+                                            <span class="scraper-live-title">
+                                                <i class="fas fa-plug"></i> Scraper API
+                                            </span>
+                                            <span id="phoneTransportBadge" class="scraper-live-badge">checking…</span>
                                         </div>
-                                        <input type="password" id="veriphoneApiKey" class="form-control" autocomplete="off"
-                                               placeholder="Optional: veriphone API key"
-                                               style="width: 100%; margin-bottom: 8px; font-size: 12px;">
-                                        <div style="display: flex; gap: 8px;">
-                                            <button class="montserrat-btn montserrat-btn-primary montserrat-btn-sm" onclick="saveVeriphoneKey()">
-                                                <span class="btn-icon"><i class="fas fa-key"></i></span>
-                                                <span class="btn-text">Save Key</span>
+
+                                        <select id="scraperProviderSelect" class="form-control scraper-live-input"
+                                                onchange="switchScraperProvider(this.value)">
+                                            <option value="scrapingbee">ScrapingBee — web automation</option>
+                                            <option value="decodo">Decodo — web scraping API</option>
+                                            <option value="browser-use">Browser Use — cloud browser</option>
+                                            <option value="local">Offline tables — free, no network</option>
+                                        </select>
+
+                                        <input type="password" id="scraperApiKey" class="form-control scraper-live-input"
+                                               autocomplete="off" placeholder="Paste API key…"
+                                               onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
+                                        <input type="text" id="scraperProxyCountry" class="form-control scraper-live-input"
+                                               autocomplete="off" placeholder="proxy country (optional, e.g. ng, us)">
+
+                                        <label class="scraper-live-check">
+                                            <input type="checkbox" id="scraperPremiumProxy">
+                                            <span>premium proxy (ScrapingBee: 25 credits instead of 5)</span>
+                                        </label>
+
+                                        <div class="scraper-live-actions">
+                                            <button class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
+                                                    id="scraperSaveBtn" onclick="saveScraperKey()">
+                                                <span class="btn-icon"><i class="fas fa-bolt"></i></span>
+                                                <span class="btn-text">Save &amp; Activate</span>
                                             </button>
-                                            <button class="montserrat-btn montserrat-btn-sm" onclick="testVeriphoneKey()">
+                                            <button class="montserrat-btn montserrat-btn-sm" id="scraperTestBtn"
+                                                    onclick="testScraperProvider()">
                                                 <span class="btn-icon"><i class="fas fa-vial"></i></span>
                                                 <span class="btn-text">Test</span>
                                             </button>
+                                            <button class="montserrat-btn montserrat-btn-sm" onclick="loadScraperPanel()">
+                                                <span class="btn-icon"><i class="fas fa-sync-alt"></i></span>
+                                                <span class="btn-text">Refresh</span>
+                                            </button>
                                         </div>
-                                        <details style="margin-top: 10px;">
-                                            <summary style="font-size: 11px; color: var(--text-gray); cursor: pointer;">ScrapingBee (web automation)</summary>
+
+                                        <div id="scraperStatusLine" class="scraper-live-status">
+                                            Loading configuration…
+                                        </div>
+                                        <div id="scraperCostHint" class="scraper-live-hint"></div>
+
+                                        <details style="margin-top: 8px;">
+                                            <summary class="scraper-live-summary">Optional: veriphone JSON API key</summary>
                                             <div style="margin-top: 8px;">
-                                                <input type="password" id="scrapingBeeKey" class="form-control" autocomplete="off"
-                                                       placeholder="ScrapingBee API key"
-                                                       style="width: 100%; margin-bottom: 6px; font-size: 12px;">
-                                                <input type="text" id="scrapingBeeCountry" class="form-control" autocomplete="off"
-                                                       placeholder="proxy country (blank = rotating default)"
-                                                       style="width: 100%; margin-bottom: 6px; font-size: 12px;">
-                                                <label style="font-size: 11px; color: var(--text-gray); display: block; margin-bottom: 6px;">
-                                                    <input type="checkbox" id="scrapingBeePremium"> premium proxy (10–25 credits each)
-                                                </label>
-                                                <div style="font-size: 10px; color: var(--text-gray); margin-bottom: 8px;">
-                                                    Drives the veriphone form with fill + click. 5 credits per number
-                                                    (JS rendering); a failed render is not charged.
+                                                <input type="password" id="veriphoneApiKey" class="form-control scraper-live-input"
+                                                       autocomplete="off" placeholder="veriphone API key (direct JSON API)">
+                                                <div class="scraper-live-actions">
+                                                    <button class="montserrat-btn montserrat-btn-sm" onclick="saveVeriphoneKey()">
+                                                        <span class="btn-icon"><i class="fas fa-key"></i></span>
+                                                        <span class="btn-text">Save Key</span>
+                                                    </button>
+                                                    <button class="montserrat-btn montserrat-btn-sm" onclick="testVeriphoneKey()">
+                                                        <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                        <span class="btn-text">Test</span>
+                                                    </button>
                                                 </div>
-                                                <button class="montserrat-btn montserrat-btn-sm" onclick="saveScrapingBeeKey()">
-                                                    <span class="btn-icon"><i class="fas fa-bug"></i></span>
-                                                    <span class="btn-text">Save ScrapingBee</span>
-                                                </button>
-                                            </div>
-                                        </details>
-                                        <details style="margin-top: 10px;">
-                                            <summary style="font-size: 11px; color: var(--text-gray); cursor: pointer;">Browser Use cloud browser</summary>
-                                            <div style="margin-top: 8px;">
-                                                <input type="password" id="browserUseKey" class="form-control" autocomplete="off"
-                                                       placeholder="browser-use API key"
-                                                       style="width: 100%; margin-bottom: 6px; font-size: 12px;">
-                                                <input type="text" id="browserUseProxy" class="form-control" autocomplete="off"
-                                                       placeholder="residential proxy country (default us)"
-                                                       style="width: 100%; margin-bottom: 6px; font-size: 12px;">
-                                                <div style="font-size: 10px; color: var(--text-gray); margin-bottom: 8px;">
-                                                    One browser per number = a fresh residential IP per lookup.
-                                                    $0.02/browser-hour plus $5/GB proxy traffic. Type <b>none</b> to
-                                                    disable the proxy ($0.20/GB, but one shared datacenter IP).
+                                                <div class="scraper-live-hint">
+                                                    A veriphone key bypasses scraping entirely and wins over the selector above.
                                                 </div>
-                                                <button class="montserrat-btn montserrat-btn-sm" onclick="saveBrowserUseKey()">
-                                                    <span class="btn-icon"><i class="fas fa-cloud"></i></span>
-                                                    <span class="btn-text">Save Browser Use</span>
-                                                </button>
                                             </div>
                                         </details>
                                     </div>
@@ -37757,43 +37847,225 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         
         // Reset phone validation UI
         // ------------------------------------------------------------------
-        // Phone transport configuration (veriphone API vs Decodo scrape)
+        // Live scraper API panel
+        //
+        // One place to paste a key and pick a transport. Saving posts to the
+        // backend and the next batch uses it -- nothing reads the key back, so
+        // the field is write-only and the status line is the only feedback.
         // ------------------------------------------------------------------
-        async function loadVeriphoneConfig() {
+        const SCRAPER_COSTS = {
+            scrapingbee: 'ScrapingBee: 5 credits per number (JS rendering). A failed render (HTTP 500) is not charged.',
+            decodo: 'Decodo: billed per request against your plan. Flat, not per-number.',
+            'browser-use': 'Browser Use: $0.02/browser-hour plus $5/GB proxy traffic. One browser per number = a fresh IP each lookup.',
+            local: 'Offline engine: free, no network call. Settles most numbers; it cannot supply a carrier for US/CA numbers.'
+        };
+
+        function scraperSetStatus(text, kind) {
+            const el = document.getElementById('scraperStatusLine');
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'scraper-live-status' + (kind ? ' is-' + kind : '');
+        }
+
+        function scraperBadge(text, kind) {
+            const badge = document.getElementById('phoneTransportBadge');
+            if (!badge) return;
+            const palette = {
+                live: ['#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)'],
+                warn: ['#fbbf24', 'rgba(251,191,36,0.12)', 'rgba(251,191,36,0.35)'],
+                error: ['#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.35)']
+            };
+            const [color, bg, border] = palette[kind] || palette.warn;
+            badge.textContent = text;
+            badge.style.color = color;
+            badge.style.background = bg;
+            badge.style.border = '1px solid ' + border;
+        }
+
+        function scraperProviderLabel(value) {
+            const select = document.getElementById('scraperProviderSelect');
+            const option = select && Array.from(select.options).find(o => o.value === value);
+            return option ? option.textContent.split('—')[0].trim() : value;
+        }
+
+        async function loadScraperPanel() {
             try {
-                const response = await fetchWithAuth('/validator/veriphone/config');
-                if (!response.ok) return;
+                const response = await fetchWithAuth('/validator/scraper');
+                if (!response.ok) {
+                    scraperSetStatus('Could not read the scraper configuration', 'error');
+                    return;
+                }
                 const data = await response.json();
-                const badge = document.getElementById('phoneTransportBadge');
-                if (!badge) return;
-                const apply = (text, color, bg, border, title) => {
-                    badge.textContent = text;
-                    badge.title = title;
-                    badge.style.color = color;
-                    badge.style.background = bg;
-                    badge.style.border = `1px solid ${border}`;
-                };
-                if (data.transport === 'veriphone-api') {
-                    apply('DIRECT API', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
-                          'Using an optional veriphone API key');
-                } else if (data.transport === 'scrapingbee') {
-                    apply('SCRAPINGBEE', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
-                          'veriphone form driven through ScrapingBee (5 credits per number)');
-                } else if (data.transport === 'local') {
-                    apply('OFFLINE · FREE', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
-                          'Validated locally against per-country numbering plans. No network call, no credits.');
+
+                const select = document.getElementById('scraperProviderSelect');
+                if (select && data.provider) select.value = data.provider;
+
+                const hint = document.getElementById('scraperCostHint');
+                if (hint) hint.textContent = SCRAPER_COSTS[data.provider] || '';
+
+                const ready = (data.configured || {})[data.provider];
+                if (ready) {
+                    scraperBadge(String(data.label || data.provider).toUpperCase(), 'live');
                 } else {
-                    apply('DECODO', '#fbbf24', 'rgba(251,191,36,0.12)', 'rgba(251,191,36,0.35)',
-                          'Offline engine unavailable - falling back to the paid Decodo transport');
+                    scraperBadge('NO KEY', 'warn');
+                }
+
+                const missing = Object.entries(data.configured || {})
+                    .filter(([id, ok]) => !ok && id !== 'local')
+                    .map(([id]) => id);
+
+                let status = ready
+                    ? 'Live transport: ' + (data.label || data.provider) + '. The next batch uses it immediately.'
+                    : 'No credential saved for ' + scraperProviderLabel(data.provider) + '. Paste a key below and save.';
+                if (data.veriphone_api_key) {
+                    status += ' A veriphone API key is set and takes priority over this transport.';
+                }
+                if (missing.length) {
+                    status += ' Not configured: ' + missing.join(', ') + '.';
+                }
+                scraperSetStatus(status, ready ? 'live' : 'warn');
+            } catch (error) {
+                console.error('Failed to load scraper panel:', error);
+                scraperSetStatus('Could not reach the validator API', 'error');
+            }
+        }
+
+        // Backwards-compatible name: the boot sequence and the veriphone key
+        // save both call this.
+        async function loadVeriphoneConfig() {
+            return loadScraperPanel();
+        }
+
+        async function switchScraperProvider(provider) {
+            const hint = document.getElementById('scraperCostHint');
+            if (hint) hint.textContent = SCRAPER_COSTS[provider] || '';
+            try {
+                const response = await fetchWithAuth('/validator/scraper', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider: provider })
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    scraperSetStatus(err.detail || 'Could not switch transport', 'error');
+                    await loadScraperPanel();
+                    return;
+                }
+                // Reflect it straight away, then re-read the authoritative state.
+                scraperBadge(scraperProviderLabel(provider).toUpperCase(), 'live');
+                showToast('Transport: ' + (provider), 'success');
+                await loadScraperPanel();
+            } catch (error) {
+                console.error('Switch transport failed:', error);
+                scraperSetStatus('Could not switch transport', 'error');
+            }
+        }
+
+        async function saveScraperKey() {
+            const select = document.getElementById('scraperProviderSelect');
+            const provider = select ? select.value : 'scrapingbee';
+            const keyEl = document.getElementById('scraperApiKey');
+            const countryEl = document.getElementById('scraperProxyCountry');
+            const premiumEl = document.getElementById('scraperPremiumProxy');
+            const apiKey = ((keyEl && keyEl.value) || '').trim();
+            const country = ((countryEl && countryEl.value) || '').trim();
+            const premium = !!(premiumEl && premiumEl.checked);
+
+            if (provider === 'local') {
+                scraperSetStatus('The offline engine needs no key — it is already available. Switch to it and launch.', 'live');
+                await switchScraperProvider('local');
+                return;
+            }
+            if (!apiKey) {
+                showToast('Paste a ' + scraperProviderLabel(provider) + ' API key first', 'warning');
+                (keyEl || {}).focus?.();
+                return;
+            }
+
+            const endpoints = {
+                scrapingbee: '/validator/scrapingbee/config',
+                decodo: '/validator/decodo/config',
+                'browser-use': '/validator/browser-use/config'
+            };
+            const bodies = {
+                scrapingbee: { api_key: apiKey, country_code: country, premium_proxy: premium },
+                decodo: { api_key: apiKey },
+                'browser-use': { api_key: apiKey, proxy_country_code: country || 'us' }
+            };
+
+            const btn = document.getElementById('scraperSaveBtn');
+            if (btn) btn.disabled = true;
+            scraperSetStatus('Saving ' + scraperProviderLabel(provider) + ' key…', 'warn');
+
+            try {
+                const response = await fetchWithAuth(endpoints[provider], {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodies[provider])
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    scraperSetStatus(err.detail || 'Failed to save the key', 'error');
+                    showToast(err.detail || 'Failed to save the key', 'error');
+                    return;
+                }
+
+                // Saving a key also makes it the active transport: the operator
+                // clearly wants to use what they just pasted.
+                await switchScraperProvider(provider);
+
+                if (keyEl) keyEl.value = '';
+                if (premiumEl) premiumEl.checked = false;
+                await loadScraperPanel();
+                showToast(scraperProviderLabel(provider) + ' key saved — now live', 'success');
+            } catch (error) {
+                console.error('Save scraper key failed:', error);
+                scraperSetStatus('Failed to save the key', 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function testScraperProvider() {
+            const select = document.getElementById('scraperProviderSelect');
+            const provider = select ? select.value : 'scrapingbee';
+            const btn = document.getElementById('scraperTestBtn');
+            if (btn) btn.disabled = true;
+            scraperSetStatus('Testing ' + scraperProviderLabel(provider) + ' with one real lookup…', 'warn');
+
+            try {
+                if (provider === 'local') {
+                    scraperSetStatus('Offline engine is local — nothing to test. Switch to it and launch.', 'live');
+                    return;
+                }
+
+                const endpoint = provider === 'veriphone-api'
+                    ? '/validator/veriphone/test'
+                    : '/validator/' + provider + '/test';
+                const response = await fetchWithAuth(endpoint, { method: 'POST' });
+                const data = await response.json().catch(() => ({}));
+
+                if (response.ok && (data.success !== false) && !data.error) {
+                    const bits = [data.carrier, data.country, data.status, data.site]
+                        .filter(Boolean).join(' · ');
+                    scraperSetStatus('Test passed' + (bits ? ' — ' + bits : '') +
+                                     '. The key works and the page parsed.', 'live');
+                    showToast('API test passed', 'success');
+                } else {
+                    scraperSetStatus(data.detail || data.error || 'Test failed', 'error');
+                    showToast('API test failed', 'error');
                 }
             } catch (error) {
-                console.error('Failed to load veriphone config:', error);
+                console.error('Scraper test failed:', error);
+                scraperSetStatus('Test failed: ' + error.message, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
             }
         }
 
         async function saveVeriphoneKey() {
             const input = document.getElementById('veriphoneApiKey');
-            const key = (input && input.value || '').trim();
+            const key = ((input && input.value) || '').trim();
             if (!key) {
                 showToast('Enter a veriphone API key first', 'warning');
                 return;
@@ -37807,7 +38079,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 if (response.ok) {
                     const data = await response.json();
                     if (input) input.value = '';
-                    await loadVeriphoneConfig();
+                    await loadScraperPanel();
                     showToast(`Key saved — transport: ${data.transport}`, 'success');
                 } else {
                     const err = await response.json();
@@ -37816,69 +38088,6 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             } catch (error) {
                 console.error('Save veriphone key failed:', error);
                 showToast('Failed to save key', 'error');
-            }
-        }
-
-        async function saveScrapingBeeKey() {
-            const keyEl = document.getElementById('scrapingBeeKey');
-            const countryEl = document.getElementById('scrapingBeeCountry');
-            const premiumEl = document.getElementById('scrapingBeePremium');
-            const apiKey = (keyEl && keyEl.value || '').trim();
-            if (!apiKey) {
-                showToast('Enter a ScrapingBee API key first', 'warning');
-                return;
-            }
-            try {
-                const response = await fetchWithAuth('/validator/scrapingbee/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        api_key: apiKey,
-                        country_code: (countryEl && countryEl.value || '').trim(),
-                        premium_proxy: !!(premiumEl && premiumEl.checked)
-                    })
-                });
-                if (response.ok) {
-                    if (keyEl) keyEl.value = '';
-                    await loadVeriphoneConfig();
-                    showToast('ScrapingBee key saved', 'success');
-                } else {
-                    const err = await response.json();
-                    showToast(err.detail || 'Failed to save ScrapingBee key', 'error');
-                }
-            } catch (error) {
-                console.error('Save ScrapingBee key failed:', error);
-                showToast('Failed to save ScrapingBee key', 'error');
-            }
-        }
-
-        async function saveBrowserUseKey() {
-            const keyEl = document.getElementById('browserUseKey');
-            const proxyEl = document.getElementById('browserUseProxy');
-            const apiKey = (keyEl && keyEl.value || '').trim();
-            if (!apiKey) {
-                showToast('Enter a Browser Use API key first', 'warning');
-                return;
-            }
-            try {
-                const response = await fetchWithAuth('/validator/browser-use/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        api_key: apiKey,
-                        proxy_country_code: (proxyEl && proxyEl.value || '').trim()
-                    })
-                });
-                if (response.ok) {
-                    if (keyEl) keyEl.value = '';
-                    showToast('Browser Use key saved', 'success');
-                } else {
-                    const err = await response.json();
-                    showToast(err.detail || 'Failed to save Browser Use key', 'error');
-                }
-            } catch (error) {
-                console.error('Save Browser Use key failed:', error);
-                showToast('Failed to save Browser Use key', 'error');
             }
         }
 

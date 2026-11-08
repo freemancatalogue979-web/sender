@@ -7421,7 +7421,7 @@ async def get_veriphone_config(current_user: dict = Depends(get_current_user)):
     return {
         "configured": has_key,
         "api_url": settings.get("api_url"),
-        "transport": phone_transport_label(settings),
+        "transport": phone_transport_label(settings, user_id, USERS_BASE_PATH),
         "offline_engine": is_offline_engine_available(),
         "source": "user" if cfg.exists() else ("environment" if has_key else None),
     }
@@ -7445,7 +7445,9 @@ async def save_veriphone_config(
     return {
         "success": True,
         "message": "veriphone configuration saved",
-        "transport": phone_transport_label(saved if saved.get("has_api_key") else {}),
+        "transport": phone_transport_label(
+            saved if saved.get("has_api_key") else {}, user_id, USERS_BASE_PATH
+        ),
         **saved,
     }
 
@@ -7525,8 +7527,113 @@ async def scrapingbee_credit_usage(current_user: dict = Depends(get_current_user
     return scrapingbee_usage(load_scrapingbee_settings(user_id, USERS_BASE_PATH))
 
 
-@validator_router.get("/browser-use/config")
-async def get_browser_use_config(current_user: dict = Depends(get_current_user)):
+@validator_router.get("/scraper")
+async def get_scraper_provider(current_user: dict = Depends(get_current_user)):
+    """
+    Which transport is driving the validator right now, and what each one needs.
+
+    Powers the live selector in the admin panel: a key can be dropped in and the
+    provider switched without a restart or an env change.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import (
+        SCRAPER_PROVIDERS,
+        SCRAPER_PROVIDER_LABELS,
+        load_browser_use_settings,
+        load_decodo_settings,
+        load_scraper_provider,
+        load_scrapingbee_settings,
+        load_veriphone_settings,
+        is_offline_engine_available,
+    )
+
+    configured = {
+        "scrapingbee": bool(load_scrapingbee_settings(user_id, USERS_BASE_PATH).get("api_key")),
+        "decodo": bool(load_decodo_settings(user_id, USERS_BASE_PATH).get("api_key")),
+        "browser-use": bool(load_browser_use_settings(user_id, USERS_BASE_PATH).get("api_key")),
+        "local": bool(is_offline_engine_available()),
+    }
+    veriphone_key = bool(load_veriphone_settings(user_id, USERS_BASE_PATH).get("api_key"))
+    chosen = load_scraper_provider(user_id, USERS_BASE_PATH)
+
+    return {
+        "provider": chosen,
+        "label": SCRAPER_PROVIDER_LABELS.get(chosen, chosen),
+        "configured": configured,
+        "veriphone_api_key": veriphone_key,
+        "providers": [
+            {
+                "id": pid,
+                "label": SCRAPER_PROVIDER_LABELS[pid],
+                "ready": configured.get(pid, False),
+            }
+            for pid in SCRAPER_PROVIDERS
+        ],
+    }
+
+
+@validator_router.post("/scraper")
+async def set_scraper_provider(
+    config_data: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Switch the validator transport. Applies to the next phone batch -- a running
+    session keeps the transport it started with, so a batch is never half one
+    provider and half another.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import SCRAPER_PROVIDERS, save_scraper_provider
+    from functions import phone_transport_label
+
+    provider = (config_data or {}).get("provider", "")
+    if (provider or "").strip().lower() not in SCRAPER_PROVIDERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"provider must be one of: {', '.join(SCRAPER_PROVIDERS)}",
+        )
+
+    try:
+        saved = save_scraper_provider(user_id, USERS_BASE_PATH, provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    from email_validator import load_veriphone_settings
+
+    return {
+        "success": True,
+        "message": f"Transport switched to {saved['provider']}",
+        **saved,
+        "transport": phone_transport_label(load_veriphone_settings(user_id, USERS_BASE_PATH)),
+    }
+
+
+@validator_router.post("/scrapingbee/test")
+async def test_scrapingbee_config(current_user: dict = Depends(get_current_user)):
+    """
+    Render one real number through ScrapingBee to prove the key works.
+
+    Costs 5 credits when it succeeds and 0 when the render fails, which is why
+    it is a one-number probe rather than a batch.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import load_scrapingbee_settings, test_scrapingbee_transport
+
+    settings = load_scrapingbee_settings(user_id, USERS_BASE_PATH)
+    if not settings.get("api_key"):
+        raise HTTPException(
+            status_code=400,
+            detail="No ScrapingBee API key configured. Save one here or set FV_S_SCRAPINGBEE_API_KEY.",
+        )
+
+    return test_scrapingbee_transport(settings)
+
+
+@validator_router.post("/decodo/test")
+async def test_decodo_config(current_user: dict = Depends(get_current_user)):
     """Browser Use cloud browser settings (the key itself is never returned)."""
     user_id = current_user["user_id"]
 

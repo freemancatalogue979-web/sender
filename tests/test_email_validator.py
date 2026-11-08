@@ -1342,3 +1342,196 @@ def test_scrapingbee_phone_path_requires_a_key():
     r = ev.validate_phone_via_scrapingbee("+1", "", settings={})
     assert "API key" in r["error"]
     assert r["valid"] is False
+
+
+# =============================================================================
+# LIVE PROVIDER SELECTION (admin panel: paste a key, switch transport)
+# =============================================================================
+
+def _isolate_provider_env(monkeypatch):
+    for var in ("FV_S_SCRAPER_PROVIDER", "FV_S_SCRAPINGBEE_API_KEY",
+                "FV_S_DECODO_API_KEY", "FV_S_BROWSER_USE_API_KEY",
+                "FV_S_VERIPHONE_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_saved_provider_round_trips(tmp_path, monkeypatch):
+    _isolate_provider_env(monkeypatch)
+
+    assert ev.load_scraper_provider("u1", tmp_path) == "decodo"  # untouched default
+    ev.save_scraper_provider("u1", tmp_path, "scrapingbee")
+    assert ev.load_scraper_provider("u1", tmp_path) == "scrapingbee"
+    ev.save_scraper_provider("u1", tmp_path, "local")
+    assert ev.load_scraper_provider("u1", tmp_path) == "local"
+
+
+def test_unknown_provider_is_rejected(tmp_path):
+    with pytest.raises(ValueError):
+        ev.save_scraper_provider("u1", tmp_path, "zerobounce")
+
+
+def test_saved_provider_survives_a_corrupt_file(tmp_path, monkeypatch):
+    _isolate_provider_env(monkeypatch)
+    cfg = tmp_path / "fv-s-u1" / "validator-config"
+    cfg.mkdir(parents=True)
+    (cfg / "scraper.json").write_text("{not json")
+
+    assert ev.load_scraper_provider("u1", tmp_path) == "decodo"
+
+
+def test_active_scraper_provider_reads_the_saved_choice(tmp_path, monkeypatch):
+    """The panel's choice must reach scrape_site without an env var."""
+    _isolate_provider_env(monkeypatch)
+    monkeypatch.setattr(ev, "load_scraper_provider", lambda *a, **k: "scrapingbee")
+
+    assert ev.active_scraper_provider({}) == "scrapingbee"
+    # An explicit per-call provider still wins over the saved one.
+    assert ev.active_scraper_provider({"provider": "decodo"}) == "decodo"
+
+
+def test_phone_transport_label_follows_the_saved_choice(tmp_path, monkeypatch):
+    _isolate_provider_env(monkeypatch)
+    import functions
+
+    monkeypatch.setattr(functions, "load_scraper_provider", lambda *a, **k: "scrapingbee")
+    monkeypatch.setattr(functions, "is_scrapingbee_configured", lambda *a, **k: True)
+
+    assert functions.phone_transport_label({}, "u1", tmp_path) == "scrapingbee"
+
+
+def test_saved_choice_without_a_key_falls_through(tmp_path, monkeypatch):
+    """Picking a provider whose key is missing must not claim to use it."""
+    _isolate_provider_env(monkeypatch)
+    import functions
+
+    monkeypatch.setattr(functions, "load_scraper_provider", lambda *a, **k: "scrapingbee")
+    monkeypatch.setattr(functions, "is_scrapingbee_configured", lambda *a, **k: False)
+    monkeypatch.setattr(functions, "is_offline_engine_available", lambda: True)
+
+    assert functions.phone_transport_label({}, "u1", tmp_path) == "local"
+
+
+def test_scrapingbee_transport_test_reports_a_real_result(monkeypatch):
+    class R:
+        status_code = 200
+        text = ("Number +1 415 555 2671\nType mobile\nCarrier T-Mobile\n"
+                "Country United States (US)\nValid Valid")
+        headers = {"Spb-cost": "5"}
+
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: R())
+    probe = ev.test_scrapingbee_transport({"api_key": "SB"})
+    assert probe["success"] is True
+    assert probe["carrier"] == "T-Mobile"
+    assert probe["site"] == "scrapingbee"
+
+
+def test_scrapingbee_transport_test_never_raises(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(ev.requests, "get", boom)
+    probe = ev.test_scrapingbee_transport({"api_key": "SB"})
+    assert probe["success"] is False
+    assert probe["error"]
+
+    assert ev.test_scrapingbee_transport({})["success"] is False
+
+
+def test_scraper_endpoints_switch_and_persist(tmp_path, monkeypatch):
+    """Endpoints: GET reports readiness, POST switches, key never echoed."""
+    import asyncio
+    import api
+
+    monkeypatch.setattr(api, "USERS_BASE_PATH", tmp_path)
+    user = {"user_id": "scraperuser"}
+
+    before = asyncio.run(api.get_scraper_provider(user))
+    assert before["provider"] == "decodo"
+    assert {"scrapingbee", "decodo", "browser-use", "local"} == {p["id"] for p in before["providers"]}
+
+    after = asyncio.run(api.set_scraper_provider({"provider": "scrapingbee"}, user))
+    assert after["success"] is True
+    assert after["provider"] == "scrapingbee"
+
+    reread = asyncio.run(api.get_scraper_provider(user))
+    assert reread["provider"] == "scrapingbee"
+
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(api.set_scraper_provider({"provider": "nope"}, user))
+    assert excinfo.value.status_code == 400
+
+
+def test_saved_key_counts_without_an_env_var(tmp_path, monkeypatch):
+    """
+    Regression: a key pasted into the panel reported transport "local".
+
+    The readiness checks consulted the environment only, so a user-scoped key
+    looked absent and the batch fell through to the free engine.
+    """
+    _isolate_provider_env(monkeypatch)
+    import functions
+
+    ev.save_scrapingbee_settings("paneluser", tmp_path, {"api_key": "SB-PANEL"})
+    ev.save_scraper_provider("paneluser", tmp_path, "scrapingbee")
+
+    assert functions.is_scrapingbee_configured("paneluser", tmp_path) is True
+    assert functions.phone_transport_label({}, "paneluser", tmp_path) == "scrapingbee"
+
+
+def test_local_choice_stays_offline(tmp_path, monkeypatch):
+    """Picking the free engine must not reach for a paid transport."""
+    _isolate_provider_env(monkeypatch)
+    monkeypatch.setattr(ev, "load_scraper_provider", lambda *a, **k: "local")
+
+    def boom(*a, **k):
+        raise AssertionError("paid transport used despite an explicit local choice")
+
+    monkeypatch.setattr(ev, "validate_phone_via_scrapingbee", boom)
+    monkeypatch.setattr(ev, "validate_phone_via_browser_use", boom)
+    monkeypatch.setattr(ev, "validate_phone_via_decodo", boom)
+
+    result = ev.validate_phone("+2347069977249", "NG", settings={"api_key": ""})
+    assert result["site"] == "local"
+
+
+def test_batch_uses_the_panel_saved_key(tmp_path, monkeypatch):
+    """
+    Regression: after saving a key in the panel the batch failed every number.
+
+    The scrapingbee branch called load_scrapingbee_settings() with no user
+    scope, so a user-saved key was invisible and each lookup errored.
+    """
+    _isolate_provider_env(monkeypatch)
+    ev.save_scrapingbee_settings("batchuser", tmp_path, {"api_key": "SB-BATCH"})
+    used = {}
+    real = ev.validate_phone_via_scrapingbee
+
+    def spy(number, country_code="", settings=None):
+        used["key"] = (settings or {}).get("api_key")
+        return real(number, country_code, {"api_key": "SB-BATCH"})
+
+    monkeypatch.setattr(ev, "validate_phone_via_scrapingbee", spy)
+
+    class R:
+        status_code = 200
+        text = ("Number +234 706 997 7249\nType mobile\nCarrier MTN\n"
+                "Country Nigeria (NG)\nValid Valid")
+        headers = {"Spb-cost": "5"}
+
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: R())
+
+    import asyncio
+    results = asyncio.run(ev.validate_phones_async(
+        ["07069977249"],
+        "NG",
+        {"transport": "scrapingbee"},
+        {"api_key": ""},
+        {"api_key": ""},
+        ev.load_scrapingbee_settings("batchuser", tmp_path),
+    ))
+
+    assert used["key"] == "SB-BATCH"
+    assert results[0]["site"] == "scrapingbee"
+    assert results[0]["carrier"] == "MTN"
+    assert not results[0].get("error")

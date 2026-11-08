@@ -945,3 +945,76 @@ offline engine cannot produce for a `+1` number. That is what the 5 credits buy.
 (api_key / render_js / url / js_scenario / bearer), premium proxy only when
 asked, 401/429/500 messages, missing key, encrypted settings, a usage lookup that
 never raises, explicit-choice-beats-local, and an end-to-end phone result.
+
+---
+
+## 23. Live API panel (paste a key, switch transport)
+
+The phone tab used to need an environment variable and a restart to change
+transport, and each provider hid behind its own collapsible block. There is now
+one panel in **Launch Controls**:
+
+```
+┌ Scraper API ──────────────────────────── [SCRAPINGBEE] ┐
+│ [ ScrapingBee — web automation        ▼ ]              │
+│ [ Paste API key…                    ]                  │
+│ [ proxy country (optional, e.g. ng)  ]                 │
+│ ☐ premium proxy (25 credits instead of 5)              │
+│ [Save & Activate] [Test] [Refresh]                     │
+│ Live transport: ScrapingBee. The next batch uses it.   │
+│ ScrapingBee: 5 credits per number (JS rendering)…      │
+└────────────────────────────────────────────────────────┘
+```
+
+**Paste → Save & Activate → run.** No restart, no env edit, no shell access. The
+key is encrypted at rest, never read back, and the field clears on save.
+
+### Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/validator/scraper` | current provider + which providers have a key |
+| `POST` | `/validator/scraper` | switch provider (`scrapingbee`, `decodo`, `browser-use`, `local`) |
+| `POST` | `/validator/scrapingbee/test` | render one real number; 5 credits on success, 0 on failure |
+| `GET` | `/validator/scrapingbee/usage` | remaining credits (free) |
+
+Saved in `validator-config/scraper.json`. Resolution order is
+**saved choice → `FV_S_SCRAPER_PROVIDER` → `decodo`**, so an existing install
+behaves exactly as before until somebody picks something.
+
+A provider with no credential in it never claims to be active — the panel shows
+`NO KEY` and the label falls through to the next working transport instead of
+pretending.
+
+### Two bugs the panel exposed
+
+1. **A panel-saved key still reported `local`.** The readiness checks
+   (`is_scrapingbee_configured()` and friends) called the loaders with no
+   `user_id`, so they only ever saw the environment. They now take
+   `(user_id, base_path)` and the callers pass them.
+2. **The batch failed every number after saving a key.** `validate_phone()`'s
+   ScrapingBee branch called `load_scrapingbee_settings()` with no user scope
+   too, so `_call_scrapingbee` saw no key and returned a transport error for
+   each number — 3 processed, 0 valid, **3 failed**. The batch layer now resolves
+   the credentials per user and passes them down (`scrapingbee_settings`).
+
+### Verified live, over HTTP, with only ScrapingBee's HTTP stubbed
+
+```
+GET  /validator/scraper                -> provider: decodo, scrapingbee ready: false
+POST /validator/scrapingbee/config     -> {"success": true, "has_api_key": true}
+POST /validator/scraper                -> {"provider": "scrapingbee"}
+GET  /validator/scraper                -> provider: scrapingbee, ready: true
+POST /validator/scrapingbee/test       -> T-Mobile / United States (US) / valid
+GET  /validator/scrapingbee/usage      -> {"remaining": 5000}
+
+POST /validator/phone/start            -> transport: scrapingbee
+batch                                  -> processed 3, valid 3, invalid 0, failed 0
+  07069977249    valid  MTN       Nigeria (NG)        site=scrapingbee
+  08031234567    valid  Airtel    Nigeria (NG)        site=scrapingbee
+  +14155552671   valid  T-Mobile  United States (US)  site=scrapingbee
+```
+
+No restart between the first and last line, and no `FV_S_SCRAPER_PROVIDER` set.
+
+**169 tests passing.**
