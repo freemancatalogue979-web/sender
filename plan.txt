@@ -1,0 +1,13 @@
+i want us to wire the number validator now same decodo format . 
+i want us to wire the number validator now same decodo format . 
+
+url - https://veriphone.io/
+
+where the number would go - <input id="phone-input" type="tel" placeholder="e.g. +1 201 201 4514" style="flex: 1 1 100%; min-width: 0px; border-radius: 0.5rem; border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; background: white; padding: 1rem 1.25rem; font-size: 1.05rem; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; color: var(--foreground); outline: none;" onfocus="this.style.borderColor='oklch(0.546 0.182 252 / 0.5)'" onblur="this.style.borderColor=''">
+
+
+submit button - <button id="checker-submit" type="submit" style="padding: 1rem 1.75rem; border-radius: 0.5rem; font-size: 1rem; font-weight: 600; min-width: 7rem; background: oklch(0.21 0.006 286); color: white; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; cursor: pointer; transition: background 0.15s, transform 0.15s;" onmouseover="this.style.background='oklch(0.14 0.005 286)'" onmouseout="this.style.background='oklch(0.21 0.006 286)'">Validate</button>
+
+
+results -- <div style="padding: 0.5rem 1rem; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; font-size: 0.8rem;" bis_skin_checked="1"><span style="color: var(--muted-foreground);">Number</span><span style="font-weight: 600; color: var(--foreground); font-family: 'SF Mono', monospace;">+234 706 997 7249</span><span style="color: var(--muted-foreground);">Type</span><span style="color: var(--foreground); text-transform: capitalize;">mobile</span><span style="color: var(--muted-foreground);">Carrier</span><span style="color: var(--foreground);">MTN</span><span style="color: var(--muted-foreground);">Country</span><span style="color: var(--foreground);">Nigeria (NG)</span></div>
+
