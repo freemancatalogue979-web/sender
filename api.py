@@ -7161,6 +7161,7 @@ async def start_phone_validation(
     list_id = request_data.get("list_id")
     list_name = request_data.get("list_name")
     country_code = request_data.get("country_code")
+    batch_size = request_data.get("batch_size", DEFAULT_VALIDATION_BATCH_SIZE)
 
     if list_id and not phone_numbers:
         list_data = get_phone_list_numbers(user_id, USERS_BASE_PATH, list_id)
@@ -7188,7 +7189,8 @@ async def start_phone_validation(
         base_path=USERS_BASE_PATH,
         phone_numbers=formatted_numbers,
         list_name=list_name,
-        country_code=country_code
+        country_code=country_code,
+        batch_size=batch_size
     )
     
     if not result.get("success"):
@@ -7199,7 +7201,9 @@ async def start_phone_validation(
         "session_id": result.get("session_id"),
         "total_numbers": len(formatted_numbers),
         "list_name": list_name,
-        "country_code": country_code
+        "country_code": country_code,
+        "batch_size": batch_size,
+        "site": "veriphone"
     }
 
 
@@ -7222,6 +7226,8 @@ async def get_phone_validator_session(
         "session_id": session.get("session_id"),
         "status": session.get("status"),
         "list_name": session.get("list_name"),
+        "site": session.get("site", "veriphone"),
+        "batch_size": session.get("batch_size"),
         "progress": {
             "total": session.get("total_items"),
             "processed": session.get("processed"),
@@ -7232,7 +7238,9 @@ async def get_phone_validator_session(
             "elapsed": session.get("elapsed_seconds", 0)
         },
         "queue_count": len(session.get("queue", [])),
-        "current_number": session.get("current_number")
+        "current_number": session.get("current_number"),
+        # Per-number detail for the live log (mirrors the email session).
+        "last_batch_results": session.get("last_batch_results", [])
     }
 
 
@@ -7244,10 +7252,8 @@ async def validate_phone_number(
     """Process next phone number"""
     user_id = current_user["user_id"]
     
-    # process_phone_validation does blocking HTTP; keep it off the event loop.
-    result = await asyncio.to_thread(
-        process_phone_validation, user_id, USERS_BASE_PATH, session_id
-    )
+    # Runs the batch through Decodo off the event loop.
+    result = await process_phone_validation(user_id, USERS_BASE_PATH, session_id)
     
     if not result.get("success") and not result.get("completed"):
         raise HTTPException(status_code=400, detail=result.get("error"))

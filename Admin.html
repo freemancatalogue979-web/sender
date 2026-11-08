@@ -36674,6 +36674,8 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     document.getElementById('stopPhoneValidationBtn').style.display = 'inline-flex';
                     
                     // Start polling for progress
+                    window.phoneValidationStartTime = Date.now();
+                    startPhoneTimer();
                     pollPhoneValidationProgress();
                     
                     showToast('Phone validation started', 'success');
@@ -36813,13 +36815,34 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 if (response.ok) {
                     const data = await response.json();
                     updatePhoneProgressUI(data);
-                    
-                    // Continue polling if still validating
+
+                    // Per-number detail for the live log (Decodo/veriphone verdict)
+                    if (data.last_batch_results && data.last_batch_results.length > 0) {
+                        data.last_batch_results.forEach(result => {
+                            addPhoneNumberLogEntry(result);
+                        });
+                    }
+
                     const status = data.status;
-                    if (status === 'running' || status === 'processing' || status === 'paused') {
+
+                    // Drive the next batch. The backend has no worker: without
+                    // this the session would sit at "pending" forever.
+                    if (status === 'pending' || status === 'running' || status === 'processing') {
+                        try {
+                            await fetchWithAuth(
+                                `/validator/phone/validate/${validatorState.phone.sessionId}`,
+                                { method: 'POST' }
+                            );
+                        } catch (batchError) {
+                            console.error('Phone batch error:', batchError);
+                        }
+                        setTimeout(pollPhoneValidationProgress, 2000);
+                    } else if (status === 'paused') {
                         setTimeout(pollPhoneValidationProgress, 2000);
                     } else if (status === 'completed' || status === 'stopped') {
                         validatorState.phone.isValidating = false;
+                        stopPhoneTimer();
+                        resetPhoneValidationUI();
                         showToast(`Phone validation ${status}`, status === 'completed' ? 'success' : 'info');
                     }
                 } else {
@@ -37665,6 +37688,63 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         }
         
         // Reset phone validation UI
+        // Timer for phone validation
+        let phoneTimerInterval = null;
+
+        function startPhoneTimer() {
+            if (phoneTimerInterval) clearInterval(phoneTimerInterval);
+            phoneTimerInterval = setInterval(() => {
+                const el = document.getElementById('phoneRate');
+                if (!el) return;
+                const started = window.phoneValidationStartTime;
+                if (!started) return;
+                const elapsed = Math.floor((Date.now() - started) / 1000);
+                el.title = `Elapsed ${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+            }, 1000);
+        }
+
+        function stopPhoneTimer() {
+            if (phoneTimerInterval) {
+                clearInterval(phoneTimerInterval);
+                phoneTimerInterval = null;
+            }
+        }
+
+        // One log row per validated number, mirroring the email live log.
+        function addPhoneNumberLogEntry(result) {
+            const log = document.getElementById('phoneLiveLog');
+            const countEl = document.getElementById('phoneLogCount');
+            if (!log || !result) return;
+
+            const emptyState = log.querySelector('.log-empty');
+            if (emptyState) emptyState.remove();
+
+            const isUnknown = result.status === 'unknown' && !result.error;
+            const state = result.error ? 'failed' : (isUnknown ? 'warning' : (result.valid ? 'success' : 'invalid'));
+            const label = result.error ? 'Failed'
+                : (isUnknown ? 'Unknown'
+                : (result.valid
+                    ? (result.line_type ? result.line_type.charAt(0).toUpperCase() + result.line_type.slice(1) : 'Valid')
+                    : 'Invalid'));
+            const detail = [result.carrier, result.country].filter(Boolean).join(' · ');
+            const number = result.formatted_number || result.number || '-';
+
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${state}`;
+            entry.innerHTML = `
+                <span><i class="fas fa-phone"></i> ${escapeHtml(number)}</span>
+                <span><span class="status-badge ${result.valid ? 'valid' : 'invalid'}">${escapeHtml(label)}</span></span>
+                <span>${escapeHtml(detail || result.error || result.reason || '-')}</span>
+                <span>${new Date().toLocaleTimeString()}</span>
+            `;
+            log.appendChild(entry);
+
+            if (countEl) {
+                countEl.textContent = `${log.querySelectorAll('.log-entry').length} entries`;
+            }
+            log.scrollTop = log.scrollHeight;
+        }
+
         function resetPhoneValidationUI() {
             document.getElementById('phoneProgressSection').style.display = 'none';
             document.getElementById('startPhoneValidationBtn').style.display = 'inline-flex';
@@ -37675,6 +37755,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             document.getElementById('phoneProgressBar').style.width = '0%';
             document.getElementById('phonePassedCount').textContent = '0';
             document.getElementById('phoneFailedCount').textContent = '0';
+            window.phoneValidationStartTime = null;
         }
         
         // Show email validation results

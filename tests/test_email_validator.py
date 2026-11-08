@@ -208,12 +208,12 @@ def test_dns_failure_never_upgrades_unknown(monkeypatch):
     ("", None),
 ])
 def test_judge_negatives_win_over_positives(text, expected):
-    assert ev._judge(text) is expected
+    assert ev.judge_text(text) is expected
 
 
 def test_judge_invalid_beats_valid_substring():
     # "invalid" contains "valid" -- must stay negative.
-    assert ev._judge("Email is invalid") is False
+    assert ev.judge_text("Email is invalid") is False
 
 
 # ---------------------------------------------------------------- batch
@@ -239,3 +239,195 @@ def test_batch_survives_one_crash(monkeypatch):
     results = ev.validate_emails(["bad@example.com", "ok@example.com"], SETTINGS)
     assert "boom" in results[0]["error"]
     assert results[1]["status"] == ev.STATUS_VALID
+
+
+# =============================================================================
+# PHONE VALIDATOR (veriphone.io via Decodo)
+# =============================================================================
+
+VERIPHONE_MOBILE = """
+<html><body><div style="display:grid">
+  <span>Number</span><span>+234 706 997 7249</span>
+  <span>Type</span><span>mobile</span>
+  <span>Carrier</span><span>MTN</span>
+  <span>Country</span><span>Nigeria (NG)</span>
+</div></body></html>
+"""
+
+VERIPHONE_INVALID = """
+<html><body><div style="display:grid">
+  <span>Number</span><span>+1 000 000 0000</span>
+  <span>Type</span><span>invalid</span>
+  <span>Carrier</span><span></span>
+  <span>Country</span><span>United States (US)</span>
+</div></body></html>
+"""
+
+VERIPHONE_UNCLASSIFIED = """
+<html><body><div style="display:grid">
+  <span>Number</span><span>+234 706 997 7249</span>
+  <span>Type</span><span>unknown</span>
+</div></body></html>
+"""
+
+VERIPHONE_EMPTY = """
+<html><body><h1>Enter a phone number to validate</h1></body></html>
+"""
+
+
+def _patch_phone(monkeypatch, html=None, error=None):
+    def fake_call(value, adapter, settings):
+        if error:
+            raise ev.DecodoError(error)
+        return html
+
+    monkeypatch.setattr(ev, "_call_decodo", fake_call)
+
+
+SETTINGS = {"api_key": "test-key", "api_url": "http://x",
+            "target_url": ev.SKRAPP_URL, "target_type": "universal"}
+
+
+def test_veriphone_adapter_targets_the_phone_form():
+    adapter = ev._ADAPTERS["veriphone"]
+    assert adapter.url == "https://veriphone.io/"
+    actions = adapter.browser_actions("+2347069977249")
+    selectors = [a.get("selector", {}).get("value") for a in actions if a.get("selector")]
+    # Stable ids from the page, not hashed build classes.
+    assert "#phone-input" in selectors
+    assert "#checker-submit" in selectors
+    # The number must actually be typed into the input.
+    assert any(a.get("type") == "input" and a.get("value") == "+2347069977249" for a in actions)
+
+
+def test_veriphone_parse_extracts_the_result_grid():
+    text = ev.html_to_text(VERIPHONE_MOBILE)
+    raw = ev._ADAPTERS["veriphone"].parse(text)
+    assert raw["number"] == "+234 706 997 7249"
+    assert raw["line_type"] == "mobile"
+    assert raw["carrier"] == "MTN"
+    assert raw["country"] == "Nigeria (NG)"
+
+
+def test_mobile_number_is_valid(monkeypatch):
+    _patch_phone(monkeypatch, VERIPHONE_MOBILE)
+    result = ev.validate_phone_via_decodo("+2347069977249", "NG", SETTINGS)
+    assert result["status"] == ev.STATUS_VALID
+    assert result["valid"] is True
+    assert result["carrier"] == "MTN"
+    assert result["line_type"] == "mobile"
+    assert result["confidence"] >= 70
+    assert result["site"] == "veriphone"
+
+
+def test_invalid_type_is_invalid(monkeypatch):
+    _patch_phone(monkeypatch, VERIPHONE_INVALID)
+    result = ev.validate_phone_via_decodo("+10000000000", "US", SETTINGS)
+    assert result["status"] == ev.STATUS_INVALID
+    assert result["valid"] is False
+
+
+def test_unclassified_type_is_unknown_not_valid(monkeypatch):
+    _patch_phone(monkeypatch, VERIPHONE_UNCLASSIFIED)
+    result = ev.validate_phone_via_decodo("+2347069977249", "NG", SETTINGS)
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["valid"] is False
+
+
+def test_page_without_result_is_unknown(monkeypatch):
+    _patch_phone(monkeypatch, VERIPHONE_EMPTY)
+    result = ev.validate_phone_via_decodo("+2347069977249", "NG", SETTINGS)
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["valid"] is False
+
+
+def test_phone_transport_error_is_reported(monkeypatch):
+    _patch_phone(monkeypatch, error="Decodo rate limit hit (429)")
+    result = ev.validate_phone_via_decodo("+2347069977249", "NG", SETTINGS)
+    assert "429" in result["error"]
+    assert result["valid"] is False
+
+
+def test_phone_missing_key_fails_without_request(monkeypatch):
+    called = {"n": 0}
+
+    def boom(*a, **k):
+        called["n"] += 1
+        raise AssertionError("must not call Decodo")
+
+    monkeypatch.setattr(ev.requests, "post", boom)
+    result = ev.validate_phone_via_decodo("+2347069977249", "NG", {"api_key": ""})
+    assert called["n"] == 0
+    assert "No Decodo API key" in result["error"]
+
+
+def test_phone_mismatched_number_is_rejected(monkeypatch):
+    _patch_phone(monkeypatch, VERIPHONE_MOBILE)  # page shows +234 706 997 7249
+    result = ev.validate_phone_via_decodo("+15551234567", "US", SETTINGS)
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["error"]
+
+
+def test_phone_country_code_derived_from_page(monkeypatch):
+    _patch_phone(monkeypatch, VERIPHONE_MOBILE)
+    result = ev.validate_phone_via_decodo("+2347069977249", "", SETTINGS)
+    assert result["country_code"] == "NG"
+    assert result["country"] == "Nigeria (NG)"
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ({"line_type": "mobile", "carrier": "MTN"}, ev.STATUS_VALID),
+    ({"line_type": "landline"}, ev.STATUS_VALID),
+    ({"line_type": "voip", "carrier": "Twilio"}, ev.STATUS_VALID),
+    ({"line_type": "fixed line"}, ev.STATUS_VALID),
+    ({"line_type": "invalid"}, ev.STATUS_INVALID),
+    ({"line_type": "unknown"}, ev.STATUS_UNKNOWN),
+    ({"valid_field": "invalid", "line_type": "mobile"}, ev.STATUS_INVALID),
+    ({"valid_field": "valid"}, ev.STATUS_VALID),
+    ({"number": "+234 706 997 7249"}, ev.STATUS_UNKNOWN),
+    ({}, ev.STATUS_UNKNOWN),
+])
+def test_classify_phone(raw, expected):
+    status, _reason, _confidence = ev.classify_phone(raw)
+    assert status == expected
+
+
+def test_empty_cell_does_not_leak_next_label():
+    """Regression: an empty Carrier cell made Country bleed into carrier."""
+    html = """
+    <div><span>Number</span><span>+234 706 997 7249</span>
+    <span>Type</span><span>invalid</span>
+    <span>Carrier</span><span></span>
+    <span>Country</span><span>Nigeria (NG)</span></div>
+    """
+    raw = ev._ADAPTERS["veriphone"].parse(ev.html_to_text(html))
+    assert raw["carrier"] is None
+    assert raw["country"] == "Nigeria (NG)"
+
+
+# ---------------------------------------------------------------- E.164
+@pytest.mark.parametrize("number,country,expected", [
+    ("+2347069977249", "NG", "+2347069977249"),
+    ("7069977249", "NG", "+2347069977249"),      # national, hint wins over RU's "7"
+    ("07069977249", "NG", "+2347069977249"),     # trunk zero dropped
+    ("5551234567", "US", "+15551234567"),
+    ("07911123456", "GB", "+447911123456"),
+    ("+447911123456", "", "+447911123456"),
+    ("447911123456", "", "+447911123456"),       # detection when no hint
+    ("002347069977249", "", "+2347069977249"),   # 00-prefixed international
+])
+def test_to_e164(number, country, expected):
+    assert ev.to_e164(number, country) == expected
+
+
+def test_validator_sends_e164_not_the_national_number(monkeypatch):
+    """The stored value is national; veriphone must receive the dial code."""
+    seen = {}
+
+    def fake_call(value, adapter, settings):
+        seen["value"] = value
+        return VERIPHONE_MOBILE
+
+    monkeypatch.setattr(ev, "_call_decodo", fake_call)
+    ev.validate_phone_via_decodo("7069977249", "NG", SETTINGS)
+    assert seen["value"] == "+2347069977249"

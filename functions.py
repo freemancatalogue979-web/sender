@@ -34,11 +34,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 from email_validator import (  # noqa: E402
     MAX_WORKERS as _VALIDATOR_MAX_WORKERS,
+    STATUS_UNKNOWN,
     VALID_STATUSES,
     load_decodo_settings,
     save_decodo_settings,
     validate_emails,
     validate_emails_async,
+    validate_phones_async,
     validate_phone_via_decodo,
 )
 
@@ -10179,6 +10181,9 @@ def get_active_validator_session(user_id: str, base_path: Path, session_type: st
     
     # Check for running sessions
     for session_file in sessions_dir.glob("*.json"):
+        # Legacy pointers written inside this directory are not sessions.
+        if session_file.name.startswith("active_"):
+            continue
         try:
             with open(session_file, 'r', encoding='utf-8') as f:
                 session = json.load(f)
@@ -10268,8 +10273,17 @@ def get_validator_session(user_id: str, base_path: Path, session_id: str) -> Opt
 
 
 def _get_active_session_pointer_file(user_id: str, base_path: Path, session_type: str) -> Path:
-    """Path to the active-session pointer file for a validator type (email/phone)."""
-    return get_validator_sessions_dir(user_id, base_path) / f"active_{session_type}.json"
+    """
+    Path to the active-session pointer file for a validator type (email/phone).
+
+    Deliberately kept beside -- not inside -- ``validator-sessions/``: that
+    directory is globbed for ``*.json`` to find live sessions, and a pointer
+    stored there was being read back as a second, permanently "pending"
+    session (which then blocked every new run).
+    """
+    pointer_dir = base_path / f"fv-s-{user_id}" / "validator-active"
+    pointer_dir.mkdir(parents=True, exist_ok=True)
+    return pointer_dir / f"active_{session_type}.json"
 
 
 def save_active_session_state(
@@ -10730,7 +10744,8 @@ def create_phone_validation_session(
     base_path: Path,
     phone_numbers: List[str],
     list_name: str = None,
-    country_code: str = None
+    country_code: str = None,
+    batch_size: int = DEFAULT_VALIDATION_BATCH_SIZE,
 ) -> dict:
     """Create a new phone validation session"""
     
@@ -10760,8 +10775,11 @@ def create_phone_validation_session(
         "current_number": None,
         "list_name": list_name or f"Phone Validation {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "country_code": country_code,
-        "browser_api": True,
+        "transport": "decodo",
+        "site": "veriphone",
+        "batch_size": batch_size,
         "results": [],
+        "last_batch_results": [],
         "start_time": None,
         "elapsed_seconds": 0
     }
@@ -10818,7 +10836,41 @@ def format_phone_number(phone: str) -> tuple:
         "33": "FR",     # France
         "49": "DE",     # Germany
         "39": "IT",     # Italy
+        "31": "NL",     # Netherlands
+        "32": "BE",     # Belgium
+        "41": "CH",     # Switzerland
+        "43": "AT",     # Austria
+        "46": "SE",     # Sweden
+        "47": "NO",     # Norway
+        "45": "DK",     # Denmark
+        "358": "FI",    # Finland
+        "351": "PT",    # Portugal
+        "353": "IE",    # Ireland
+        "48": "PL",     # Poland
+        "7": "RU",      # Russia
+        "90": "TR",     # Turkey
+        "972": "IL",    # Israel
+        "27": "ZA",     # South Africa
+        "263": "ZW",    # Zimbabwe
+        "260": "ZM",    # Zambia
+        "250": "RW",    # Rwanda
+        "237": "CM",    # Cameroon
+        "254": "KE",    # Kenya
+        "880": "BD",    # Bangladesh
+        "92": "PK",     # Pakistan
+        "62": "ID",     # Indonesia
+        "60": "MY",     # Malaysia
+        "65": "SG",     # Singapore
+        "63": "PH",     # Philippines
+        "66": "TH",     # Thailand
+        "84": "VN",     # Vietnam
+        "971": "AE",    # UAE
     }
+
+    # Country -> dial code, derived from the map above (longest prefix wins).
+    dial_code_map = {}
+    for code, country in sorted(country_code_map.items(), key=lambda x: len(x[0]), reverse=True):
+        dial_code_map.setdefault(country, code)
     
     # Find matching country code
     matched_country = "US"  # Default
@@ -10847,118 +10899,143 @@ def format_phone_number(phone: str) -> tuple:
     return matched_country, clean_number
 
 
-def process_phone_validation(
+async def process_phone_validation(
     user_id: str,
     base_path: Path,
     session_id: str
 ) -> dict:
     """
-    Process a single phone number for validation
-    This runs asynchronously and updates the session
+    Validate the next batch of phone numbers through Decodo/veriphone.io.
+
+    Mirrors ``process_email_validation_batch``: honours the session batch size,
+    counts failed (transport) separately from invalid (no positive verdict),
+    and records results for the live log.
     """
     session = get_validator_session(user_id, base_path, session_id)
-    
+
     if not session:
         return {"success": False, "error": "Session not found"}
-    
+
     if session.get('status') == 'stopped':
         return {"success": False, "error": "Session was stopped"}
-    
-    # Decodo settings for this user
+
+    if session.get('status') == 'completed':
+        return {"success": False, "error": "Session already completed"}
+
     decodo_settings = load_decodo_settings(user_id, base_path)
-    
-    # Get next phone number from queue
-    queue = session.get('queue', [])
-    
-    if not queue:
-        # Queue is empty, validation complete
+
+    queue = Queue.from_list(session.get('queue', []))
+    current_batch = list(session.get('current_batch', []) or [])
+
+    # Honour the configured size, clamped to the worker ceiling.
+    try:
+        batch_size = int(session.get('batch_size') or DEFAULT_VALIDATION_BATCH_SIZE)
+    except (TypeError, ValueError):
+        batch_size = DEFAULT_VALIDATION_BATCH_SIZE
+    batch_size = max(1, min(batch_size, MAX_VALIDATION_BATCH_SIZE))
+
+    while len(current_batch) < batch_size and queue:
+        current_batch.append(queue.pop(0))
+
+    if not current_batch:
         update_validator_progress(user_id, base_path, session_id, {
             "status": "completed",
             "completed_at": datetime.now().isoformat()
         })
-        
-        # Save results to phone list
         save_phone_results_to_list(user_id, base_path, session)
-        
+
         return {"success": True, "completed": True}
-    
-    # Pop next number
-    phone_number = queue[0]
-    remaining_queue = queue[1:]
-    
-    # Format the number
-    country_code, formatted = format_phone_number(phone_number)
-    
-    # Use session country code if provided
-    if session.get('country_code') and session.get('country_code') != "UNKNOWN":
-        country_code = session.get('country_code')
-    
-    # Validate the phone number through Decodo (same transport as email).
-    # This function is sync and is invoked from a worker thread, so run the
-    # blocking lookup directly instead of touching the running event loop.
-    result = validate_phone_via_decodo(phone_number, country_code, decodo_settings)
-    
-    # Update counts
-    total_processed = session.get('processed', 0) + 1
-    total_valid = session.get('valid', 0)
-    total_invalid = session.get('invalid', 0)
-    total_failed = session.get('failed', 0)
-    
-    if result.get('valid'):
-        total_valid += 1
-    elif result.get('error'):
-        total_failed += 1
-    else:
-        total_invalid += 1
-    
-    # Calculate verified per minute
-    start_time_str = session.get('start_time')
-    if start_time_str:
-        start_time = datetime.fromisoformat(start_time_str)
-        elapsed = (datetime.now() - start_time).total_seconds()
-        if elapsed > 0:
-            vpm = (total_processed / elapsed) * 60
+
+    country_code = session.get('country_code') or ""
+    validation_results = await validate_phones_async(
+        list(current_batch), country_code, decodo_settings
+    )
+
+    results = []
+    valid_count = 0
+    invalid_count = 0
+    failed_count = 0
+
+    for result in validation_results:
+        if result.get('error'):
+            failed_count += 1
+        elif result.get('valid') and result.get('status') in VALID_STATUSES:
+            valid_count += 1
         else:
-            vpm = 0
-    else:
-        vpm = 0
-    
-    # Save result
-    all_results = session.get('results', [])
-    all_results.append(result)
-    
+            invalid_count += 1
+
+        results.append({
+            "number": result.get('number'),
+            "e164": result.get('e164'),
+            "country_code": result.get('country_code'),
+            "formatted_number": result.get('formatted_number'),
+            "valid": bool(result.get('valid')) and not result.get('error'),
+            "status": result.get('status'),
+            "category": result.get('category'),
+            "confidence": result.get('confidence', 0),
+            "reason": result.get('reason'),
+            "carrier": result.get('carrier'),
+            "line_type": result.get('line_type'),
+            "country": result.get('country'),
+            "region": result.get('region'),
+            "city": result.get('city'),
+            "site": result.get('site'),
+            "error": result.get('error'),
+            "validated_at": datetime.now().isoformat(),
+        })
+
+    total_processed = session.get('processed', 0) + len(current_batch)
+    total_valid = session.get('valid', 0) + valid_count
+    total_invalid = session.get('invalid', 0) + invalid_count
+    total_failed = session.get('failed', 0) + failed_count
+
+    start_time_str = session.get('start_time') or datetime.now().isoformat()
+    try:
+        elapsed = (datetime.now() - datetime.fromisoformat(start_time_str)).total_seconds()
+    except (TypeError, ValueError):
+        elapsed = 0
+    vpm = round((total_valid / elapsed) * 60, 2) if elapsed > 0 else 0
+
+    all_results = list(session.get('results', []) or [])
+    all_results.extend(results)
+
     updates = {
         "processed": total_processed,
         "valid": total_valid,
         "invalid": total_invalid,
         "failed": total_failed,
-        "verified_per_minute": round(vpm, 2),
-        "queue": remaining_queue,
-        "current_number": phone_number,
+        "verified_per_minute": vpm,
+        "queue": [str(q) for q in queue],
+        "current_batch": [],
+        "current_number": results[-1]["number"] if results else None,
         "results": all_results,
-        "elapsed_seconds": int((datetime.now() - datetime.fromisoformat(start_time_str)).total_seconds()) if start_time_str else 0
+        "last_batch_results": results,
+        "start_time": start_time_str,
+        "elapsed_seconds": int(elapsed),
     }
-    
-    # Check if this is the last number
-    if not remaining_queue:
+
+    if len(queue) == 0:
         updates["status"] = "completed"
         updates["completed_at"] = datetime.now().isoformat()
-    else:
-        # Mark as running if first item
-        if session.get('status') != 'running':
-            updates["status"] = "running"
-            updates["started_at"] = datetime.now().isoformat()
-    
+    elif session.get('status') != 'running':
+        updates["status"] = "running"
+        updates["started_at"] = datetime.now().isoformat()
+
     update_validator_progress(user_id, base_path, session_id, updates)
-    
+    session.update(updates)
+
+    if updates.get("status") == "completed":
+        save_phone_results_to_list(user_id, base_path, session)
+
     return {
         "success": True,
-        "processed": 1,
-        "valid": total_valid,
-        "invalid": total_invalid,
-        "failed": total_failed,
-        "remaining": len(remaining_queue),
-        "current_result": result
+        "processed": len(current_batch),
+        "valid": valid_count,
+        "invalid": invalid_count,
+        "failed": failed_count,
+        "remaining": len(queue),
+        "completed": updates.get("status") == "completed",
+        "last_batch_results": results,
     }
 
 
@@ -10980,23 +11057,36 @@ def save_phone_results_to_list(
     country_code = session.get('country_code')
     
     results = session.get('results', [])
-    
-    # Count valid/invalid
-    valid_count = sum(1 for r in results if r.get('valid'))
-    invalid_count = len(results) - valid_count
-    
+
+    # Count valid/invalid. A transport failure is not an invalid number, so it
+    # is tracked separately rather than folded into the negative bucket.
+    valid_count = sum(
+        1 for r in results
+        if r.get('valid') and not r.get('error') and r.get('status') in VALID_STATUSES
+    )
+    failed_count = sum(1 for r in results if r.get('error'))
+    invalid_count = len(results) - valid_count - failed_count
+
     # Create phone entries
     numbers = []
     for result in results:
         entry = {
             "number": result.get('number'),
+            "e164": result.get('e164'),
             "country_code": result.get('country_code') or country_code,
             "formatted_number": result.get('formatted_number'),
-            "valid": result.get('valid', False),
+            "valid": bool(result.get('valid')) and not result.get('error'),
+            "status": result.get('status'),
+            "category": result.get('category'),
+            "confidence": result.get('confidence', 0),
+            "reason": result.get('reason'),
             "carrier": result.get('carrier'),
             "line_type": result.get('line_type'),
+            "country": result.get('country'),
             "city": result.get('city'),
             "region": result.get('region'),
+            "site": result.get('site'),
+            "error": result.get('error'),
             "is_prepaid": result.get('is_prepaid'),
             "is_leaked": result.get('is_leaked'),
             "added_at": datetime.now().isoformat()
@@ -11013,6 +11103,8 @@ def save_phone_results_to_list(
         "total_numbers": len(numbers),
         "valid_count": valid_count,
         "invalid_count": invalid_count,
+        "failed_count": failed_count,
+        "site": session.get('site', 'veriphone'),
         "numbers": numbers
     }
     

@@ -29,6 +29,9 @@ Public API
 ``validate_one(email, settings=None)``          single validation
 ``load_decodo_settings(user_id, base_path)``    resolve user → env → defaults
 ``save_decodo_settings(user_id, base_path, d)`` persist user settings
+
+Shared primitives (``extract_html``, ``html_to_text``, ``SiteAdapter``,
+``judge_text``) are public because the phone validator reuses them.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from html import unescape as _html_unescape
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -56,6 +60,11 @@ logger = logging.getLogger(__name__)
 DECODO_DEFAULT_API_URL = "https://scraper-api.decodo.com/v2/scrape"
 SKRAPP_URL = "https://skrapp.io/email-verifier"
 HIPPO_URL = "https://tools.emailhippo.com/"
+VERIPHONE_URL = "https://veriphone.io/"
+
+# Stable element ids on veriphone.io (not hashed build classes).
+VERIPHONE_INPUT_ID = "phone-input"
+VERIPHONE_SUBMIT_ID = "checker-submit"
 
 # Domains that emailhippo handles more reliably than skrapp.
 HIPPO_DOMAIN_RE = re.compile(r"(yahoo|ymail|aol|aim)\b", re.IGNORECASE)
@@ -98,6 +107,8 @@ MAX_WORKERS = 10
 # not a value (e.g. "Domain Age 12" must not yield Domain = "Age 12").
 _NEXT_LABEL = re.compile(
     r"^(age|status|syntax|server|found|record|type|provider|name|mean|email|"
+    # phone-grid labels: an empty cell must not let "Carrier" absorb "Country …"
+    r"country|carrier|city|region|number|prepaid|leaked|"
     r"mx|smtp|reachability|deliverability)\b",
     re.IGNORECASE,
 )
@@ -258,7 +269,7 @@ def _find_first(patterns: Iterable[str], text: str) -> Optional[str]:
 # SITE ADAPTERS
 # =============================================================================
 
-class _SiteAdapter:
+class SiteAdapter:
     """How to drive and read one third-party verifier page."""
 
     name = "generic"
@@ -315,7 +326,7 @@ class _SiteAdapter:
 
     @staticmethod
     def yes_no(text: str, label_pattern: str) -> Optional[bool]:
-        value = _SiteAdapter.field(text, label_pattern)
+        value = SiteAdapter.field(text, label_pattern)
         if value is None:
             return None
         lowered = value.lower()
@@ -326,7 +337,7 @@ class _SiteAdapter:
         return None
 
 
-class SkrappAdapter(_SiteAdapter):
+class SkrappAdapter(SiteAdapter):
     """
     skrapp.io/email-verifier
 
@@ -383,7 +394,7 @@ class SkrappAdapter(_SiteAdapter):
         }
 
 
-class EmailHippoAdapter(_SiteAdapter):
+class EmailHippoAdapter(SiteAdapter):
     """
     tools.emailhippo.com
 
@@ -432,13 +443,68 @@ class EmailHippoAdapter(_SiteAdapter):
         }
 
 
-_ADAPTERS: Dict[str, _SiteAdapter] = {
+class VeriphoneAdapter(SiteAdapter):
+    """
+    veriphone.io — the phone-number checker.
+
+    The form is a single tel input plus a "Validate" submit; the result renders
+    as a two-column label/value grid:
+
+        Number   +234 706 997 7249
+        Type     mobile
+        Carrier  MTN
+        Country  Nigeria (NG)
+
+    Element ids on that page are stable (``phone-input`` / ``checker-submit``),
+    so they are used instead of positional or hashed selectors.
+    """
+
+    name = "veriphone"
+    url = VERIPHONE_URL
+    category = "phone"
+
+    def browser_actions(self, value: str) -> List[Dict[str, Any]]:
+        return [
+            {"type": "wait", "wait_time_s": 1},
+            {
+                "type": "click",
+                "selector": {"type": "css", "value": f"#{VERIPHONE_INPUT_ID}"},
+                "timeout_s": 5,
+            },
+            {
+                "type": "input",
+                "selector": {"type": "css", "value": f"#{VERIPHONE_INPUT_ID}"},
+                "value": value,
+            },
+            {
+                "type": "click",
+                "selector": {"type": "css", "value": f"#{VERIPHONE_SUBMIT_ID}"},
+                "timeout_s": 5,
+            },
+            # The grid is rendered after an in-page fetch; give it room.
+            {"type": "wait", "wait_time_s": 4},
+        ]
+
+    def parse(self, text: str) -> Dict[str, Any]:
+        return {
+            "number": self.field(text, r"Number"),
+            "line_type": self.field(text, r"Type"),
+            "carrier": self.field(text, r"Carrier"),
+            "country": self.field(text, r"Country"),
+            "region": self.field(text, r"Region|State"),
+            "city": self.field(text, r"City"),
+            "valid_field": self.field(text, r"Valid(?:e|ity)?"),
+        }
+
+
+_ADAPTERS: Dict[str, SiteAdapter] = {
     "skrapp": SkrappAdapter(),
     "emailhippo": EmailHippoAdapter(),
+    "veriphone": VeriphoneAdapter(),
 }
 
 
-def _adapter_for(email: str, settings: Dict[str, Any]) -> _SiteAdapter:
+def _adapter_for(email: str, settings: Dict[str, Any]) -> SiteAdapter:
     target = (settings.get("target_url") or "").lower()
     if "emailhippo" in target:
         return _ADAPTERS["emailhippo"]
@@ -460,7 +526,7 @@ _NEGATIVE = re.compile(
 )
 
 
-def _judge(text_value: Optional[str]) -> Optional[bool]:
+def judge_text(text_value: Optional[str]) -> Optional[bool]:
     """
     Classify one scraped sentence.
 
@@ -501,19 +567,19 @@ def classify_email(raw: Dict[str, Any]) -> Tuple[str, str, int]:
     if "catch" in combined and "all" in combined:
         return STATUS_CATCH_ALL, "Domain accepts all recipients (catch-all)", 60
 
-    decision = _judge(status)
+    decision = judge_text(status)
     if decision is True:
         return STATUS_VALID, status or "Mailbox verified", 95
     if decision is False:
         return STATUS_INVALID, status, 95
 
-    decision = _judge(server)
+    decision = judge_text(server)
     if decision is True:
         return STATUS_VALID, f"Mailbox server says {server}", 85
     if decision is False:
         return STATUS_INVALID, server, 85
 
-    decision = _judge(reach)
+    decision = judge_text(reach)
     if decision is True:
         return STATUS_VALID, reach, 80
     if decision is False:
@@ -569,7 +635,7 @@ class DecodoError(Exception):
     """Raised when the scraping API itself fails (not an email verdict)."""
 
 
-def _extract_html(payload: Any) -> Optional[str]:
+def extract_html(payload: Any) -> Optional[str]:
     """Pull the rendered page out of whichever envelope Decodo returns."""
     if isinstance(payload, str):
         return payload if "<" in payload else None
@@ -582,9 +648,9 @@ def _extract_html(payload: Any) -> Optional[str]:
     for key in ("results", "data"):
         value = payload.get(key)
         if isinstance(value, list) and value:
-            return _extract_html(value[0])
+            return extract_html(value[0])
         if isinstance(value, dict):
-            nested = _extract_html(value)
+            nested = extract_html(value)
             if nested:
                 return nested
     return None
@@ -639,7 +705,7 @@ def _call_decodo(
     except ValueError as exc:
         raise DecodoError("Decodo returned non-JSON response") from exc
 
-    html = _extract_html(data)
+    html = extract_html(data)
     if not html:
         keys = ", ".join(sorted(data)) if isinstance(data, dict) else type(data).__name__
         raise DecodoError(f"Decodo response contained no page HTML (keys: {keys})")
@@ -789,8 +855,6 @@ def validate_emails(
 
     workers = max(1, min(len(emails), max(1, max_workers)))
 
-    from concurrent.futures import ThreadPoolExecutor
-
     def _run(address: str) -> Dict[str, Any]:
         try:
             return validate_one(address, settings, check_dns=check_dns)
@@ -813,101 +877,253 @@ async def validate_emails_async(
     return await asyncio.to_thread(validate_emails, emails, settings, check_dns)
 
 
-def validate_phone_via_decodo(
-    phone_number: str,
-    country_code: str,
-    settings: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """
-    Phone lookup through Decodo, mirroring the email path.
+# ITU dial codes for the countries the panel works with. Longest prefix wins,
+# so 234 (NG) is matched before 23 or 2.
+_DIAL_CODES: Dict[str, str] = {
+    "US": "1", "CA": "1", "GB": "44", "NG": "234", "GH": "233", "CI": "225",
+    "SN": "221", "KE": "254", "TZ": "255", "UG": "256", "MA": "212", "DZ": "213",
+    "TN": "216", "EG": "20", "SA": "966", "AE": "971", "BH": "973", "KW": "965",
+    "OM": "968", "QA": "974", "IN": "91", "CN": "86", "JP": "81", "KR": "82",
+    "AU": "61", "NZ": "64", "BR": "55", "MX": "52", "ES": "34", "FR": "33",
+    "DE": "49", "IT": "39", "NL": "31", "BE": "32", "CH": "41", "AT": "43",
+    "SE": "46", "NO": "47", "DK": "45", "FI": "358", "PT": "351", "IE": "353",
+    "PL": "48", "RU": "7", "TR": "90", "IL": "972", "ZA": "27", "ZW": "263",
+    "ZM": "260", "RW": "250", "CM": "237", "BD": "880", "PK": "92", "ID": "62",
+    "MY": "60", "SG": "65", "PH": "63", "TH": "66", "VN": "84",
+}
 
-    Uses ipqualityscore's public lookup page, which renders the report as a
-    label/value table.
+# Every dial code, longest first, for prefix matching.
+_DIAL_CODES_BY_LENGTH = sorted(set(_DIAL_CODES.values()), key=len, reverse=True)
+
+# Countries whose national numbers are conventionally written with a trunk "0"
+# that must be dropped before the dial code (e.g. UK 07911 -> 447911).
+_TRUNK_ZERO_COUNTRIES = {"GB", "DE", "FR", "IT", "NL", "BE", "CH", "AT", "SE",
+                         "NO", "DK", "FI", "PT", "IE", "PL", "ZA", "NG", "KE",
+                         "GH", "AU", "NZ", "IN", "BD", "PK", "ID", "MY", "TH"}
+
+
+def to_e164(phone_number: str, country_code: str = "") -> str:
     """
-    result: Dict[str, Any] = {
+    Normalise a number to E.164 for veriphone.
+
+    ``format_phone_number`` in functions.py deliberately strips the dial code
+    and returns a national number, so the stored value cannot be sent as-is.
+    A supplied ``country_code`` always wins over prefix guessing, because short
+    dial codes (7 = RU, 55 = BR) would otherwise capture unrelated national
+    numbers.
+    """
+    raw = (phone_number or "").strip()
+    digits = re.sub(r"\D", "", raw)
+    if not digits:
+        return raw
+
+    # Already international.
+    if raw.startswith("+"):
+        return "+" + digits
+    if digits.startswith("00"):
+        return "+" + digits[2:]
+
+    cc = (country_code or "").strip().upper()
+    dial = _DIAL_CODES.get(cc, "")
+
+    if dial:
+        # Trust the hint: only treat the value as international when the dial
+        # code is present and enough national digits follow it.
+        if digits.startswith(dial) and len(digits) - len(dial) >= 7:
+            return "+" + digits
+        national = digits
+        if cc in _TRUNK_ZERO_COUNTRIES and national.startswith("0"):
+            national = national[1:]
+        return f"+{dial}{national}"
+
+    # No hint: fall back to longest-prefix detection.
+    for code in _DIAL_CODES_BY_LENGTH:
+        if digits.startswith(code) and len(digits) - len(code) >= 7:
+            return "+" + digits
+
+    return "+" + digits
+
+
+def _blank_phone_result(phone_number: str, country_code: str = "") -> Dict[str, Any]:
+    """Phone result with every field the session/list/UI layer reads."""
+    return {
         "number": phone_number,
-        "country_code": country_code,
+        "country_code": country_code or "",
         "formatted_number": None,
+        # Verdict mirror of the email path
         "valid": False,
         "status": STATUS_UNKNOWN,
-        "carrier": None,
+        "category": "unknown",
+        "confidence": 0,
+        "reason": None,
+        # Veriphone fields
         "line_type": None,
-        "city": None,
-        "region": None,
+        "carrier": None,
         "country": None,
+        "region": None,
+        "city": None,
+        # Legacy keys kept for stored lists / existing UI bindings
         "is_prepaid": None,
         "is_leaked": None,
+        "site": None,
+        "e164": None,
+        "raw": {},
         "error": None,
     }
 
+
+# A veriphone "Type" value maps onto a verdict: a real, reachable line is a
+# usable number; "invalid"/"unknown" means the checker could not place it.
+_PHONE_VALID_TYPES = {"mobile", "landline", "fixed_line", "voip", "fixed_line_or_mobile"}
+_PHONE_DEAD_TYPES = {"invalid", "unknown"}
+
+
+def classify_phone(raw: Dict[str, Any]) -> Tuple[str, str, int]:
+    """
+    Map scraped veriphone fields to ``(status, reason, confidence)``.
+
+    Mirrors ``classify_email``: an explicit negative wins, then an explicit
+    positive signal, and anything else is ``unknown`` — never silently valid.
+    """
+    valid_field = (raw.get("valid_field") or "").strip().lower()
+    line_type = (raw.get("line_type") or "").strip().lower()
+    carrier = (raw.get("carrier") or "").strip()
+    number = (raw.get("number") or "").strip()
+
+    if valid_field:
+        decision = judge_text(valid_field)
+        if decision is False:
+            return STATUS_INVALID, valid_field, 95
+        if decision is True:
+            return STATUS_VALID, valid_field, 90
+
+    if line_type:
+        normalised = line_type.replace("-", "_").replace(" ", "_")
+        if normalised in _PHONE_DEAD_TYPES:
+            # "unknown" is an absence of signal, not proof of a dead line.
+            return (
+                (STATUS_INVALID, f"Type: {line_type}", 80)
+                if normalised == "invalid"
+                else (STATUS_UNKNOWN, "Number could not be classified", 0)
+            )
+        if normalised in _PHONE_VALID_TYPES:
+            reason = f"{line_type}" + (f" on {carrier}" if carrier else "")
+            # A live line type is decent evidence but not definitive: the page
+            # can still be showing a cached/partial render.
+            return STATUS_VALID, reason, 80 if carrier else 70
+
+    if number:
+        # The checker echoed a formatted number back, which only happens on a
+        # successful lookup, but without a type/carrier this stays weak.
+        return STATUS_UNKNOWN, "Lookup returned a number but no classification", 30
+
+    return STATUS_UNKNOWN, "Verifier returned no conclusive result", 0
+
+
+def validate_phone_via_decodo(
+    phone_number: str,
+    country_code: str = "",
+    settings: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Validate a phone number through Decodo against veriphone.io.
+
+    Same contract as ``validate_one``: transport problems return a result with
+    ``error`` set (counted as *failed*), while a page that simply gives nothing
+    away returns ``status="unknown"``.
+    """
+    phone_number = (phone_number or "").strip()
+    result = _blank_phone_result(phone_number, country_code)
+
+    if not phone_number:
+        result["error"] = "Empty phone number"
+        return result
+
     settings = settings or load_decodo_settings()
-    if not settings.get("api_key"):
-        result["error"] = (
-            "No Decodo API key configured. Set FV_S_DECODO_API_KEY or save one "
-            "in the validator settings."
-        )
-        return result
+    adapter = _ADAPTERS["veriphone"]
+    result["site"] = adapter.name
 
-    url = (
-        "https://www.ipqualityscore.com/phone-number-validator/lookup/"
-        f"{country_code}/{phone_number}"
-    )
-    payload = {
-        "target": settings.get("target_type") or "universal",
-        "url": url,
-        "headless": "html",
-        "browser_actions": [
-            {"type": "wait", "wait_time_s": 5},
-            {"type": "wait", "wait_time_s": 3},
-        ],
-    }
+    # veriphone needs the international form; stored numbers are national.
+    e164 = to_e164(phone_number, country_code)
+    result["e164"] = e164
 
     try:
-        response = requests.post(
-            settings.get("api_url") or DECODO_DEFAULT_API_URL,
-            json=payload,
-            headers={
-                "accept": "application/json",
-                "content-type": "application/json",
-                "authorization": f"Basic {settings['api_key']}",
-            },
-            timeout=REQUEST_TIMEOUT,
-        )
-    except requests.exceptions.RequestException as exc:
-        result["error"] = f"Decodo request failed: {exc}"
-        return result
-
-    if response.status_code != 200:
-        result["error"] = f"Decodo error {response.status_code}"
-        return result
-
-    try:
-        html = _extract_html(response.json())
-    except ValueError:
-        html = None
-    if not html:
-        result["error"] = "Decodo response contained no page HTML"
+        html = _call_decodo(e164, adapter, settings)
+    except DecodoError as exc:
+        result["error"] = str(exc)
         return result
 
     text = html_to_text(html)
-    get = _SiteAdapter.field
+    lowered = text.lower()
+    if any(phrase in lowered for phrase in BLOCKED_PHRASES):
+        result["error"] = "Verifier blocked or throttled the request"
+        return result
 
-    result["formatted_number"] = get(text, r"Local\s+Formatted|Formatted")
-    result["carrier"] = get(text, r"Carrier")
-    result["line_type"] = get(text, r"Line\s+Type")
-    result["city"] = get(text, r"City")
-    result["region"] = get(text, r"Region")
-    result["country"] = get(text, r"Country")
-    result["is_prepaid"] = _SiteAdapter.yes_no(text, r"Prepaid")
-    leaked = _SiteAdapter.yes_no(text, r"Leaked")
-    result["is_leaked"] = leaked
+    raw = adapter.parse(text)
+    result["raw"] = {k: v for k, v in raw.items() if v not in (None, "")}
 
-    valid_field = get(text, r"Valid")
-    decision = _judge(valid_field)
-    if decision is True:
-        result["valid"] = True
-        result["status"] = STATUS_VALID
-    elif decision is False:
-        result["status"] = STATUS_INVALID
+    # Guard: only trust a page that echoed the number we submitted.
+    submitted_digits = re.sub(r"\D", "", e164)
+    echoed_digits = re.sub(r"\D", "", raw.get("number") or "")
+    if echoed_digits and submitted_digits and not (
+        echoed_digits.endswith(submitted_digits[-7:])
+        or submitted_digits.endswith(echoed_digits[-7:])
+    ):
+        result["status"] = STATUS_UNKNOWN
+        result["reason"] = "Verifier page showed a different number"
+        result["error"] = "Result did not correspond to the submitted number"
+        return result
+
+    status, reason, confidence = classify_phone(raw)
+    result["status"] = status
+    result["valid"] = status == STATUS_VALID
+    result["reason"] = reason
+    result["confidence"] = confidence
+    result["category"] = (
+        "deliverable" if status == STATUS_VALID
+        else "undeliverable" if status == STATUS_INVALID
+        else "unknown"
+    )
+
+    result["formatted_number"] = raw.get("number") or e164
+    result["line_type"] = raw.get("line_type")
+    result["carrier"] = raw.get("carrier")
+    result["country"] = raw.get("country")
+    result["region"] = raw.get("region")
+    result["city"] = raw.get("city")
+
+    # Derive the ISO country code from "Nigeria (NG)" when we have no hint.
+    if not result["country_code"] and result["country"]:
+        match = re.search(r"\(([A-Za-z]{2})\)", result["country"])
+        if match:
+            result["country_code"] = match.group(1).upper()
 
     return result
+
+
+async def validate_phones_async(
+    numbers: List[str],
+    country_code: str = "",
+    settings: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    """Concurrent wrapper used by the batch endpoint."""
+    numbers = [n for n in (numbers or []) if isinstance(n, str)]
+    if not numbers:
+        return []
+
+    def _run(number: str) -> Dict[str, Any]:
+        try:
+            return validate_phone_via_decodo(number, country_code, settings)
+        except Exception as exc:  # never let one number sink the batch
+            logger.exception("Phone validation crashed for %s", number)
+            blank = _blank_phone_result(number, country_code)
+            blank["error"] = f"Validation error: {exc}"
+            return blank
+
+    workers = max(1, min(len(numbers), MAX_WORKERS))
+
+    def _run_all() -> List[Dict[str, Any]]:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(_run, numbers))
+
+    return await asyncio.to_thread(_run_all)

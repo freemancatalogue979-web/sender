@@ -1,6 +1,11 @@
-# Email Validator — Decodo only
+# Validators — Decodo only (email + phone)
 
-The validator now has exactly one transport: the **Decodo Web Scraping API**. There is no Playwright, no Bright Data browser, and no ZeroBounce account anywhere in the codebase.
+Both validators now have exactly one transport: the **Decodo Web Scraping API**. There is no Playwright, no Bright Data browser, and no ZeroBounce account anywhere in the codebase.
+
+| | Site driven | Adapter | Field |
+|---|---|---|---|
+| **Email** | skrapp.io (emailhippo.com for Yahoo/AOL) | `SkrappAdapter`, `EmailHippoAdapter` | `validate_emails()` |
+| **Phone** | veriphone.io | `VeriphoneAdapter` | `validate_phone_via_decodo()` |
 
 Everything lives in one module — **`email_validator.py`** — and `functions.py` / `api.py` only orchestrate sessions around it.
 
@@ -157,3 +162,104 @@ No markup, styling or layout changed.
 ## 10. Remaining caveat
 
 Parsing is still regex-over-text on a third party's markup — far more resilient than hashed classes, but if skrapp/emailhippo redesign their result layout, verdicts degrade to `unknown` rather than silently lying. That is the intended failure mode: `unknown` is counted separately and never exported as valid.
+
+
+---
+
+## 11. Phone validator (veriphone.io)
+
+Wired to mirror the email path exactly — same transport, same session model, same honest counting.
+
+### The page it drives
+
+`https://veriphone.io/` — a single `input#phone-input[type=tel]` and a `#checker-submit` "Validate" button. Both ids are **stable page ids, not hashed build classes**, so the actions don't rot the way the ZeroBounce selectors did:
+
+```json
+browser_actions: [
+  {wait 1s},
+  {click  #phone-input},
+  {input  #phone-input = "+234 706 997 7249"},
+  {click  #checker-submit},
+  {wait 4s}
+]
+```
+
+### The result it parses
+
+The page renders a two-column label/value grid. Text extraction turns it into:
+
+```
+Number +234 706 997 7249
+Type mobile
+Carrier MTN
+Country Nigeria (NG)
+```
+
+`VeriphoneAdapter.parse()` reads `Number`, `Type`, `Carrier`, `Country`, plus optional `Region` / `City` / `Valid`.
+
+### Verdict
+
+`classify_phone()` mirrors `classify_email()` — explicit negative first, then explicit positive, else `unknown`:
+
+| Signal | Verdict | Confidence |
+|---|---|---|
+| `Valid` field says invalid/valid | `invalid` / `valid` | 95 / 90 |
+| `Type` = invalid | `invalid` | 80 |
+| `Type` = mobile, landline, fixed line, voip | `valid` | 80 (with carrier) / 70 |
+| `Type` = unknown | `unknown` | 0 |
+| Number echoed but nothing else | `unknown` | 30 |
+| Nothing | `unknown` | 0 |
+
+A page that shows a **different number** than the one submitted is discarded as `unknown` with an error, same guard as email.
+
+### E.164 normalisation (required)
+
+`format_phone_number()` in `functions.py` deliberately **strips the dial code** and returns a national number, so the stored value cannot be sent to veriphone as-is (`7069977249` is meaningless to the checker).
+
+`to_e164(number, country_code)` fixes that:
+
+| Input | Hint | Sent |
+|---|---|---|
+| `+2347069977249` | NG | `+2347069977249` |
+| `7069977249` | NG | `+2347069977249` |
+| `07069977249` | NG | `+2347069977249` (trunk zero dropped) |
+| `5551234567` | US | `+15551234567` |
+| `07911123456` | GB | `+447911123456` |
+| `447911123456` | — | `+447911123456` (detected) |
+| `002347069977249` | — | `+2347069977249` |
+
+A supplied country hint **always beats prefix guessing**, because short dial codes (7 = RU, 55 = BR) would otherwise capture unrelated national numbers — `7069977249` was being read as Russian during development.
+
+### Session
+
+Same shape as email, with `transport: "decodo"`, `site: "veriphone"`, and a real `batch_size` (was ignored; now honoured and clamped). `POST /validator/phone/start` accepts `batch_size`, `POST /validator/phone/validate/{sid}` processes the next batch, and the session response now includes `site`, `batch_size` and `last_batch_results` for the live log.
+
+---
+
+## 12. Bug fixed while wiring the phone path
+
+**The active-session pointer was writing itself into the sessions folder.**
+
+`_get_active_session_pointer_file()` put `active_phone.json` inside `validator-sessions/`, and `get_active_validator_session()` globs that same directory for `*.json`. Result: every run left behind a second, permanently-`pending` "session" that was never cleaned up — so after one validation, `/validator/phone/status` reported `running: true` forever and every new run was rejected with *"a validation process is already running"*.
+
+The pointer now lives in a separate `validator-active/` folder, legacy pointers left inside the sessions directory are skipped, and `tests/test_phone_session.py` locks the behaviour in.
+
+Also fixed: an empty result cell (`Carrier` blank) used to let the next label bleed in, so `Country Nigeria (NG)` was being recorded as the carrier. The label guard now covers the phone grid's labels.
+
+---
+
+## 13. Frontend (phone)
+
+- **`pollPhoneValidationProgress` now triggers batches.** It only read the session and re-polled, so a phone session would sit at `pending` forever — the backend has no worker. It now posts to `/validator/phone/validate/{sid}` each tick, exactly like the email poller.
+- New **`addPhoneNumberLogEntry`** — one row per number with carrier/country, verdict badge, and error text.
+- Added `startPhoneTimer` / `stopPhoneTimer` (the poller already called `stopPhoneTimer`, which didn't exist) and reset `resetPhoneValidationUI` on completion.
+
+---
+
+## 14. Verification
+
+- **84 tests passing** (was 50): 26 phone-specific cases covering the adapter's real selectors, the plan's exact result markup, invalid/unknown/empty pages, transport errors, missing-key fail-fast, number-mismatch rejection, the classifier matrix, E.164 normalisation, and the pointer-file regression.
+- End-to-end through the real batch processor: `processed: 4, valid: 2, invalid: 2, failed: 0`, with the list saved as `plist_…` carrying `valid_count`, `invalid_count`, `failed_count`, `site`.
+- Over HTTP against a running server: import → list → start (via `list_id`, `batch_size: 7`) → batch → `/phone/status` correctly flipping to `running: false` → a **new** session allowed to start.
+- Email flow re-verified after the pointer change (4 valid / 2 invalid, no active session left behind).
+- `Admin.html` inline JS passes `node --check`.
