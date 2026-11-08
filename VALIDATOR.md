@@ -1018,3 +1018,45 @@ batch                                  -> processed 3, valid 3, invalid 0, faile
 No restart between the first and last line, and no `FV_S_SCRAPER_PROVIDER` set.
 
 **169 tests passing.**
+
+### The card, after the first attempt was rejected
+
+The first version was a bare `<select>` + `<input>` + `<button>` dropped inside
+the launch panel. It worked and looked like nothing else in the product. Rebuilt
+as a connection card against the existing tokens (`--border-color`,
+`--text-gray`, the `#8a2be2 → #00e5ff` accent, 16px radii, the `proxy-toggle-switch`
+component the proxy page already uses):
+
+```
+┌ ● Scraper API ────────────────────── [● SCRAPINGBEE] ┐
+│   Where every number check is sent                    │
+│  ┌──────────────┐ ┌──────────────┐                    │
+│  │ ⚡ ScrapingBee│ │ 🛡 Decodo     │  active = gradient │
+│  │ 5 credits    │ │ flat plan    │  + glow + ✓        │
+│  │         Saved│ │        No key│                    │
+│  └──────────────┘ └──────────────┘                    │
+│  ┌──────────────┐ ┌──────────────┐                    │
+│  │ 🪟 Browser Use│ │ 💻 Offline    │                    │
+│  └──────────────┘ └──────────────┘                    │
+│  API KEY                 PROXY COUNTRY                │
+│  [🔑 ••••••••••••••••••• 👁]  [ any ]                 │
+│  (o—) Premium proxy · 25 credits instead of 5         │
+│  [ ⚡ Save & Activate ] [ 🧪 Test ] [ ⟳ ]              │
+│  ✓ ScrapingBee is live. Used on the next launch.      │
+│  5 credits each…            4,820 credits · ~964 nums │
+└───────────────────────────────────────────────────────┘
+```
+
+Why each piece earns its space:
+
+- **Tiles, not a dropdown.** Four transports have to be compared on two things
+  at once — cost and whether they are ready — and a `<select>` can show neither.
+- **`Saved` vs `Env` per tile.** Both mean "has a key", but only one means "the
+  key you pasted here is working". The API returns `sources` for this.
+- **The credit pill.** At 5 credits a number, the balance is the thing that
+  decides whether a run is affordable, so it belongs next to the launch button.
+  Red under 500 credits (~100 numbers).
+- **Offline hides the key form.** Nothing to paste; showing a field would invite
+  someone to paste a key into a transport that never reads one.
+
+**170 tests passing.**

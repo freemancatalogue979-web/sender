@@ -2258,84 +2258,424 @@
             /* =================================================
              * 9) VALIDATOR — hero, tabs, stats, panel header
              * ================================================= */
-            /* Live scraper API panel (phone launch controls) */
-            .scraper-live-panel {
-                margin-bottom: 14px;
-                padding: 12px;
-                border-radius: 10px;
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+            /* =================================================
+             * Live scraper API card (phone launch controls)
+             * ================================================= */
+            .scraper-card {
+                position: relative;
+                margin-bottom: 16px;
+                padding: 16px;
+                border-radius: 16px;
+                border: 1px solid var(--border-color);
+                background:
+                    radial-gradient(120% 100% at 0% 0%, rgba(138, 43, 226, 0.10), transparent 55%),
+                    rgba(255, 255, 255, 0.02);
+                overflow: hidden;
             }
-            .scraper-live-head {
+
+            .scraper-card::before {
+                content: '';
+                position: absolute;
+                inset: 0 0 auto 0;
+                height: 2px;
+                background: linear-gradient(90deg, #8a2be2, #00e5ff);
+                opacity: 0.85;
+            }
+
+            .scraper-card-head {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+
+            .scraper-card-heading {
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
                 gap: 10px;
+                min-width: 0;
+            }
+
+            .scraper-card-icon {
+                width: 34px;
+                height: 34px;
+                flex: 0 0 34px;
+                display: grid;
+                place-items: center;
+                border-radius: 10px;
+                font-size: 14px;
+                color: #fff;
+                background: linear-gradient(135deg, #8a2be2, #4b0082);
+                box-shadow: 0 6px 16px rgba(138, 43, 226, 0.35);
+            }
+
+            .scraper-card-title {
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 0.3px;
+                color: var(--text-white);
+                line-height: 1.2;
+            }
+
+            .scraper-card-subtitle {
+                font-size: 10px;
+                color: var(--text-gray);
+                margin-top: 2px;
+                line-height: 1.3;
+            }
+
+            /* Status pill */
+            .scraper-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px 9px;
+                border-radius: 999px;
+                font-size: 9px;
+                font-weight: 800;
+                letter-spacing: 0.7px;
+                text-transform: uppercase;
+                white-space: nowrap;
+                color: #9aa4b2;
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                transition: all 0.25s ease;
+            }
+
+            .scraper-badge-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: currentColor;
+                box-shadow: 0 0 0 0 currentColor;
+            }
+
+            .scraper-badge.is-live { color: #4ade80; background: rgba(74, 222, 128, 0.10); border-color: rgba(74, 222, 128, 0.35); }
+            .scraper-badge.is-warn { color: #fbbf24; background: rgba(251, 191, 36, 0.10); border-color: rgba(251, 191, 36, 0.35); }
+            .scraper-badge.is-error { color: #f87171; background: rgba(248, 113, 113, 0.10); border-color: rgba(248, 113, 113, 0.35); }
+            .scraper-badge.is-live .scraper-badge-dot { animation: scraperPulse 2s ease-in-out infinite; }
+
+            @keyframes scraperPulse {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); }
+                50% { box-shadow: 0 0 0 4px rgba(74, 222, 128, 0); }
+            }
+
+            /* Provider tiles */
+            .scraper-provider-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+
+            .scraper-provider-tile {
+                position: relative;
+                display: grid;
+                grid-template-columns: 22px 1fr;
+                grid-template-rows: auto auto;
+                column-gap: 8px;
+                row-gap: 1px;
+                align-items: center;
+                padding: 10px;
+                text-align: left;
+                cursor: pointer;
+                border-radius: 11px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                background: rgba(0, 0, 0, 0.28);
+                color: var(--text-white);
+                font-family: 'Montserrat', sans-serif;
+                transition: all 0.2s ease;
+            }
+
+            .scraper-provider-tile:hover {
+                border-color: rgba(0, 229, 255, 0.35);
+                background: rgba(0, 229, 255, 0.05);
+                transform: translateY(-1px);
+            }
+
+            .scraper-provider-tile.is-active {
+                border-color: rgba(138, 43, 226, 0.7);
+                background: linear-gradient(135deg, rgba(138, 43, 226, 0.18), rgba(0, 229, 255, 0.08));
+                box-shadow: 0 0 0 1px rgba(138, 43, 226, 0.35), 0 8px 20px rgba(138, 43, 226, 0.18);
+            }
+
+            .scraper-provider-tile.is-active::after {
+                content: '\f00c';
+                font-family: 'Font Awesome 6 Free';
+                font-weight: 900;
+                position: absolute;
+                top: 7px;
+                right: 8px;
+                font-size: 8px;
+                color: #4ade80;
+            }
+
+            .scraper-tile-icon {
+                grid-row: 1 / span 2;
+                display: grid;
+                place-items: center;
+                width: 22px;
+                height: 22px;
+                border-radius: 7px;
+                font-size: 10px;
+                color: #00e5ff;
+                background: rgba(0, 229, 255, 0.10);
+            }
+
+            .scraper-provider-tile.is-active .scraper-tile-icon {
+                color: #fff;
+                background: linear-gradient(135deg, #8a2be2, #00e5ff);
+            }
+
+            .scraper-tile-name {
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.2px;
+                line-height: 1.2;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .scraper-tile-meta {
+                font-size: 9px;
+                color: var(--text-gray);
+                line-height: 1.2;
+            }
+
+            .scraper-tile-state {
+                position: absolute;
+                bottom: 6px;
+                right: 8px;
+                font-size: 8px;
+                font-weight: 700;
+                letter-spacing: 0.4px;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.28);
+            }
+
+            .scraper-tile-state.is-ready { color: #4ade80; }
+            .scraper-tile-state.is-env { color: #fbbf24; }
+
+            /* Fields */
+            .scraper-form { margin-bottom: 12px; }
+
+            .scraper-form-row {
+                display: grid;
+                grid-template-columns: 1fr 92px;
+                gap: 8px;
                 margin-bottom: 10px;
             }
-            .scraper-live-title {
-                font-size: 11px;
+
+            .scraper-field-label {
+                display: block;
+                font-size: 9px;
                 font-weight: 700;
                 letter-spacing: 0.6px;
                 text-transform: uppercase;
                 color: var(--text-gray);
+                margin-bottom: 5px;
             }
-            .scraper-live-title i { color: #8a2be2; margin-right: 4px; }
-            .scraper-live-badge {
+
+            .scraper-input-group { position: relative; display: flex; align-items: center; }
+
+            .scraper-input-icon {
+                position: absolute;
+                left: 10px;
                 font-size: 10px;
-                font-weight: 700;
-                letter-spacing: 0.5px;
-                padding: 3px 9px;
-                border-radius: 999px;
-                color: #9aa4b2;
-                background: rgba(255, 255, 255, 0.07);
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                white-space: nowrap;
+                color: rgba(255, 255, 255, 0.35);
+                pointer-events: none;
             }
-            .scraper-live-input {
+
+            .scraper-input {
                 width: 100%;
-                margin-bottom: 6px;
-                font-size: 12px;
+                padding: 9px 32px 9px 28px;
+                font-family: 'Montserrat', sans-serif;
+                font-size: 11px;
+                color: var(--text-white);
+                background: rgba(0, 0, 0, 0.45);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 9px;
+                transition: all 0.2s ease;
             }
-            .scraper-live-check {
-                display: flex;
-                align-items: flex-start;
-                gap: 6px;
+
+            .scraper-input-plain { padding: 9px 10px; }
+
+            .scraper-input::placeholder { color: rgba(255, 255, 255, 0.25); }
+
+            .scraper-input:focus {
+                outline: none;
+                border-color: rgba(0, 229, 255, 0.5);
+                box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.1);
+                background: rgba(0, 0, 0, 0.6);
+            }
+
+            .scraper-input-reveal {
+                position: absolute;
+                right: 8px;
+                display: grid;
+                place-items: center;
+                width: 22px;
+                height: 22px;
+                padding: 0;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                color: rgba(255, 255, 255, 0.4);
+                background: transparent;
                 font-size: 10px;
-                color: var(--text-gray);
-                margin: 4px 0 8px;
+                transition: all 0.2s ease;
+            }
+
+            .scraper-input-reveal:hover { color: #00e5ff; background: rgba(0, 229, 255, 0.1); }
+
+            /* Premium proxy switch */
+            .scraper-switch-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 8px 10px;
+                margin-bottom: 10px;
+                border-radius: 9px;
+                background: rgba(0, 0, 0, 0.22);
+                border: 1px solid rgba(255, 255, 255, 0.05);
                 cursor: pointer;
             }
-            .scraper-live-check input { margin-top: 2px; }
-            .scraper-live-actions {
+
+            .scraper-switch-row .proxy-toggle-switch { width: 38px; height: 21px; flex: 0 0 38px; }
+            .scraper-switch-row .proxy-toggle-slider { border-width: 1px; }
+            .scraper-switch-row .proxy-toggle-slider::before { height: 15px; width: 15px; left: 2px; bottom: 2px; }
+            .scraper-switch-row .proxy-toggle-switch input:checked + .proxy-toggle-slider::before { transform: translateX(17px); }
+
+            .scraper-switch-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+            .scraper-switch-title { font-size: 10px; font-weight: 700; color: var(--text-white); }
+            .scraper-switch-note { font-size: 9px; color: var(--text-gray); line-height: 1.35; }
+
+            /* Actions */
+            .scraper-actions { display: flex; gap: 6px; align-items: stretch; }
+
+            .scraper-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 9px 12px;
+                font-family: 'Montserrat', sans-serif;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.2px;
+                color: var(--text-white);
+                background: rgba(255, 255, 255, 0.07);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 9px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .scraper-btn:hover:not(:disabled) {
+                background: rgba(255, 255, 255, 0.14);
+                border-color: rgba(255, 255, 255, 0.25);
+                transform: translateY(-1px);
+            }
+
+            .scraper-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+            .scraper-btn-primary {
+                flex: 1 1 auto;
+                color: #0b0d12;
+                border: none;
+                background: linear-gradient(135deg, #00e5ff, #8a2be2);
+                box-shadow: 0 6px 18px rgba(0, 229, 255, 0.18);
+            }
+
+            .scraper-btn-primary:hover:not(:disabled) {
+                background: linear-gradient(135deg, #33ebff, #a04dff);
+                border: none;
+                box-shadow: 0 8px 24px rgba(138, 43, 226, 0.35);
+            }
+
+            .scraper-btn-ghost { flex: 0 0 auto; padding: 9px 10px; background: transparent; }
+
+            /* Status + footer */
+            .scraper-status {
                 display: flex;
                 gap: 8px;
-                flex-wrap: wrap;
-                margin-bottom: 8px;
-            }
-            .scraper-live-status {
-                font-size: 11px;
-                line-height: 1.5;
-                color: var(--text-gray);
-                padding: 7px 9px;
-                border-radius: 6px;
-                background: rgba(0, 0, 0, 0.18);
-                border-left: 2px solid rgba(255, 255, 255, 0.12);
-                word-break: break-word;
-            }
-            .scraper-live-status.is-live { border-left-color: #4ade80; color: #b9f6ca; }
-            .scraper-live-status.is-warn { border-left-color: #fbbf24; color: #fde68a; }
-            .scraper-live-status.is-error { border-left-color: #f87171; color: #fecaca; }
-            .scraper-live-hint {
+                align-items: flex-start;
+                padding: 8px 10px;
+                border-radius: 9px;
+                background: rgba(0, 0, 0, 0.22);
+                border-left: 2px solid rgba(255, 255, 255, 0.14);
                 font-size: 10px;
                 line-height: 1.5;
                 color: var(--text-gray);
-                margin-top: 6px;
+                word-break: break-word;
             }
-            .scraper-live-summary {
-                font-size: 11px;
-                color: var(--text-gray);
+
+            .scraper-status-icon { font-size: 10px; margin-top: 2px; opacity: 0.7; flex: 0 0 auto; }
+            .scraper-status.is-live { border-left-color: #4ade80; color: #b9f6ca; }
+            .scraper-status.is-live .scraper-status-icon { color: #4ade80; }
+            .scraper-status.is-warn { border-left-color: #fbbf24; color: #fde68a; }
+            .scraper-status.is-warn .scraper-status-icon { color: #fbbf24; }
+            .scraper-status.is-error { border-left-color: #f87171; color: #fecaca; }
+            .scraper-status.is-error .scraper-status-icon { color: #f87171; }
+            .scraper-status.is-busy .scraper-status-icon { color: #00e5ff; animation: scraperSpin 1s linear infinite; }
+
+            @keyframes scraperSpin { to { transform: rotate(360deg); } }
+
+            .scraper-foot {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                margin-top: 8px;
+            }
+
+            .scraper-cost { font-size: 9px; line-height: 1.45; color: rgba(255, 255, 255, 0.38); flex: 1 1 auto; }
+
+            .scraper-credits {
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.3px;
+                white-space: nowrap;
+                padding: 3px 8px;
+                border-radius: 999px;
+                color: #00e5ff;
+                background: rgba(0, 229, 255, 0.08);
+                border: 1px solid rgba(0, 229, 255, 0.25);
+            }
+
+            .scraper-credits.is-low { color: #f87171; background: rgba(248, 113, 113, 0.08); border-color: rgba(248, 113, 113, 0.3); }
+
+            /* Advanced */
+            .scraper-advanced { margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px; }
+
+            .scraper-advanced summary {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                list-style: none;
                 cursor: pointer;
+                font-size: 10px;
+                font-weight: 600;
+                color: var(--text-gray);
+                transition: color 0.2s ease;
+            }
+
+            .scraper-advanced summary::-webkit-details-marker { display: none; }
+            .scraper-advanced summary:hover { color: var(--text-white); }
+            .scraper-chevron { font-size: 8px; transition: transform 0.2s ease; }
+            .scraper-advanced[open] .scraper-chevron { transform: rotate(90deg); }
+
+            .scraper-advanced-body { padding-top: 10px; }
+            .scraper-advanced-note { font-size: 9px; line-height: 1.5; color: var(--text-gray); margin-top: 8px; }
+
+            /* The offline engine needs no credentials */
+            .scraper-card.is-local .scraper-form { display: none; }
+
+            @media (max-width: 420px) {
+                .scraper-provider-grid { grid-template-columns: repeat(2, 1fr); }
+                .scraper-form-row { grid-template-columns: 1fr; }
             }
 
             .validator-hero-header {
@@ -23015,75 +23355,142 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                     <h4><i class="fas fa-rocket"></i> Launch Controls</h4>
 
                                     <!-- Live scraper API panel.
-                                         Pick a transport, paste its key, save: the
-                                         next batch uses it immediately. No env edit,
-                                         no restart. -->
-                                    <div class="scraper-live-panel">
-                                        <div class="scraper-live-head">
-                                            <span class="scraper-live-title">
-                                                <i class="fas fa-plug"></i> Scraper API
+                                         A connection card: pick a transport, paste its
+                                         key, save. Applies to the next batch with no
+                                         env edit and no restart. -->
+                                    <div class="scraper-card">
+                                        <div class="scraper-card-head">
+                                            <div class="scraper-card-heading">
+                                                <div class="scraper-card-icon"><i class="fas fa-plug"></i></div>
+                                                <div>
+                                                    <div class="scraper-card-title">Scraper API</div>
+                                                    <div class="scraper-card-subtitle">Where every number check is sent</div>
+                                                </div>
+                                            </div>
+                                            <span id="phoneTransportBadge" class="scraper-badge">
+                                                <span class="scraper-badge-dot"></span>
+                                                <span class="scraper-badge-text">Checking…</span>
                                             </span>
-                                            <span id="phoneTransportBadge" class="scraper-live-badge">checking…</span>
                                         </div>
 
-                                        <select id="scraperProviderSelect" class="form-control scraper-live-input"
-                                                onchange="switchScraperProvider(this.value)">
-                                            <option value="scrapingbee">ScrapingBee — web automation</option>
-                                            <option value="decodo">Decodo — web scraping API</option>
-                                            <option value="browser-use">Browser Use — cloud browser</option>
-                                            <option value="local">Offline tables — free, no network</option>
+                                        <div class="scraper-provider-grid" id="scraperProviderGrid">
+                                            <button type="button" class="scraper-provider-tile" data-provider="scrapingbee"
+                                                    onclick="switchScraperProvider('scrapingbee')">
+                                                <span class="scraper-tile-icon"><i class="fas fa-bug"></i></span>
+                                                <span class="scraper-tile-name">ScrapingBee</span>
+                                                <span class="scraper-tile-meta">5 credits</span>
+                                                <span class="scraper-tile-state" data-state-for="scrapingbee">No key</span>
+                                            </button>
+                                            <button type="button" class="scraper-provider-tile" data-provider="decodo"
+                                                    onclick="switchScraperProvider('decodo')">
+                                                <span class="scraper-tile-icon"><i class="fas fa-shield-halved"></i></span>
+                                                <span class="scraper-tile-name">Decodo</span>
+                                                <span class="scraper-tile-meta">flat plan</span>
+                                                <span class="scraper-tile-state" data-state-for="decodo">No key</span>
+                                            </button>
+                                            <button type="button" class="scraper-provider-tile" data-provider="browser-use"
+                                                    onclick="switchScraperProvider('browser-use')">
+                                                <span class="scraper-tile-icon"><i class="fas fa-window-restore"></i></span>
+                                                <span class="scraper-tile-name">Browser Use</span>
+                                                <span class="scraper-tile-meta">$5/GB</span>
+                                                <span class="scraper-tile-state" data-state-for="browser-use">No key</span>
+                                            </button>
+                                            <button type="button" class="scraper-provider-tile" data-provider="local"
+                                                    onclick="switchScraperProvider('local')">
+                                                <span class="scraper-tile-icon"><i class="fas fa-microchip"></i></span>
+                                                <span class="scraper-tile-name">Offline</span>
+                                                <span class="scraper-tile-meta">free</span>
+                                                <span class="scraper-tile-state" data-state-for="local">Ready</span>
+                                            </button>
+                                        </div>
+                                        <select id="scraperProviderSelect" style="display: none;" aria-hidden="true">
+                                            <option value="scrapingbee">ScrapingBee</option>
+                                            <option value="decodo">Decodo</option>
+                                            <option value="browser-use">Browser Use</option>
+                                            <option value="local">Offline tables</option>
                                         </select>
 
-                                        <input type="password" id="scraperApiKey" class="form-control scraper-live-input"
-                                               autocomplete="off" placeholder="Paste API key…"
-                                               onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
-                                        <input type="text" id="scraperProxyCountry" class="form-control scraper-live-input"
-                                               autocomplete="off" placeholder="proxy country (optional, e.g. ng, us)">
+                                        <div class="scraper-form" id="scraperForm">
+                                            <div class="scraper-form-row">
+                                                <div class="scraper-field">
+                                                    <label class="scraper-field-label" for="scraperApiKey">API key</label>
+                                                    <div class="scraper-input-group">
+                                                        <i class="fas fa-key scraper-input-icon"></i>
+                                                        <input type="password" id="scraperApiKey" class="scraper-input"
+                                                               autocomplete="off" spellcheck="false" placeholder="Paste key…"
+                                                               onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
+                                                        <button type="button" class="scraper-input-reveal"
+                                                                onclick="toggleKeyVisibility()" title="Show / hide">
+                                                            <i class="fas fa-eye" id="scraperRevealIcon"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="scraper-field scraper-field-compact">
+                                                    <label class="scraper-field-label" for="scraperProxyCountry">Proxy country</label>
+                                                    <input type="text" id="scraperProxyCountry" class="scraper-input scraper-input-plain"
+                                                           autocomplete="off" maxlength="2" placeholder="any">
+                                                </div>
+                                            </div>
 
-                                        <label class="scraper-live-check">
-                                            <input type="checkbox" id="scraperPremiumProxy">
-                                            <span>premium proxy (ScrapingBee: 25 credits instead of 5)</span>
-                                        </label>
+                                            <label class="scraper-switch-row">
+                                                <span class="proxy-toggle-switch">
+                                                    <input type="checkbox" id="scraperPremiumProxy">
+                                                    <span class="proxy-toggle-slider"></span>
+                                                </span>
+                                                <span class="scraper-switch-text">
+                                                    <span class="scraper-switch-title">Premium proxy</span>
+                                                    <span class="scraper-switch-note">ScrapingBee: 25 credits per number instead of 5</span>
+                                                </span>
+                                            </label>
 
-                                        <div class="scraper-live-actions">
-                                            <button class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
-                                                    id="scraperSaveBtn" onclick="saveScraperKey()">
-                                                <span class="btn-icon"><i class="fas fa-bolt"></i></span>
-                                                <span class="btn-text">Save &amp; Activate</span>
-                                            </button>
-                                            <button class="montserrat-btn montserrat-btn-sm" id="scraperTestBtn"
-                                                    onclick="testScraperProvider()">
-                                                <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                <span class="btn-text">Test</span>
-                                            </button>
-                                            <button class="montserrat-btn montserrat-btn-sm" onclick="loadScraperPanel()">
-                                                <span class="btn-icon"><i class="fas fa-sync-alt"></i></span>
-                                                <span class="btn-text">Refresh</span>
-                                            </button>
+                                            <div class="scraper-actions">
+                                                <button type="button" class="scraper-btn scraper-btn-primary"
+                                                        id="scraperSaveBtn" onclick="saveScraperKey()">
+                                                    <i class="fas fa-bolt"></i> Save &amp; Activate
+                                                </button>
+                                                <button type="button" class="scraper-btn" id="scraperTestBtn"
+                                                        onclick="testScraperProvider()">
+                                                    <i class="fas fa-vial"></i> Test
+                                                </button>
+                                                <button type="button" class="scraper-btn scraper-btn-ghost"
+                                                        onclick="loadScraperPanel()" title="Re-read from the server">
+                                                    <i class="fas fa-rotate"></i>
+                                                </button>
+                                            </div>
                                         </div>
 
-                                        <div id="scraperStatusLine" class="scraper-live-status">
-                                            Loading configuration…
+                                        <div class="scraper-status" id="scraperStatusLine">
+                                            <i class="fas fa-circle-info scraper-status-icon"></i>
+                                            <span class="scraper-status-text">Loading configuration…</span>
                                         </div>
-                                        <div id="scraperCostHint" class="scraper-live-hint"></div>
 
-                                        <details style="margin-top: 8px;">
-                                            <summary class="scraper-live-summary">Optional: veriphone JSON API key</summary>
-                                            <div style="margin-top: 8px;">
-                                                <input type="password" id="veriphoneApiKey" class="form-control scraper-live-input"
-                                                       autocomplete="off" placeholder="veriphone API key (direct JSON API)">
-                                                <div class="scraper-live-actions">
-                                                    <button class="montserrat-btn montserrat-btn-sm" onclick="saveVeriphoneKey()">
-                                                        <span class="btn-icon"><i class="fas fa-key"></i></span>
-                                                        <span class="btn-text">Save Key</span>
+                                        <div class="scraper-foot">
+                                            <span id="scraperCostHint" class="scraper-cost">—</span>
+                                            <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
+                                        </div>
+
+                                        <details class="scraper-advanced">
+                                            <summary>
+                                                <i class="fas fa-chevron-right scraper-chevron"></i>
+                                                Optional: veriphone JSON API key
+                                            </summary>
+                                            <div class="scraper-advanced-body">
+                                                <div class="scraper-field">
+                                                    <label class="scraper-field-label" for="veriphoneApiKey">veriphone key</label>
+                                                    <input type="password" id="veriphoneApiKey" class="scraper-input scraper-input-plain"
+                                                           autocomplete="off" placeholder="Bypasses scraping entirely">
+                                                </div>
+                                                <div class="scraper-actions">
+                                                    <button type="button" class="scraper-btn" onclick="saveVeriphoneKey()">
+                                                        <i class="fas fa-key"></i> Save
                                                     </button>
-                                                    <button class="montserrat-btn montserrat-btn-sm" onclick="testVeriphoneKey()">
-                                                        <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                        <span class="btn-text">Test</span>
+                                                    <button type="button" class="scraper-btn scraper-btn-ghost" onclick="testVeriphoneKey()">
+                                                        <i class="fas fa-vial"></i> Test
                                                     </button>
                                                 </div>
-                                                <div class="scraper-live-hint">
-                                                    A veriphone key bypasses scraping entirely and wins over the selector above.
+                                                <div class="scraper-advanced-note">
+                                                    A veriphone key wins over the transport above — it queries the
+                                                    JSON API directly, so no scraping credits are spent.
                                                 </div>
                                             </div>
                                         </details>
@@ -37847,45 +38254,92 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         
         // Reset phone validation UI
         // ------------------------------------------------------------------
-        // Live scraper API panel
+        // Live scraper API card
         //
         // One place to paste a key and pick a transport. Saving posts to the
-        // backend and the next batch uses it -- nothing reads the key back, so
-        // the field is write-only and the status line is the only feedback.
+        // backend and the next batch uses it: nothing reads the key back, so the
+        // field is write-only and the status line is the only feedback.
         // ------------------------------------------------------------------
         const SCRAPER_COSTS = {
-            scrapingbee: 'ScrapingBee: 5 credits per number (JS rendering). A failed render (HTTP 500) is not charged.',
-            decodo: 'Decodo: billed per request against your plan. Flat, not per-number.',
-            'browser-use': 'Browser Use: $0.02/browser-hour plus $5/GB proxy traffic. One browser per number = a fresh IP each lookup.',
-            local: 'Offline engine: free, no network call. Settles most numbers; it cannot supply a carrier for US/CA numbers.'
+            scrapingbee: 'ScrapingBee renders the page with JS (5 credits each; 25 with the premium proxy). A failed render is not charged.',
+            decodo: 'Decodo is billed per request against your flat plan, not per number.',
+            'browser-use': 'Browser Use runs one cloud browser per number: $0.02/browser-hour plus $5/GB proxy traffic.',
+            local: 'Offline engine: no network, no credits. It cannot supply a carrier for US/CA numbers.'
         };
+
+        const SCRAPER_NEEDS_KEY = { scrapingbee: true, decodo: true, 'browser-use': true, local: false };
 
         function scraperSetStatus(text, kind) {
             const el = document.getElementById('scraperStatusLine');
             if (!el) return;
-            el.textContent = text;
-            el.className = 'scraper-live-status' + (kind ? ' is-' + kind : '');
+            el.className = 'scraper-status' + (kind ? ' is-' + kind : '');
+            const icon = el.querySelector('.scraper-status-icon');
+            const body = el.querySelector('.scraper-status-text');
+            if (icon) icon.className = 'scraper-status-icon ' +
+                ({ live: 'fas fa-circle-check', warn: 'fas fa-triangle-exclamation',
+                   error: 'fas fa-circle-exclamation', busy: 'fas fa-circle-notch' }[kind]
+                 || 'fas fa-circle-info');
+            if (body) body.textContent = text;
         }
 
         function scraperBadge(text, kind) {
             const badge = document.getElementById('phoneTransportBadge');
             if (!badge) return;
-            const palette = {
-                live: ['#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)'],
-                warn: ['#fbbf24', 'rgba(251,191,36,0.12)', 'rgba(251,191,36,0.35)'],
-                error: ['#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.35)']
-            };
-            const [color, bg, border] = palette[kind] || palette.warn;
-            badge.textContent = text;
-            badge.style.color = color;
-            badge.style.background = bg;
-            badge.style.border = '1px solid ' + border;
+            badge.className = 'scraper-badge' + (kind ? ' is-' + kind : '');
+            const label = badge.querySelector('.scraper-badge-text');
+            if (label) label.textContent = text;
         }
 
         function scraperProviderLabel(value) {
+            return { scrapingbee: 'ScrapingBee', decodo: 'Decodo',
+                     'browser-use': 'Browser Use', local: 'Offline tables' }[value] || value;
+        }
+
+        function toggleKeyVisibility() {
+            const input = document.getElementById('scraperApiKey');
+            const icon = document.getElementById('scraperRevealIcon');
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            if (icon) icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+        }
+
+        // Paint the tiles: which one is active, and which have a credential.
+        function scraperPaint(data) {
+            const chosen = data.provider;
+            document.querySelectorAll('.scraper-provider-tile').forEach(tile => {
+                const id = tile.dataset.provider;
+                const active = id === chosen;
+                tile.classList.toggle('is-active', active);
+                tile.setAttribute('aria-pressed', active ? 'true' : 'false');
+
+                const state = tile.querySelector('.scraper-tile-state');
+                if (!state) return;
+                const source = (data.sources || {})[id];
+                const ready = (data.configured || {})[id];
+                state.className = 'scraper-tile-state';
+                if (!SCRAPER_NEEDS_KEY[id]) {
+                    state.textContent = ready ? 'Ready' : 'Missing';
+                    state.classList.add(ready ? 'is-ready' : '');
+                } else if (source === 'user') {
+                    state.textContent = 'Saved';
+                    state.classList.add('is-ready');
+                } else if (source === 'environment') {
+                    state.textContent = 'Env';
+                    state.classList.add('is-env');
+                } else {
+                    state.textContent = 'No key';
+                }
+            });
+
+            const card = document.querySelector('.scraper-card');
+            if (card) card.classList.toggle('is-local', chosen === 'local');
+
             const select = document.getElementById('scraperProviderSelect');
-            const option = select && Array.from(select.options).find(o => o.value === value);
-            return option ? option.textContent.split('—')[0].trim() : value;
+            if (select) select.value = chosen;
+
+            const hint = document.getElementById('scraperCostHint');
+            if (hint) hint.textContent = SCRAPER_COSTS[chosen] || '';
         }
 
         async function loadScraperPanel() {
@@ -37896,42 +38350,58 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     return;
                 }
                 const data = await response.json();
+                scraperPaint(data);
 
-                const select = document.getElementById('scraperProviderSelect');
-                if (select && data.provider) select.value = data.provider;
-
-                const hint = document.getElementById('scraperCostHint');
-                if (hint) hint.textContent = SCRAPER_COSTS[data.provider] || '';
-
+                const label = data.label || scraperProviderLabel(data.provider);
                 const ready = (data.configured || {})[data.provider];
-                if (ready) {
-                    scraperBadge(String(data.label || data.provider).toUpperCase(), 'live');
-                } else {
-                    scraperBadge('NO KEY', 'warn');
-                }
+                scraperBadge(ready ? label.toUpperCase() : 'NO KEY', ready ? 'live' : 'warn');
 
-                const missing = Object.entries(data.configured || {})
-                    .filter(([id, ok]) => !ok && id !== 'local')
-                    .map(([id]) => id);
-
-                let status = ready
-                    ? 'Live transport: ' + (data.label || data.provider) + '. The next batch uses it immediately.'
-                    : 'No credential saved for ' + scraperProviderLabel(data.provider) + '. Paste a key below and save.';
+                let status;
                 if (data.veriphone_api_key) {
-                    status += ' A veriphone API key is set and takes priority over this transport.';
-                }
-                if (missing.length) {
-                    status += ' Not configured: ' + missing.join(', ') + '.';
+                    status = 'A veriphone API key is saved and takes priority: numbers go to the JSON API, not to ' + label + '.';
+                    scraperBadge('VERIPHONE API', 'live');
+                } else if (ready) {
+                    status = label + ' is live. Numbers are checked through it on the next launch.';
+                } else if (data.provider === 'local') {
+                    status = 'Offline engine is available. No key needed.';
+                } else {
+                    status = 'No key saved for ' + label + '. Paste one below and save.';
                 }
                 scraperSetStatus(status, ready ? 'live' : 'warn');
+
+                // Only ScrapingBee exposes a balance, and asking is free.
+                if (data.configured && data.configured.scrapingbee) {
+                    loadScraperCredits();
+                }
             } catch (error) {
                 console.error('Failed to load scraper panel:', error);
                 scraperSetStatus('Could not reach the validator API', 'error');
             }
         }
 
-        // Backwards-compatible name: the boot sequence and the veriphone key
-        // save both call this.
+        async function loadScraperCredits() {
+            const el = document.getElementById('scraperCredits');
+            if (!el) return;
+            try {
+                const response = await fetchWithAuth('/validator/scrapingbee/usage');
+                if (!response.ok) { el.style.display = 'none'; return; }
+                const data = await response.json();
+                const remaining = data.remaining ?? data.credits_left ?? data.credits;
+                if (remaining === undefined || remaining === null || data.error) {
+                    el.style.display = 'none';
+                    return;
+                }
+                const numbers = Math.floor(Number(remaining) / 5);
+                el.textContent = Number(remaining).toLocaleString() + ' credits · ~' +
+                                 numbers.toLocaleString() + ' numbers';
+                el.className = 'scraper-credits' + (Number(remaining) < 500 ? ' is-low' : '');
+                el.style.display = 'inline-block';
+            } catch (error) {
+                el.style.display = 'none';
+            }
+        }
+
+        // Backwards-compatible name: the boot sequence calls this.
         async function loadVeriphoneConfig() {
             return loadScraperPanel();
         }
@@ -37939,6 +38409,12 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         async function switchScraperProvider(provider) {
             const hint = document.getElementById('scraperCostHint');
             if (hint) hint.textContent = SCRAPER_COSTS[provider] || '';
+            document.querySelectorAll('.scraper-provider-tile').forEach(tile => {
+                tile.classList.toggle('is-active', tile.dataset.provider === provider);
+            });
+            const card = document.querySelector('.scraper-card');
+            if (card) card.classList.toggle('is-local', provider === 'local');
+
             try {
                 const response = await fetchWithAuth('/validator/scraper', {
                     method: 'POST',
@@ -37946,14 +38422,12 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     body: JSON.stringify({ provider: provider })
                 });
                 if (!response.ok) {
-                    const err = await response.json();
+                    const err = await response.json().catch(() => ({}));
                     scraperSetStatus(err.detail || 'Could not switch transport', 'error');
                     await loadScraperPanel();
                     return;
                 }
-                // Reflect it straight away, then re-read the authoritative state.
-                scraperBadge(scraperProviderLabel(provider).toUpperCase(), 'live');
-                showToast('Transport: ' + (provider), 'success');
+                showToast('Transport: ' + scraperProviderLabel(provider), 'success');
                 await loadScraperPanel();
             } catch (error) {
                 console.error('Switch transport failed:', error);
@@ -37968,17 +38442,17 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             const countryEl = document.getElementById('scraperProxyCountry');
             const premiumEl = document.getElementById('scraperPremiumProxy');
             const apiKey = ((keyEl && keyEl.value) || '').trim();
-            const country = ((countryEl && countryEl.value) || '').trim();
+            const country = ((countryEl && countryEl.value) || '').trim().toLowerCase();
             const premium = !!(premiumEl && premiumEl.checked);
 
-            if (provider === 'local') {
-                scraperSetStatus('The offline engine needs no key — it is already available. Switch to it and launch.', 'live');
+            if (!SCRAPER_NEEDS_KEY[provider]) {
+                scraperSetStatus('The offline engine needs no key. Switching to it now.', 'busy');
                 await switchScraperProvider('local');
                 return;
             }
             if (!apiKey) {
                 showToast('Paste a ' + scraperProviderLabel(provider) + ' API key first', 'warning');
-                (keyEl || {}).focus?.();
+                if (keyEl) keyEl.focus();
                 return;
             }
 
@@ -37995,7 +38469,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
 
             const btn = document.getElementById('scraperSaveBtn');
             if (btn) btn.disabled = true;
-            scraperSetStatus('Saving ' + scraperProviderLabel(provider) + ' key…', 'warn');
+            scraperSetStatus('Saving the ' + scraperProviderLabel(provider) + ' key…', 'busy');
 
             try {
                 const response = await fetchWithAuth(endpoints[provider], {
@@ -38030,23 +38504,24 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             const select = document.getElementById('scraperProviderSelect');
             const provider = select ? select.value : 'scrapingbee';
             const btn = document.getElementById('scraperTestBtn');
+
+            if (!SCRAPER_NEEDS_KEY[provider]) {
+                scraperSetStatus('The offline engine runs locally — nothing to test. Launch to use it.', 'live');
+                return;
+            }
+
             if (btn) btn.disabled = true;
-            scraperSetStatus('Testing ' + scraperProviderLabel(provider) + ' with one real lookup…', 'warn');
+            scraperSetStatus('Testing ' + scraperProviderLabel(provider) + ' with one real lookup…', 'busy');
 
             try {
-                if (provider === 'local') {
-                    scraperSetStatus('Offline engine is local — nothing to test. Switch to it and launch.', 'live');
-                    return;
-                }
-
                 const endpoint = provider === 'veriphone-api'
                     ? '/validator/veriphone/test'
                     : '/validator/' + provider + '/test';
                 const response = await fetchWithAuth(endpoint, { method: 'POST' });
                 const data = await response.json().catch(() => ({}));
 
-                if (response.ok && (data.success !== false) && !data.error) {
-                    const bits = [data.carrier, data.country, data.status, data.site]
+                if (response.ok && data.success !== false && !data.error) {
+                    const bits = [data.carrier, data.country, data.status]
                         .filter(Boolean).join(' · ');
                     scraperSetStatus('Test passed' + (bits ? ' — ' + bits : '') +
                                      '. The key works and the page parsed.', 'live');

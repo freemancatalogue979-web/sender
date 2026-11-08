@@ -1535,3 +1535,26 @@ def test_batch_uses_the_panel_saved_key(tmp_path, monkeypatch):
     assert results[0]["site"] == "scrapingbee"
     assert results[0]["carrier"] == "MTN"
     assert not results[0].get("error")
+
+
+def test_scraper_report_distinguishes_saved_from_env_keys(tmp_path, monkeypatch):
+    """The panel shows 'Saved' vs 'Env' per provider, so it must be told which."""
+    import asyncio
+    import api
+
+    _isolate_provider_env(monkeypatch)
+    monkeypatch.setattr(api, "USERS_BASE_PATH", tmp_path)
+    user = {"user_id": "srcuser"}
+
+    fresh = asyncio.run(api.get_scraper_provider(user))
+    assert fresh["sources"]["scrapingbee"] is None
+
+    ev.save_scrapingbee_settings("srcuser", tmp_path, {"api_key": "SB-SAVED"})
+    after = asyncio.run(api.get_scraper_provider(user))
+    assert after["sources"]["scrapingbee"] == "user"
+    assert after["configured"]["scrapingbee"] is True
+
+    monkeypatch.setenv("FV_S_DECODO_API_KEY", "FROM-ENV")
+    env_report = asyncio.run(api.get_scraper_provider(user))
+    assert env_report["sources"]["decodo"] == "environment"
+    assert env_report["configured"]["decodo"] is True

@@ -7554,6 +7554,21 @@ async def get_scraper_provider(current_user: dict = Depends(get_current_user)):
         "browser-use": bool(load_browser_use_settings(user_id, USERS_BASE_PATH).get("api_key")),
         "local": bool(is_offline_engine_available()),
     }
+
+    # Where each credential came from, so the panel can say "saved here" versus
+    # "supplied by the server environment" instead of just "configured".
+    cfg_dir = USERS_BASE_PATH / f"fv-s-{user_id}" / "validator-config"
+    files = {"scrapingbee": "scrapingbee.json", "decodo": "decodo.json",
+             "browser-use": "browseruse.json"}
+    sources = {}
+    for pid, filename in files.items():
+        if (cfg_dir / filename).exists():
+            sources[pid] = "user"
+        elif configured[pid]:
+            sources[pid] = "environment"
+        else:
+            sources[pid] = None
+
     veriphone_key = bool(load_veriphone_settings(user_id, USERS_BASE_PATH).get("api_key"))
     chosen = load_scraper_provider(user_id, USERS_BASE_PATH)
 
@@ -7561,6 +7576,7 @@ async def get_scraper_provider(current_user: dict = Depends(get_current_user)):
         "provider": chosen,
         "label": SCRAPER_PROVIDER_LABELS.get(chosen, chosen),
         "configured": configured,
+        "sources": sources,
         "veriphone_api_key": veriphone_key,
         "providers": [
             {
