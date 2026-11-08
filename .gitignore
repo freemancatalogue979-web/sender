@@ -1,0 +1,25 @@
+# Runtime data (user data, databases, caches, generated secrets)
+users/
+data/
+cache/
+*.db
+secret.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# Node / frontend tooling
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp

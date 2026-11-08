@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>FV-S - User Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/png" sizes="192x192" href="logo.png">
+    <meta name="theme-color" content="#0d0d0d">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            overflow-x: hidden;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+
+        :root {
+            --primary-black: #000000;
+            --secondary-black: #1a1a1a;
+            --dark-bg: #0d0d0d;
+            --panel-bg: rgba(255, 255, 255, 0.03);
+            --text-white: #ffffff;
+            --text-gray: #888888;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --accent-gray: #333333;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: var(--primary-black);
+            color: var(--text-white);
+            min-height: 100vh;
+            min-width: 320px;
+            overflow-x: hidden;
+            position: relative;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            touch-action: manipulation;
+        }
+
+        /* Ensure no horizontal overflow at any level */
+        html, body, .dashboard-container, .main-content {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+
+        /* Dashboard Container - like admin.html */
+        .dashboard-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar - copied from admin.html */
+        .sidebar {
+            width: 280px;
+            background: var(--secondary-black);
+            border-right: 1px solid var(--border-color);
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            z-index: 100;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 0 30px 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 25px 20px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-logo-container .logo-image img {
+            width: 260px;
+            height: 260px;
+            filter: drop-shadow(0 0 35px rgba(255,255,255,0.5));
+            animation: sidebarLogoGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes sidebarLogoGlow {
+            0%, 100% { 
+                filter: drop-shadow(0 0 35px rgba(255,255,255,0.5));
+            }
+            50% { 
+                filter: drop-shadow(0 0 60px rgba(255,255,255,0.7));
+            }
+        }
+
+        .sidebar-version {
+            font-size: 10px;
+            color: var(--text-gray);
+            letter-spacing: 2px;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        .sidebar-nav {
+            padding: 30px 0;
+        }
+
+        .sidebar .nav-item {
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            color: var(--text-gray);
+            text-decoration: none;
+        }
+
+        .sidebar .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-white);
+            border-left-color: var(--text-white);
+        }
+
+        .sidebar .nav-item.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-white);
+            border-left-color: var(--text-white);
+        }
+
+        .sidebar .nav-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 280px;
+            flex: 1;
+            padding: 30px;
+            position: relative;
+        }
+
+        /* Content Header */
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+            padding: 40px 30px 100px 30px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Glass Panel - More transparent */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--text-white);
+            color: var(--primary-black);
+        }
+
+        .btn-primary:hover {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-white);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-danger {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+            border: 1px solid #ff4444;
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 68, 68, 0.3);
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* Glass Panel */
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-title i {
+            color: var(--text-gray);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-gray);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-white);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--text-white);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-gray);
+        }
+
+        /* User Cards Grid */
+        .users-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .user-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .user-card:hover {
+            border-color: var(--text-white);
+            transform: translateY(-3px);
+        }
+
+        .user-card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .user-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .user-info span {
+            font-size: 11px;
+            color: var(--text-gray);
+        }
+
+        .user-card-details {
+            margin-bottom: 15px;
+        }
+
+        .user-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 13px;
+        }
+
+        .user-detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .user-detail-label {
+            color: var(--text-gray);
+        }
+
+        .user-detail-value {
+            font-weight: 500;
+        }
+
+        .user-card-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .user-card-actions .btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-gray);
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: var(--text-white);
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--secondary-black);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            animation: modalSlide 0.3s ease;
+        }
+
+        @keyframes modalSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .modal-header i {
+            font-size: 24px;
+            color: var(--text-white);
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        /* Console Log */
+        .console-container {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        .console-line {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .console-line.success {
+            color: #00ff00;
+        }
+
+        .console-line.error {
+            color: #ff4444;
+        }
+
+        .console-line.warning {
+            color: #ffaa00;
+        }
+
+        .console-line.info {
+            color: #888888;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 2000;
+            animation: toastSlide 0.3s ease;
+            display: none;
+        }
+
+        .toast.success {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+        }
+
+        .toast.error {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        @keyframes toastSlide {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--text-white);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Tab Navigation */
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn.active {
+            background: var(--text-white);
+            color: var(--primary-black);
+        }
+
+        .tab-btn:not(.active) {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-white);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-btn:not(.active):hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Mobile Menu Toggle */
+        .mobile-menu-toggle {
+            display: none;
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1001;
+            width: 45px;
+            height: 45px;
+            background: var(--secondary-black);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-white);
+            font-size: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-menu-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--text-white);
+        }
+
+        /* Sidebar Overlay */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+        }
+
+        /* Responsive Mobile Styles */
+        @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: flex;
+            }
+
+            .sidebar {
+                width: 280px;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 1000;
+                box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.active {
+                display: block;
+            }
+
+            .sidebar-logo-container .logo-image img {
+                width: 140px;
+                height: 140px;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 80px 15px 15px 15px;
+            }
+
+            .content-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .page-title {
+                font-size: 22px;
+            }
+
+            .header-actions {
+                width: 100%;
+            }
+
+            .header-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .tab-navigation {
+                flex-wrap: wrap;
+            }
+
+            .tab-btn {
+                flex: 1 1 auto;
+                min-width: 140px;
+                text-align: center;
+                padding: 10px 15px;
+            }
+
+            .glass-panel {
+                padding: 20px;
+                border-radius: 12px;
+            }
+
+            .panel-title {
+                font-size: 16px;
+                margin-bottom: 15px;
+            }
+
+            .users-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .user-card {
+                padding: 15px;
+            }
+
+            .user-card-header {
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+
+            .user-avatar {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            .user-card-details {
+                margin-bottom: 10px;
+            }
+
+            .user-detail-row {
+                padding: 6px 0;
+                font-size: 12px;
+            }
+
+            .user-card-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .user-card-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            .form-control {
+                padding: 12px;
+                font-size: 14px;
+            }
+
+            .modal-content {
+                width: 95%;
+                max-width: 450px;
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .modal-header {
+                flex-direction: column;
+                gap: 10px;
+                margin-bottom: 15px;
+            }
+
+            .modal-header h3 {
+                font-size: 18px;
+            }
+
+            .modal-header i {
+                font-size: 20px;
+            }
+
+            .modal-actions {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .modal-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .console-container {
+                padding: 12px;
+                font-size: 11px;
+                max-height: 150px;
+            }
+
+            .empty-state {
+                padding: 40px 15px;
+            }
+
+            .empty-state i {
+                font-size: 48px;
+            }
+
+            .empty-state h3 {
+                font-size: 18px;
+            }
+
+            .toast {
+                left: 15px;
+                right: 15px;
+                bottom: 20px;
+            }
+
+            .loading {
+                padding: 40px;
+            }
+
+            .spinner {
+                width: 35px;
+                height: 35px;
+            }
+        }
+
+        /* Extra Small Devices */
+        @media (max-width: 480px) {
+            .sidebar {
+                width: 100%;
+            }
+
+            .sidebar-logo-container .logo-image img {
+                width: 100px;
+                height: 100px;
+            }
+
+            .sidebar-version {
+                font-size: 9px;
+            }
+
+            .main-content {
+                padding: 75px 10px 10px 10px;
+            }
+
+            .page-title {
+                font-size: 20px;
+            }
+
+            .glass-panel {
+                padding: 15px;
+                border-radius: 10px;
+                margin-bottom: 15px;
+            }
+
+            .panel-title {
+                font-size: 15px;
+            }
+
+            .user-avatar {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+
+            .user-info h3 {
+                font-size: 14px;
+            }
+
+            .user-info span {
+                font-size: 10px;
+            }
+
+            .form-control {
+                padding: 10px;
+                font-size: 13px;
+            }
+
+            .btn {
+                padding: 10px 15px;
+                font-size: 12px;
+            }
+
+            .tab-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            .modal-content {
+                padding: 15px;
+                border-radius: 10px;
+            }
+
+            .modal-title {
+                font-size: 16px;
+            }
+        }
+
+        /* Landscape Mobile */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .users-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .tab-navigation {
+                flex-direction: row;
+            }
+
+            .tab-btn {
+                flex: 1;
+            }
+        }
+
+        /* Touch Device Optimizations */
+        @media (hover: none) and (pointer: coarse) {
+            .nav-item:hover {
+                background: transparent;
+            }
+
+            .nav-item:active {
+                background: rgba(255, 255, 255, 0.1);
+            }
+
+            .user-card:hover {
+                transform: none;
+            }
+
+            .btn:hover {
+                transform: none;
+            }
+
+            .form-control:focus {
+                box-shadow: none;
+            }
+
+            .tab-btn:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+
+            .tab-btn.active:hover {
+                background: var(--text-white);
+            }
+        }
+
+        /* High DPI Mobile */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .sidebar-logo-container .logo-image img {
+                image-rendering: -webkit-optimize-contrast;
+            }
+        }
+
+        /* Safe Area Insets for Mobile Browsers */
+        @supports (padding: env(safe-area-inset-top)) {
+            @media (max-width: 768px) {
+                .main-content {
+                    padding-top: calc(80px + env(safe-area-inset-top));
+                    padding-left: calc(15px + env(safe-area-inset-left));
+                    padding-right: calc(15px + env(safe-area-inset-right));
+                    padding-bottom: calc(15px + env(safe-area-inset-bottom));
+                }
+
+                .mobile-menu-toggle {
+                    top: calc(15px + env(safe-area-inset-top));
+                    left: calc(15px + env(safe-area-inset-left));
+                }
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" id="mobileMenuToggle" onclick="toggleMobileMenu()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu()"></div>
+
+    <!-- Dashboard Container -->
+    <div class="dashboard-container" id="dashboardContainer">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo-container">
+                    <div class="logo-image">
+                        <img src="logo.png" alt="FV-S Logo">
+                    </div>
+                </div>
+                <div class="sidebar-version">V1.0</div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-item active" data-section="users">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </div>
+                <a href="admin.html" class="nav-item" style="text-decoration: none;">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back to Admin</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <div class="content-header">
+                <h1 class="page-title">User Management</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openCreateUserModal()">
+                        <i class="fas fa-user-plus"></i> Create User
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Tab Navigation -->
+            <div class="tab-navigation" style="display: flex; gap: 10px; margin-bottom: 25px;">
+                <button class="btn btn-primary tab-btn active" onclick="switchUserTab('active')" id="tabActive">
+                    <i class="fas fa-users"></i> Active Users
+                </button>
+                <button class="btn btn-secondary tab-btn" onclick="switchUserTab('deleted')" id="tabDeleted">
+                    <i class="fas fa-trash-restore"></i> Restore Deleted
+                </button>
+            </div>
+
+        <!-- Active Users Panel -->
+        <div class="glass-panel" id="activeUsersPanel">
+            <div class="panel-title">
+                <i class="fas fa-users"></i> User Accounts
+            </div>
+            
+            <!-- Users List -->
+            <div id="usersList">
+                <div class="loading" id="usersLoading">
+                    <div class="spinner"></div>
+                </div>
+                <div class="empty-state" id="usersEmpty" style="display: none;">
+                    <i class="fas fa-users"></i>
+                    <h3>No Users Yet</h3>
+                    <p>Create your first user account to get started.</p>
+                    <button class="btn btn-primary" onclick="openCreateUserModal()">
+                        <i class="fas fa-user-plus"></i> Create User
+                    </button>
+                </div>
+                <div class="users-grid" id="usersGrid" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Deleted Users Panel -->
+        <div class="glass-panel" id="deletedUsersPanel" style="display: none;">
+            <div class="panel-title">
+                <i class="fas fa-trash-restore"></i> Deleted Users (Restore)
+            </div>
+            <p style="color: var(--text-gray); margin-bottom: 20px;">Deleted users can be restored. Their data is preserved and will be accessible again after restoration.</p>
+            
+            <!-- Deleted Users List -->
+            <div id="deletedUsersList">
+                <div class="loading" id="deletedUsersLoading">
+                    <div class="spinner"></div>
+                </div>
+                <div class="empty-state" id="deletedUsersEmpty" style="display: none;">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>No Deleted Users</h3>
+                    <p>All users are active. Deleted users will appear here for restoration.</p>
+                </div>
+                <div class="users-grid" id="deletedUsersGrid" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="glass-panel">
+            <div class="panel-title">
+                <i class="fas fa-history"></i> Activity Log
+            </div>
+            <div class="console-container" id="activityLog">
+                <div class="console-line info">[SYSTEM] User management panel initialized</div>
+            </div>
+        </div>
+        </main>
+    </div>
+
+    <!-- Create User Modal -->
+    <div class="modal-overlay" id="createUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <i class="fas fa-user-plus"></i>
+                <h3>Create New User</h3>
+            </div>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" class="form-control" id="newUsername" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" class="form-control" id="newPassword" placeholder="Enter password">
+            </div>
+            <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" class="form-control" id="confirmPassword" placeholder="Confirm password">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeCreateUserModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createUser()">
+                    <i class="fas fa-save"></i> Save & Authorize
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal-overlay" id="editUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <i class="fas fa-user-edit"></i>
+                <h3>Edit User</h3>
+            </div>
+            <input type="hidden" id="editUserId">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" class="form-control" id="editUsername" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label>New Password (leave blank to keep current)</label>
+                <input type="password" class="form-control" id="editNewPassword" placeholder="Enter new password">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveUserEdit()">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="deleteUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <i class="fas fa-exclamation-triangle" style="color: #ffaa00;"></i>
+                <h3>Delete User</h3>
+            </div>
+            <p style="color: var(--text-gray); margin-bottom: 20px;">
+                Are you sure you want to delete this user? Their data will be preserved and you can restore them later from the "Restore Deleted" tab.
+            </p>
+            <input type="hidden" id="deleteUserId">
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeDeleteUserModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDeleteUser()">
+                    <i class="fas fa-trash"></i> Delete User
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const SERVER_URL = 'https://relevance-rouge-seventh-exhibitions.trycloudflare.com';
+        let users = [];
+        let deletedUsers = [];
+        let currentTab = 'active';
+
+        // Console Logger
+        function logToConsole(message, type = 'info') {
+            const consoleEl = document.getElementById('activityLog');
+            const line = document.createElement('div');
+            line.className = 'console-line ' + type;
+            const time = new Date().toLocaleTimeString();
+            line.textContent = '[' + time + '] ' + message;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        // Toast Notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type + ' show';
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Tab Switching
+        function switchUserTab(tab) {
+            currentTab = tab;
+            
+            // Update tab buttons
+            document.getElementById('tabActive').classList.toggle('btn-primary', tab === 'active');
+            document.getElementById('tabActive').classList.toggle('btn-secondary', tab !== 'active');
+            document.getElementById('tabDeleted').classList.toggle('btn-primary', tab === 'deleted');
+            document.getElementById('tabDeleted').classList.toggle('btn-secondary', tab !== 'deleted');
+            
+            // Show/hide panels
+            document.getElementById('activeUsersPanel').style.display = tab === 'active' ? 'block' : 'none';
+            document.getElementById('deletedUsersPanel').style.display = tab === 'deleted' ? 'block' : 'none';
+            
+            // Load data for the selected tab
+            if (tab === 'active') {
+                loadUsers();
+            } else {
+                loadDeletedUsers();
+            }
+        }
+
+        // Load active users
+        async function loadUsers() {
+            try {
+                document.getElementById('usersLoading').style.display = 'flex';
+                document.getElementById('usersEmpty').style.display = 'none';
+                document.getElementById('usersGrid').style.display = 'none';
+
+                const response = await fetch(SERVER_URL + '/users', {
+                    method: 'GET'
+                });
+
+                if (response.ok) {
+                    users = await response.json();
+                    renderUsers();
+                } else {
+                    users = [];
+                    renderUsers();
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                logToConsole('Error loading users: ' + error.message, 'error');
+                users = [];
+                renderUsers();
+            } finally {
+                document.getElementById('usersLoading').style.display = 'none';
+            }
+        }
+
+        // Load deleted users
+        async function loadDeletedUsers() {
+            try {
+                document.getElementById('deletedUsersLoading').style.display = 'flex';
+                document.getElementById('deletedUsersEmpty').style.display = 'none';
+                document.getElementById('deletedUsersGrid').style.display = 'none';
+
+                logToConsole('Fetching deleted users from: ' + SERVER_URL + '/users/deleted', 'info');
+                
+                const response = await fetch(SERVER_URL + '/users/deleted', {
+                    method: 'GET'
+                });
+
+                logToConsole('Response status: ' + response.status, response.ok ? 'info' : 'error');
+                
+                if (response.ok) {
+                    deletedUsers = await response.json();
+                    logToConsole('Received ' + deletedUsers.length + ' deleted user(s)', 'info');
+                    renderDeletedUsers();
+                } else {
+                    const errorText = await response.text();
+                    logToConsole('Failed to load deleted users: ' + errorText, 'error');
+                    deletedUsers = [];
+                    renderDeletedUsers();
+                }
+            } catch (error) {
+                console.error('Error loading deleted users:', error);
+                logToConsole('Error loading deleted users: ' + error.message, 'error');
+                deletedUsers = [];
+                renderDeletedUsers();
+            } finally {
+                document.getElementById('deletedUsersLoading').style.display = 'none';
+            }
+        }
+
+        // Render active users
+        function renderUsers() {
+            const container = document.getElementById('usersGrid');
+            const emptyState = document.getElementById('usersEmpty');
+
+            if (users.length === 0) {
+                container.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            container.style.display = 'grid';
+            emptyState.style.display = 'none';
+
+            container.innerHTML = users.map(user => {
+                const initial = user.username.charAt(0).toUpperCase();
+                const createdDate = new Date(user.created_at).toLocaleDateString();
+                const lastLogin = user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never';
+                
+                return `
+                    <div class="user-card">
+                        <div class="user-card-header">
+                            <div class="user-avatar">${initial}</div>
+                            <div class="user-info">
+                                <h3>${escapeHtml(user.username)}</h3>
+                                <span>ID: ${user.user_id}</span>
+                            </div>
+                        </div>
+                        <div class="user-card-details">
+                            <div class="user-detail-row">
+                                <span class="user-detail-label">Created</span>
+                                <span class="user-detail-value">${createdDate}</span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="user-detail-label">Last Login</span>
+                                <span class="user-detail-value">${lastLogin}</span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="user-detail-label">Login Count</span>
+                                <span class="user-detail-value">${user.login_count || 0}</span>
+                            </div>
+                        </div>
+                        <div class="user-card-actions">
+                            <button class="btn btn-secondary" onclick="openEditUserModal('${user.user_id}')">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-danger" onclick="openDeleteUserModal('${user.user_id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            logToConsole(`Loaded ${users.length} active user(s)`, 'success');
+        }
+
+        // Render deleted users
+        function renderDeletedUsers() {
+            const container = document.getElementById('deletedUsersGrid');
+            const emptyState = document.getElementById('deletedUsersEmpty');
+
+            logToConsole('Rendering deleted users - count: ' + deletedUsers.length, 'info');
+            
+            if (deletedUsers.length === 0) {
+                container.style.display = 'none';
+                emptyState.style.display = 'block';
+                logToConsole('No deleted users - showing empty state', 'info');
+                return;
+            }
+
+            container.style.display = 'grid';
+            emptyState.style.display = 'none';
+
+            container.innerHTML = deletedUsers.map(user => {
+                const initial = user.username.charAt(0).toUpperCase();
+                const createdDate = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
+                const deletedDate = user.deleted_at ? new Date(user.deleted_at).toLocaleDateString() : 'Unknown';
+                
+                return `
+                    <div class="user-card" style="border-color: #ffaa00;">
+                        <div class="user-card-header">
+                            <div class="user-avatar" style="background: linear-gradient(135deg, #ffaa00 0%, #ff6600 100%);">${initial}</div>
+                            <div class="user-info">
+                                <h3>${escapeHtml(user.username)}</h3>
+                                <span>ID: ${user.user_id}</span>
+                            </div>
+                        </div>
+                        <div class="user-card-details">
+                            <div class="user-detail-row">
+                                <span class="user-detail-label">Created</span>
+                                <span class="user-detail-value">${createdDate}</span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="user-detail-label">Deleted</span>
+                                <span class="user-detail-value" style="color: #ffaa00;">${deletedDate}</span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="user-detail-label">Login Count</span>
+                                <span class="user-detail-value">${user.login_count || 0}</span>
+                            </div>
+                        </div>
+                        <div class="user-card-actions">
+                            <button class="btn btn-primary" onclick="restoreUser('${user.user_id}')">
+                                <i class="fas fa-trash-restore"></i> Restore
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            logToConsole(`Rendered ${deletedUsers.length} deleted user(s)`, 'info');
+        }
+
+        // Restore User
+        async function restoreUser(userId) {
+            const user = deletedUsers.find(u => u.user_id === userId);
+            
+            try {
+                const response = await fetch(SERVER_URL + '/users/' + userId + '/restore', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    showToast('User "' + (user ? user.username : userId) + '" restored successfully!', 'success');
+                    logToConsole('Restored user: ' + (user ? user.username : userId), 'success');
+                    await loadDeletedUsers();
+                    await loadUsers();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to restore user', 'error');
+                }
+            } catch (error) {
+                console.error('Error restoring user:', error);
+                showToast('Error restoring user', 'error');
+                logToConsole('Error restoring user: ' + error.message, 'error');
+            }
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Create User Modal
+        function openCreateUserModal() {
+            document.getElementById('createUserModal').classList.add('active');
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        }
+
+        function closeCreateUserModal() {
+            document.getElementById('createUserModal').classList.remove('active');
+        }
+
+        // Create User
+        async function createUser() {
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (!username) {
+                showToast('Please enter a username', 'error');
+                return;
+            }
+
+            if (!password) {
+                showToast('Please enter a password', 'error');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                showToast('Passwords do not match', 'error');
+                return;
+            }
+
+            if (password.length < 4) {
+                showToast('Password must be at least 4 characters', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(SERVER_URL + '/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast('User "' + username + '" created and authorized successfully!', 'success');
+                    logToConsole('Created user: ' + username + ' (ID: ' + result.user_id + ')', 'success');
+                    closeCreateUserModal();
+                    await loadUsers();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to create user', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating user:', error);
+                showToast('Error creating user', 'error');
+                logToConsole('Error creating user: ' + error.message, 'error');
+            }
+        }
+
+        // Edit User Modal
+        function openEditUserModal(userId) {
+            const user = users.find(u => u.user_id === userId);
+            if (!user) return;
+
+            document.getElementById('editUserModal').classList.add('active');
+            document.getElementById('editUserId').value = user.user_id;
+            document.getElementById('editUsername').value = user.username;
+            document.getElementById('editNewPassword').value = '';
+        }
+
+        function closeEditUserModal() {
+            document.getElementById('editUserModal').classList.remove('active');
+        }
+
+        // Save User Edit
+        async function saveUserEdit() {
+            const userId = document.getElementById('editUserId').value;
+            const username = document.getElementById('editUsername').value.trim();
+            const newPassword = document.getElementById('editNewPassword').value;
+
+            if (!username) {
+                showToast('Please enter a username', 'error');
+                return;
+            }
+
+            try {
+                const updateData = { username: username };
+                if (newPassword) {
+                    updateData.password = newPassword;
+                }
+
+                const response = await fetch(SERVER_URL + '/users/' + userId, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+
+                if (response.ok) {
+                    showToast('User updated successfully!', 'success');
+                    logToConsole('Updated user: ' + username, 'success');
+                    closeEditUserModal();
+                    await loadUsers();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to update user', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating user:', error);
+                showToast('Error updating user', 'error');
+                logToConsole('Error updating user: ' + error.message, 'error');
+            }
+        }
+
+        // Delete User Modal
+        function openDeleteUserModal(userId) {
+            document.getElementById('deleteUserModal').classList.add('active');
+            document.getElementById('deleteUserId').value = userId;
+        }
+
+        function closeDeleteUserModal() {
+            document.getElementById('deleteUserModal').classList.remove('active');
+        }
+
+        // Confirm Delete User
+        async function confirmDeleteUser() {
+            const userId = document.getElementById('deleteUserId').value;
+            const user = users.find(u => u.user_id === userId);
+
+            try {
+                const response = await fetch(SERVER_URL + '/users/' + userId, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast(result.message || 'User deleted successfully!', 'success');
+                    logToConsole('Deleted user: ' + (user ? user.username : userId) + ' - Data preserved. Check Deleted tab to restore.', 'success');
+                    closeDeleteUserModal();
+                    
+                    // Immediately remove from local state to reflect in UI
+                    users = users.filter(u => u.user_id !== userId);
+                    renderUsers();
+                    
+                    // Also refresh from server to ensure sync
+                    await loadUsers();
+                    
+                    // If on deleted tab, refresh deleted list
+                    if (currentTab === 'deleted') {
+                        await loadDeletedUsers();
+                    }
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to delete user', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showToast('Error deleting user', 'error');
+                logToConsole('Error deleting user: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUsers();
+            logToConsole('User management panel ready', 'success');
+        });
+
+        // Mobile Menu Toggle
+        function toggleMobileMenu() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggle = document.getElementById('mobileMenuToggle');
+            
+            if (sidebar && overlay && toggle) {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+                
+                // Update icon
+                const icon = toggle.querySelector('i');
+                if (sidebar.classList.contains('active')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-times');
+                } else {
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            }
+        }
+
+        // Close mobile menu on window resize to desktop
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                const sidebar = document.querySelector('.sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                const toggle = document.getElementById('mobileMenuToggle');
+                
+                if (sidebar) sidebar.classList.remove('active');
+                if (overlay) overlay.classList.remove('active');
+                if (toggle) {
+                    const icon = toggle.querySelector('i');
+                    if (icon) {
+                        icon.classList.remove('fa-times');
+                        icon.classList.add('fa-bars');
+                    }
+                }
+            }
+        });
+
+        // Close mobile menu when clicking nav items
+        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    toggleMobileMenu();
+                }
+            });
+        });
+
+        // Prevent body scroll when mobile menu is open
+        document.getElementById('sidebarOverlay')?.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>

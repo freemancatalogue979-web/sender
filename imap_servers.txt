@@ -1,0 +1,172 @@
+150+ IMAP Server Mappings for Email Providers
+
+# Gmail/Google
+gmail.com
+googlemail.com
+
+# Outlook/Microsoft  
+outlook.com
+hotmail.com
+live.com
+msn.com
+office365.com
+
+# Yahoo
+yahoo.com
+ymail.com
+rocketmail.com
+mail.yahoo.com
+
+# Apple
+icloud.com
+me.com
+mac.com
+apple.com
+
+# ProtonMail & Privacy
+protonmail.com
+pm.me
+tutanota.com
+mailbox.org
+posteo.de
+fastmail.com
+runbox.com
+mailfence.com
+
+# Business/Enterprise
+zoho.com
+zohomail.com
+mail.com
+
+# US ISP & Regional
+infowest.com
+suddenlink.net
+mchsi.com
+verizon.net
+comcast.net
+bellsouth.net
+charter.net
+cox.net
+earthlink.net
+sbcglobal.net
+ameritech.net
+att.net
+bellatlantic.net
+pacbell.net
+sbc.com
+juno.com
+mindspring.com
+netscape.net
+netzero.net
+peoplepc.com
+lycos.com
+
+# German Providers
+ionos.com
+ionos.de
+web.de
+gmx.com
+gmx.de
+gmx.at
+gmx.ch
+1und1.de
+1und1.at
+bluewin.ch
+t-online.de
+vodafone.de
+eplus.de
+o2online.de
+arcor.de
+versanet.de
+alice.de
+
+# French Providers
+orange.fr
+wanadoo.fr
+laposte.net
+sfr.fr
+free.fr
+bouyguestelecom.fr
+club-internet.fr
+
+# Italian Providers
+alice.it
+libero.it
+virgilio.it
+tiscali.it
+vodafone.it
+tin.it
+olivetti.com
+
+# Spanish Providers
+terra.es
+hotmail.es
+telefonica.net
+vizzavi.es
+
+# UK/Ireland Providers
+virgin.net
+sky.com
+talk21.com
+btinternet.com
+ntlworld.com
+eircom.net
+indigo.ie
+hotmail.co.uk
+live.co.uk
+yahoo.co.uk
+
+# Netherlands
+xs4all.nl
+planet.nl
+hetnet.nl
+tiscali.nl
+
+# Scandinavia
+telia.com
+swipnet.se
+comhem.se
+telenor.no
+online.no
+vip.dk
+get2net.dk
+stofanet.is
+
+# Canada
+sympatico.ca
+rogers.com
+bell.ca
+shaw.ca
+
+# Australia/Asia-Pacific
+bigpond.com
+optusnet.com.au
+iprimus.com.au
+naver.com
+daum.net
+qq.com
+sohu.com
+sina.com.cn
+yahoo.co.jp
+hanmail.net
+
+# Brazil
+uol.com.br
+ig.com.br
+terra.com.br
+bol.com.br
+globo.com
+
+# Mexico/Latin America
+prodigy.net.mx
+yahoo.com.mx
+
+# International Variants
+yahoo.de
+yahoo.fr
+yahoo.it
+yahoo.es
+yahoo.com.br
+aol.com
+
+Total: 150+ providers supported
