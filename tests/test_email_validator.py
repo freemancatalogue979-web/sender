@@ -514,19 +514,89 @@ def test_api_invalid_number(monkeypatch):
     assert result["category"] == "undeliverable"
 
 
-def test_api_falls_back_to_scrape_only_without_a_key(monkeypatch):
+def test_no_key_validates_locally_without_touching_the_network(monkeypatch):
+    """The free offline engine is the default; nothing may be spent."""
+    called = {"decodo": 0, "api": 0}
+
+    def fake_decodo(*a, **k):
+        called["decodo"] += 1
+        return VERIPHONE_MOBILE
+
+    def fake_get(*a, **k):
+        called["api"] += 1
+        return _FakeResponse(200, VP_OK)
+
+    monkeypatch.setattr(ev, "_call_decodo", fake_decodo)
+    monkeypatch.setattr(ev.requests, "get", fake_get)
+
+    result = ev.validate_phone(
+        "7069977249", "NG", settings={"api_key": ""}, decodo_settings={"api_key": "d"}
+    )
+
+    assert called["decodo"] == 0
+    assert called["api"] == 0
+    assert result["site"] == "local"
+    assert result["status"] == ev.STATUS_VALID
+    assert result["carrier"] == "MTN"
+
+
+def test_scrape_is_used_when_the_offline_engine_is_unavailable(monkeypatch):
     called = {"decodo": 0}
 
-    def fake_decodo(email, adapter, settings):
+    def fake_decodo(*a, **k):
         called["decodo"] += 1
         return VERIPHONE_MOBILE
 
     monkeypatch.setattr(ev, "_call_decodo", fake_decodo)
-    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(200, VP_OK))
+    monkeypatch.setattr(ev, "is_offline_engine_available", lambda: False)
 
-    result = ev.validate_phone("7069977249", "NG", settings={"api_key": ""})
+    result = ev.validate_phone(
+        "7069977249", "NG", settings={"api_key": ""}, decodo_settings={"api_key": "d"}
+    )
     assert called["decodo"] == 1
     assert result["site"] == "veriphone"
+
+
+def test_offline_unknown_number_falls_through_to_decodo_when_configured(monkeypatch):
+    """A structurally fine number with no local verdict may use the paid path."""
+    called = {"decodo": 0}
+
+    def fake_offline(number, country_code="", result=None):
+        out = ev._blank_phone_result(number, country_code)
+        out["site"] = "local"
+        out["status"] = ev.STATUS_UNKNOWN
+        return out
+
+    def fake_decodo(*a, **k):
+        called["decodo"] += 1
+        return VERIPHONE_MOBILE
+
+    monkeypatch.setattr(ev, "validate_phone_offline", fake_offline)
+    monkeypatch.setattr(ev, "_call_decodo", fake_decodo)
+    monkeypatch.setattr(ev, "is_offline_engine_available", lambda: True)
+
+    result = ev.validate_phone(
+        "+2347069977249", "NG", settings={"api_key": ""}, decodo_settings={"api_key": "d"}
+    )
+    assert called["decodo"] == 1
+    assert result["status"] == ev.STATUS_VALID
+
+
+def test_offline_unknown_number_stays_unknown_without_decodo(monkeypatch):
+    def fake_offline(number, country_code="", result=None):
+        out = ev._blank_phone_result(number, country_code)
+        out["status"] = ev.STATUS_UNKNOWN
+        return out
+
+    called = {"decodo": 0}
+    monkeypatch.setattr(ev, "validate_phone_offline", fake_offline)
+    monkeypatch.setattr(ev, "_call_decodo", lambda *a, **k: called.__setitem__("decodo", 1))
+    monkeypatch.setattr(ev, "is_offline_engine_available", lambda: True)
+
+    result = ev.validate_phone("+2347069977249", "NG", settings={"api_key": ""})
+    assert called["decodo"] == 0
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["valid"] is False
 
 
 def test_api_error_does_not_silently_fall_back(monkeypatch):
@@ -676,4 +746,4 @@ def test_phone_start_queues_numbers_verbatim_and_infers_country(tmp_path, monkey
     )
     assert session["queue"] == ["07069977249", "+14155552671"]
     assert session["country_code"] == "NG"
-    assert response["transport"] in ("veriphone-api", "decodo-scrape")
+    assert response["transport"] in ("veriphone-api", "local", "decodo-scrape")

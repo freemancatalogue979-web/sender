@@ -32,6 +32,21 @@ logger = logging.getLogger(__name__)
 # There is no Playwright browser and no ZeroBounce account in this codebase;
 # every lookup is a Decodo Web Scraping API request (see email_validator.py).
 # ---------------------------------------------------------------------------
+def phone_transport_label(veriphone_settings: dict = None) -> str:
+    """
+    Which transport phone validation will use.
+
+    ``local`` (free, offline numbering plans) is the default and costs nothing
+    per number. A veriphone key upgrades to ``veriphone-api``; if neither is
+    available the paid ``decodo-scrape`` is the last resort.
+    """
+    if (veriphone_settings or {}).get("api_key"):
+        return "veriphone-api"
+    if is_offline_engine_available():
+        return "local"
+    return "decodo-scrape"
+
+
 from email_validator import (  # noqa: E402
     MAX_WORKERS as _VALIDATOR_MAX_WORKERS,
     STATUS_UNKNOWN,
@@ -42,6 +57,7 @@ from email_validator import (  # noqa: E402
     save_veriphone_settings,
     validate_emails,
     validate_emails_async,
+    is_offline_engine_available,
     validate_phone,
     validate_phones_async,
     validate_phone_via_decodo,
@@ -10778,7 +10794,7 @@ def create_phone_validation_session(
         "current_number": None,
         "list_name": list_name or f"Phone Validation {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "country_code": country_code,
-        "transport": "veriphone-api" if load_veriphone_settings(user_id, base_path).get("api_key") else "decodo-scrape",
+        "transport": phone_transport_label(load_veriphone_settings(user_id, base_path)),
         "site": "veriphone",
         "batch_size": batch_size,
         "results": [],
@@ -10951,7 +10967,7 @@ async def process_phone_validation(
 
     country_code = session.get('country_code') or ""
     veriphone_settings = load_veriphone_settings(user_id, base_path)
-    transport = "veriphone-api" if veriphone_settings.get("api_key") else "decodo-scrape"
+    transport = phone_transport_label(veriphone_settings)
 
     validation_results = await validate_phones_async(
         list(current_batch), country_code, decodo_settings, veriphone_settings

@@ -433,3 +433,74 @@ the session file records it, so a run can be explained after the fact.
 - The sandbox has no outbound internet to veriphone, so the live call itself was
   exercised with a stubbed `_call_veriphone_api`; the request shape (URL,
   `phone` param, bearer header) is asserted in the unit tests.
+
+
+---
+
+## 16. Phone validation is now free and offline
+
+Decodo is a flat **$19/month plan, not pay-as-you-go**, and its free trial does
+not cover a real list. Scraping a browser session per phone number was therefore
+the wrong primitive: the paid transport was being spent to recover data that is
+public and static.
+
+Phone numbers are decidable from the numbering plan alone — is this prefix
+assigned, how long must the national number be, which carrier holds the prefix,
+is it mobile or fixed. That table ships inside Google's libphonenumber, which the
+`phonenumbers` package exposes. It answers locally, in microseconds, for $0.00.
+
+That is specific to numbers. An email's existence can only be established by a
+mail server or a vendor, so the email path still requires Decodo. The phone path
+no longer does.
+
+### Transport order (new)
+
+```
+validate_phone(number, country_code)
+  │
+  ├─ veriphone API key set?      → veriphone-api   (optional, not needed)
+  ├─ offline engine available?   → local           ← THE DEFAULT, free
+  │     └─ no verdict + Decodo configured → decodo-scrape (last resort)
+  └─ offline missing            → decodo-scrape
+```
+
+Same output shape as before, with `site: "local"` so stored lists show where a
+verdict came from. `/validator/veriphone/config` now reports
+`transport: "local"` and `offline_engine: true`.
+
+### Measured, with no network access at all
+
+A batch of four numbers through the real HTTP pipeline, with every outbound
+request stubbed to raise, finished in **18 ms total (4.5 ms per number)**:
+
+| input | e164 | status | type | carrier | region |
+|---|---|---|---|---|---|
+| `07069977249` | +2347069977249 | valid | mobile | MTN | Nigeria |
+| `08031234567` | +2348031234567 | valid | mobile | MTN | Nigeria |
+| `+1 (423) 631-9525` | +14236319525 | valid | fixed_line_or_mobile | — | Tennessee |
+| `+2340000000000` | +2340000000000 | invalid | — | — | — |
+
+### What it cannot do, stated plainly
+
+- **No "is this line reachable right now".** Neither veriphone nor libphonenumber
+  can tell whether a handset is switched on; both answer "is this an assigned
+  number". A carrier's HLR lookup is the only way, and that is a different,
+  genuinely paid service.
+- **US/CA numbers have no carrier.** The North American numbering plan maps
+  prefixes to *rate centres*, not operators, so `carrier` is empty for `+1`
+  numbers. Line type is also `fixed_line_or_mobile` because the plan does not
+  distinguish. Nigerian, UK and most other numbers do resolve a carrier.
+- **Portability is not modelled.** A number moved between networks still reports
+  its original assignee. That is what "current carrier lookup" sells, and it is
+  a paid extra real product.
+
+### Installation
+
+`phonenumbers` is now in `requirements.txt`. Without it the app still boots and
+phone validation falls back to the old Decodo scrape — the shift is graceful, and
+`is_offline_engine_available()` reports which mode is live.
+
+**109 tests passing.** New coverage: no-key-runs-locally with both the API and
+Decodo asserted uncalled, the scrape fallback when the package is missing, the
+unknown-verdict fall-through (with and without Decodo configured), plus the
+earlier API, E.164, echo-guard and queue regressions.

@@ -7411,7 +7411,8 @@ async def get_veriphone_config(current_user: dict = Depends(get_current_user)):
     """
     user_id = current_user["user_id"]
 
-    from email_validator import load_veriphone_settings
+    from email_validator import is_offline_engine_available, load_veriphone_settings
+    from functions import phone_transport_label
 
     settings = load_veriphone_settings(user_id, USERS_BASE_PATH)
     has_key = bool(settings.get("api_key"))
@@ -7420,7 +7421,8 @@ async def get_veriphone_config(current_user: dict = Depends(get_current_user)):
     return {
         "configured": has_key,
         "api_url": settings.get("api_url"),
-        "transport": "veriphone-api" if has_key else "decodo-scrape",
+        "transport": phone_transport_label(settings),
+        "offline_engine": is_offline_engine_available(),
         "source": "user" if cfg.exists() else ("environment" if has_key else None),
     }
 
@@ -7443,7 +7445,7 @@ async def save_veriphone_config(
     return {
         "success": True,
         "message": "veriphone configuration saved",
-        "transport": "veriphone-api" if saved.get("has_api_key") else "decodo-scrape",
+        "transport": phone_transport_label(saved if saved.get("has_api_key") else {}),
         **saved,
     }
 
@@ -7454,6 +7456,7 @@ async def test_veriphone_config(current_user: dict = Depends(get_current_user)):
     user_id = current_user["user_id"]
 
     from email_validator import load_veriphone_settings, validate_phone
+    from functions import phone_transport_label
 
     settings = load_veriphone_settings(user_id, USERS_BASE_PATH)
     if not settings.get("api_key"):

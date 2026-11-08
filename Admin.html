@@ -22943,7 +22943,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                             <span id="phoneTransportBadge" style="font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 999px; color: #9aa4b2; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);">checking…</span>
                                         </div>
                                         <input type="password" id="veriphoneApiKey" class="form-control" autocomplete="off"
-                                               placeholder="Optional: skip Decodo with a veriphone key"
+                                               placeholder="Optional: veriphone API key"
                                                style="width: 100%; margin-bottom: 8px; font-size: 12px;">
                                         <div style="display: flex; gap: 8px;">
                                             <button class="montserrat-btn montserrat-btn-primary montserrat-btn-sm" onclick="saveVeriphoneKey()">
@@ -37734,9 +37734,12 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 if (data.transport === 'veriphone-api') {
                     apply('DIRECT API', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
                           'Using an optional veriphone API key');
+                } else if (data.transport === 'local') {
+                    apply('OFFLINE · FREE', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
+                          'Validated locally against per-country numbering plans. No network call, no credits.');
                 } else {
-                    apply('FREE CHECKER', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
-                          "veriphone.io's own free checker through Decodo - no account, no key");
+                    apply('DECODO', '#fbbf24', 'rgba(251,191,36,0.12)', 'rgba(251,191,36,0.35)',
+                          'Offline engine unavailable - falling back to the paid Decodo transport');
                 }
             } catch (error) {
                 console.error('Failed to load veriphone config:', error);

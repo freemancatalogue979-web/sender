@@ -1232,6 +1232,175 @@ def _result_from_veriphone_api(payload: Dict[str, Any], phone_number: str, e164:
     return result
 
 
+# =============================================================================
+# PHONE VALIDATION, OFFLINE — free, no API, no credits
+# =============================================================================
+#
+# Google's libphonenumber (the ``phonenumbers`` port) ships the numbering plan
+# of every country: which prefixes are assigned, how long the national number
+# must be, which carrier holds each prefix, and what kind of line it is. That is
+# the same source veriphone answers from, and answering it locally costs
+# nothing per lookup.
+#
+# This is only possible for phone numbers. An email's existence can only be
+# told by a mail server or a validation vendor, which is why the email path
+# still needs Decodo. Numbers are decidable from a public table.
+
+try:  # optional at import time so the app still boots without the package
+    import phonenumbers
+    from phonenumbers import (
+        PhoneNumberType,
+        carrier as _pn_carrier,
+        geocoder as _pn_geocoder,
+        timezone as _pn_timezone,
+    )
+
+    PHONENUMBERS_AVAILABLE = True
+except Exception:  # pragma: no cover - exercised by the "not installed" test
+    phonenumbers = None
+    PHONENUMBERS_AVAILABLE = False
+
+
+def is_offline_engine_available() -> bool:
+    """True when local validation can run (the ``phonenumbers`` package loaded)."""
+    return bool(PHONENUMBERS_AVAILABLE)
+
+
+_PN_TYPE_NAMES = {
+    "MOBILE": "mobile",
+    "FIXED_LINE": "fixed_line",
+    "FIXED_LINE_OR_MOBILE": "fixed_line_or_mobile",
+    "TOLL_FREE": "toll_free",
+    "PREMIUM_RATE": "premium_rate",
+    "SHARED_COST": "shared_cost",
+    "VOIP": "voip",
+    "PERSONAL_NUMBER": "personal_number",
+    "PAGER": "pager",
+    "UAN": "uan",
+    "VOICEMAIL": "voicemail",
+    "UNKNOWN": "unknown",
+}
+
+# Line types that mean a real, reachable line.
+_PN_REACHABLE_TYPES = {
+    "mobile",
+    "fixed_line",
+    "fixed_line_or_mobile",
+    "voip",
+    "toll_free",
+    "personal_number",
+}
+
+
+def _pn_type_name(number) -> str:
+    """Human line type for a parsed number (``mobile``, ``fixed_line``, …)."""
+    raw = phonenumbers.number_type(number)
+    for name, value in vars(PhoneNumberType).items():
+        if name.startswith("_") or not isinstance(value, int):
+            continue
+        if value == raw:
+            return _PN_TYPE_NAMES.get(name, name.lower())
+    return "unknown"
+
+
+def validate_phone_offline(
+    phone_number: str,
+    country_code: str = "",
+    result: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Validate a phone number with no network call at all.
+
+    Returns the same result shape as the network paths, with ``site="local"``
+    so stored lists show where a verdict came from. An unparseable or
+    unassigned number is ``invalid``; a number that is structurally sound but
+    whose line type is unknown stays ``unknown`` — never silently valid.
+    """
+    out = result if result is not None else _blank_phone_result(phone_number, country_code)
+    out["site"] = "local"
+
+    if not PHONENUMBERS_AVAILABLE:
+        out["status"] = STATUS_UNKNOWN
+        out["category"] = "unknown"
+        out["reason"] = "Offline validation unavailable (phonenumbers not installed)"
+        out["error"] = "phonenumbers package is not installed"
+        return out
+
+    region = (country_code or "").strip().upper() or None
+    candidate = (phone_number or "").strip()
+
+    parsed = None
+    for attempt in (candidate, to_e164(candidate, country_code)):
+        try:
+            parsed = phonenumbers.parse(attempt, region)
+            break
+        except Exception:
+            parsed = None
+    if parsed is None:
+        out.update(status=STATUS_INVALID, valid=False, category="malformed",
+                   confidence=0, reason="Not a parseable phone number")
+        return out
+
+    e164 = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+    out["e164"] = e164
+    out["country_code"] = (
+        phonenumbers.region_code_for_number(parsed) or out.get("country_code") or ""
+    )
+
+    # 1. Assigned to a real numbering plan?
+    if not phonenumbers.is_possible_number(parsed) or not phonenumbers.is_valid_number(parsed):
+        out.update(
+            status=STATUS_INVALID,
+            valid=False,
+            category="undeliverable",
+            confidence=98,
+            reason="Not a valid number for its numbering plan",
+            formatted_number=phonenumbers.format_number(
+                parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
+            ),
+        )
+        return out
+
+    # 2. It is assigned. Fill in type / carrier / region from the same plan.
+    line_type = _pn_type_name(parsed)
+    carrier_name = _pn_carrier.name_for_number(parsed, "en") or None
+    region_name = _pn_geocoder.description_for_number(parsed, "en") or None
+    try:
+        tz = ",".join(_pn_timezone.time_zones_for_number(parsed)) or None
+    except Exception:
+        tz = None
+
+    out["line_type"] = line_type
+    out["carrier"] = carrier_name
+    out["region"] = region_name
+    out["city"] = None
+    out["formatted_number"] = phonenumbers.format_number(
+        parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
+    )
+    out["raw"] = {"timezones": tz, "country_prefix": str(parsed.country_code)}
+
+    if line_type in _PN_REACHABLE_TYPES:
+        out.update(
+            status=STATUS_VALID,
+            valid=True,
+            category="deliverable",
+            confidence=95 if carrier_name else 85,
+            reason="Valid for its numbering plan"
+            + (f", {line_type}" if line_type else "")
+            + (f" on {carrier_name}" if carrier_name else ""),
+        )
+    else:
+        # Assigned, but we cannot say the line is live.
+        out.update(
+            status=STATUS_UNKNOWN,
+            valid=False,
+            category="unknown",
+            confidence=40,
+            reason=f"Assigned number, unrecognised line type ({line_type})",
+        )
+    return out
+
+
 def validate_phone(
     phone_number: str,
     country_code: str = "",
@@ -1282,7 +1451,20 @@ def validate_phone(
             result["error"] = str(exc)
             return result
 
-    # No API key: fall back to scraping through Decodo.
+    # No API key. Validate locally first: this costs nothing and settles the
+    # overwhelming majority of numbers (well-formed, assigned, carrier known).
+    if is_offline_engine_available():
+        local = validate_phone_offline(phone_number, country_code)
+        if local.get("status") != STATUS_UNKNOWN or not decodo_settings:
+            return local
+        # Structurally fine but no verdict, and the caller has Decodo to spend:
+        # fall through and let the paid transport try to settle it.
+        scraped = validate_phone_via_decodo(phone_number, country_code, decodo_settings)
+        if scraped.get("error") or scraped.get("status") == STATUS_UNKNOWN:
+            return local
+        return scraped
+
+    # Offline engine not installed: fall back to scraping through Decodo.
     return validate_phone_via_decodo(phone_number, country_code, decodo_settings)
 
 
