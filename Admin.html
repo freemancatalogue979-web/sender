@@ -22962,10 +22962,12 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                        placeholder="browser-use API key"
                                                        style="width: 100%; margin-bottom: 6px; font-size: 12px;">
                                                 <input type="text" id="browserUseProxy" class="form-control" autocomplete="off"
-                                                       placeholder="proxy country (blank = no proxy, cheaper)"
+                                                       placeholder="residential proxy country (default us)"
                                                        style="width: 100%; margin-bottom: 6px; font-size: 12px;">
                                                 <div style="font-size: 10px; color: var(--text-gray); margin-bottom: 8px;">
-                                                    $0.02/browser-hour. Blank proxy country avoids the $5/GB residential rate.
+                                                    One browser per number = a fresh residential IP per lookup.
+                                                    $0.02/browser-hour plus $5/GB proxy traffic. Type <b>none</b> to
+                                                    disable the proxy ($0.20/GB, but one shared datacenter IP).
                                                 </div>
                                                 <button class="montserrat-btn montserrat-btn-sm" onclick="saveBrowserUseKey()">
                                                     <span class="btn-icon"><i class="fas fa-cloud"></i></span>

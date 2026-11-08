@@ -1286,6 +1286,12 @@ def _result_from_veriphone_api(payload: Dict[str, Any], phone_number: str, e164:
 
 BROWSER_USE_API_URL = "https://api.browser-use.com"
 BROWSER_USE_BROWSER_TIMEOUT_S = 60
+
+# Residential proxy country. Browser Use provisions a US residential IP by
+# default; blank/"none"/"direct" turns the proxy off (cheaper per GB, but every
+# request then leaves from one datacenter IP and the target can rate-limit it).
+BROWSER_USE_DEFAULT_PROXY_COUNTRY = "us"
+_PROXY_OFF_VALUES = {"", "none", "direct", "off", "false", "0"}
 BROWSER_USE_NAV_TIMEOUT_MS = 30000
 BROWSER_USE_SETTLE_MS = 2500
 
@@ -1306,7 +1312,7 @@ def load_browser_use_settings(
 
     settings: Dict[str, Any] = {
         "api_key": "",
-        "proxy_country_code": "",
+        "proxy_country_code": BROWSER_USE_DEFAULT_PROXY_COUNTRY,
         "browser_timeout": BROWSER_USE_BROWSER_TIMEOUT_S,
     }
 
@@ -1317,7 +1323,8 @@ def load_browser_use_settings(
                 with open(cfg_file, "r", encoding="utf-8") as f:
                     saved = json.load(f)
                 settings["api_key"] = decrypt_secret(saved.get("api_key", "") or "")
-                settings["proxy_country_code"] = saved.get("proxy_country_code") or ""
+                if saved.get("proxy_country_code") is not None:
+                    settings["proxy_country_code"] = saved["proxy_country_code"]
                 if saved.get("browser_timeout"):
                     settings["browser_timeout"] = int(saved["browser_timeout"])
             except Exception as exc:
@@ -1369,6 +1376,26 @@ def save_browser_use_settings(
     }
 
 
+def resolve_proxy_country(settings: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """
+    Resolve the proxy country for a cloud browser.
+
+    Each browser is its own session with its own residential exit IP, so one
+    browser per number means one IP per number, which is what keeps the target
+    site from rate-limiting a whole batch to a single address.
+
+    Returns None only when the proxy is explicitly switched off -- that traffic
+    is $0.20/GB instead of $5/GB but leaves from one datacenter IP.
+    """
+    raw = (settings or {}).get("proxy_country_code")
+    if raw is None:
+        return BROWSER_USE_DEFAULT_PROXY_COUNTRY
+    value = str(raw).strip().lower()
+    if value in _PROXY_OFF_VALUES:
+        return None
+    return value
+
+
 def is_browser_use_available() -> bool:
     """True when the SDK and its transport deps are importable."""
     try:
@@ -1413,7 +1440,7 @@ def _run_browser_use_scrape(
     async def _create():
         async with AsyncBrowserUse(api_key=api_key) as client:
             return await client.browsers.create(
-                proxy_country_code=settings.get("proxy_country_code") or None,
+                proxy_country_code=resolve_proxy_country(settings),
                 timeout=timeout,
             )
 

@@ -717,3 +717,80 @@ before.
 **133 tests passing.** New: Decodo is the default provider, per-settings and env
 overrides, `scrape_site` driving Decodo without touching Browser Use, Browser Use
 without touching Decodo, and full email validation through the swapped transport.
+
+
+---
+
+## 20. Proxy and IP rotation on Browser Use
+
+Yes — Browser Use ships a residential proxy, and the important part for rate
+limiting is that **a proxy IP is attached per browser session**, not per account.
+
+- Residential proxies in 195+ countries, **US by default**, chosen per browser
+  with `proxy_country_code`
+- Traffic is billed at **$5/GB** managed residential, or **$0.20/GB** direct /
+  bring-your-own
+- Each browser is an isolated Chromium with its own network path, so a new
+  browser means a new exit IP
+
+### Why this rotates ipso facto
+
+The engine already creates **one browser per lookup** (the stop-on-failure test
+asserts the create/stop pair, and a new test asserts three numbers produce three
+creates). So number 1 and number 2 leave from different residential IPs without
+any rotation logic on our side. That is the property that keeps a batch from
+being rate-limited to a single address.
+
+The previous default was wrong for exactly this reason: it sent
+`proxy_country_code=None`, meaning **no proxy at all** — every lookup from one
+datacenter IP. It only looked cheaper because direct traffic is $0.20/GB. For a
+site that limits, that is a false economy. **The default is now `us`.**
+
+### If you want a fresh IP inside a single session
+
+Their API also exposes `PATCH /browsers/{id}/proxy` with `rotate: true` (new
+residential IP, same country) or `target: <url>` (new IP scoped to that site).
+This engine does not need it because it uses one browser per lookup, but it is
+there if you ever want to reuse a browser for speed:
+
+```
+PATCH /api/v2/browsers/{session_id}/proxy
+{"rotate": true}
+```
+
+Rotation takes under a second; a change that swaps the CA bundle takes ~5 s, and
+issuing a second change before the first finishes returns 409.
+
+### The cost trap — the one to check before committing the $5
+
+Proxy traffic is billed **per GB at $5/GB**, and a full browser page load is not
+small. A verifier page with assets is roughly 1–3 MB:
+
+| Traffic per page | Per 1,000 numbers | Verdict |
+|---|---|---|
+| 0.5 MB | ~$2.50 | fine |
+| 1 MB | ~$5.00 | **consumes the whole budget** |
+| 3 MB | ~$15.00 | over budget after ~330 numbers |
+
+Browser *time* is negligible by comparison ($0.02/hour ≈ $0.10 for 1,000
+lookups). **Traffic is the bill, not time.** So:
+
+1. **Block images, fonts and media.** The verifier only needs HTML and the
+   script that renders the result. Cutting assets is the single biggest lever on
+   this bill — typically 10×.
+2. Verify with one cheap run first, then read `usage` on the session before
+   batching a large list.
+3. If traffic still dominates, `proxy_country_code: "none"` plus your own
+   rotating proxy is $0.20/GB — but then rotation is your responsibility.
+
+### Summary of the trade
+
+| Goal | Setting |
+|---|---|
+| Never get rate-limited (default) | proxy `us`, one browser per lookup |
+| Cheapest per number, IP rotation given up | `proxy_country_code: "none"` |
+| Cheapest with rotation | `"none"` + your own proxy via `custom_proxy` |
+
+**143 tests passing.** New: the proxy-country matrix (default `us`, normalised
+region codes, `""`/`none`/`direct`/`off` meaning no proxy) and a test asserting
+one browser is created per number, which is what makes the IPs differ.

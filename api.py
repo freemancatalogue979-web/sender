@@ -7493,7 +7493,11 @@ async def get_browser_use_config(current_user: dict = Depends(get_current_user))
         "proxy_country_code": settings.get("proxy_country_code") or "",
         "browser_timeout": settings.get("browser_timeout"),
         "source": "user" if cfg.exists() else ("environment" if settings.get("api_key") else None),
-        "notes": "Optional. $0.02/browser-hour; leave the proxy country blank to avoid $5/GB traffic.",
+        "notes": (
+            "One browser per lookup, each with its own residential exit IP. "
+            "$0.02/browser-hour plus $5/GB proxy traffic; set proxy_country_code "
+            "to 'none' to disable the proxy."
+        ),
     }
 
 

@@ -4,6 +4,7 @@ These exercise the parsing/verdict engine against representative rendered
 HTML, with no network access: the Decodo call is monkeypatched.
 """
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 import email_validator as ev
 
@@ -916,9 +917,9 @@ def test_browser_use_stops_the_browser_even_when_the_page_fails(monkeypatch):
     kinds = [e[0] for e in events]
     assert "create" in kinds
     assert ("stop", "sess-1") in events, f"browser was not stopped: {events}"
-    # A proxy is only enabled when configured (residential traffic costs extra).
+    # Residential proxy is on by default: one session, one exit IP.
     create_kwargs = [e[1] for e in events if e[0] == "create"][0]
-    assert create_kwargs.get("proxy_country_code") is None
+    assert create_kwargs.get("proxy_country_code") == "us"
 
 
 def test_browser_use_settings_are_encrypted(tmp_path, monkeypatch):
@@ -1110,3 +1111,46 @@ def test_email_validation_works_through_the_provider_swap(monkeypatch):
     result = ev.validate_one("someone@gmail.com", {"provider": "browser-use", "api_key": "k"})
     assert result["status"] == ev.STATUS_VALID
     assert result["site"] == "skrapp"
+
+
+# =============================================================================
+# PROXY — one residential IP per browser session
+# =============================================================================
+
+@pytest.mark.parametrize("settings,expected", [
+    (None, "us"),                                   # Browser Use's own default
+    ({}, "us"),
+    ({"proxy_country_code": "us"}, "us"),
+    ({"proxy_country_code": "GB"}, "gb"),           # normalised
+    ({"proxy_country_code": "de"}, "de"),
+    ({"proxy_country_code": ""}, None),             # explicitly off
+    ({"proxy_country_code": "none"}, None),
+    ({"proxy_country_code": "direct"}, None),
+    ({"proxy_country_code": "off"}, None),
+])
+def test_resolve_proxy_country(settings, expected):
+    assert ev.resolve_proxy_country(settings) == expected
+
+
+def test_a_fresh_browser_is_created_per_lookup_so_ips_rotate(monkeypatch):
+    """
+    One number = one browser = one residential exit IP. Reusing a single browser
+    for a whole batch would pin every lookup to the same IP and invite limiting.
+    """
+    created = []
+
+    def fake_scrape(adapter, value, settings):
+        created.append((value, settings.get("proxy_country_code")))
+        return "Number +234 706 997 7249\nType mobile\nCarrier MTN\nValid Valid"
+
+    monkeypatch.setattr(ev, "_run_browser_use_scrape", fake_scrape)
+    monkeypatch.setattr(ev, "is_browser_use_available", lambda: True)
+
+    numbers = ["+2347069977249", "+2348031234567", "+14155552671"]
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        list(pool.map(
+            lambda n: ev.validate_phone_via_browser_use(n, "", settings={"api_key": "k"}),
+            numbers,
+        ))
+
+    assert len(created) == 3, "one browser per number is required for IP rotation"
