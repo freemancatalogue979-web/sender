@@ -963,3 +963,87 @@ def test_browser_use_gets_its_own_credentials_not_decodos(monkeypatch):
         browser_use_settings={"api_key": "BROWSER-USE-KEY"},
     )
     assert seen["key"] == "BROWSER-USE-KEY"
+
+
+# =============================================================================
+# EMAIL VALIDATOR — free offline engine (no vendor, no credits)
+# =============================================================================
+
+def test_offline_email_rejects_bad_syntax():
+    for bad in ("not-an-email", "no@tld", "a b@c.com", "user@@x.com"):
+        r = ev.validate_email_offline(bad, check_dns=False)
+        assert r["status"] == ev.STATUS_INVALID, bad
+        assert r["valid"] is False
+
+
+def test_offline_email_no_mx_is_invalid(monkeypatch):
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (False, []))
+    r = ev.validate_email_offline("user@nowhere-xyz.com")
+    assert r["status"] == ev.STATUS_INVALID
+    assert "MX" in r["reason"]
+    assert r["confidence"] == 90
+
+
+def test_offline_email_mx_without_smtp_is_unknown_not_valid(monkeypatch):
+    """The domain accepts mail; that does not prove the mailbox exists."""
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.example.com"]))
+    r = ev.validate_email_offline("someone@example.com")
+    assert r["status"] == ev.STATUS_UNKNOWN
+    assert r["valid"] is False
+    assert r["mx_found"] is True
+
+
+def test_offline_email_disposable_is_risky(monkeypatch):
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.mailinator.com"]))
+    r = ev.validate_email_offline("someone@mailinator.com")
+    assert r["status"] == ev.STATUS_RISKY
+
+
+def test_offline_email_role_address_is_risky(monkeypatch):
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.example.com"]))
+    r = ev.validate_email_offline("admin@example.com")
+    assert r["status"] == ev.STATUS_RISKY
+
+
+def test_offline_email_smtp_accept_makes_it_valid(monkeypatch):
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.example.com"]))
+    monkeypatch.setattr(ev, "_smtp_probe", lambda host, email, **k: True)
+    r = ev.validate_email_offline("someone@example.com", smtp_probe=True)
+    assert r["status"] == ev.STATUS_VALID
+    assert r["valid"] is True
+    assert r["checks"]["smtp"] == "accepted"
+
+
+def test_offline_email_smtp_reject_makes_it_invalid(monkeypatch):
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.example.com"]))
+    monkeypatch.setattr(ev, "_smtp_probe", lambda host, email, **k: False)
+    r = ev.validate_email_offline("ghost@example.com", smtp_probe=True)
+    assert r["status"] == ev.STATUS_INVALID
+    assert r["confidence"] == 92
+
+
+def test_offline_email_smtp_no_answer_stays_unknown(monkeypatch):
+    """Greylisting or a blocked port must not be read as a rejection."""
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.example.com"]))
+    monkeypatch.setattr(ev, "_smtp_probe", lambda host, email, **k: None)
+    r = ev.validate_email_offline("someone@example.com", smtp_probe=True)
+    assert r["status"] == ev.STATUS_UNKNOWN
+    assert r["valid"] is False
+
+
+def test_offline_email_batch_preserves_order(monkeypatch):
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.example.com"]))
+    addrs = [f"user{i}@example.com" for i in range(12)]
+    out = ev.validate_emails_offline(addrs)
+    assert [r["email"] for r in out] == addrs
+
+
+def test_offline_email_flags_free_provider(monkeypatch):
+    monkeypatch.setattr(ev, "_domain_mx", lambda d: (True, ["mx.example.com"]))
+    r = ev.validate_email_offline("someone@gmail.com")
+    assert r["free_email"] is True
+    assert r["site"] == "local"
+
+
+def test_smtp_probe_never_raises_on_a_dead_host():
+    assert ev._smtp_probe("host.invalid.zzz", "a@b.com", timeout=0.5) is None

@@ -582,3 +582,70 @@ a real key in hand rather than blind.
 **117 tests passing.** New coverage: key required, SDK-missing guard, happy-path
 render and classify, failure-becomes-error (not invalid), offline-still-default,
 stop-on-failure, encrypted settings round-trip, and the Decodo-key leak.
+
+
+---
+
+## 18. Running on $5 with no renewal
+
+The constraint: a one-off **$5**, Decodo not renewable, no recurring plan. That
+rules out every subscription and makes per-lookup fees fatal. The answer is to
+stop paying for the checks that are free, which turns out to be most of them.
+
+### What now costs nothing
+
+| Check | How | Verdict it can reach |
+|---|---|---|
+| Email syntax / normalisation | local regex + rules | invalid |
+| Domain can receive mail | **MX lookup** (DNS, free) | invalid if no MX |
+| Mailbox exists | **SMTP RCPT probe** on port 25 | valid / invalid |
+| Disposable domain | local list | risky |
+| Role mailbox (`admin@`, `support@`) | local list | risky |
+| Phone number: assigned, carrier, line type | **libphonenumber** tables | valid / invalid |
+
+The email path used to require Decodo for *every* address. Without a key it now
+falls back to this engine instead of marking all N addresses failed — that
+fallback was the thing that made the app useless the day the plan lapsed.
+
+### The one real limitation
+
+Everything above settles **domains**. Only the SMTP probe settles **mailboxes**,
+and many hosts block outbound port 25. This sandbox does, so here the probe
+returns "no answer" and addresses land in `unknown` — honestly labelled, not
+promoted to valid.
+
+If your host allows port 25 outbound (VPS providers usually do; shared hosting
+and most PaaS do not), the probe upgrades real mailboxes to `valid` at
+confidence 88 and rejects non-existent ones at 92, for **$0.00**. That is the
+single highest-leverage thing to check on your server:
+
+```
+python -c "from email_validator import _smtp_probe; print(_smtp_probe('gmail-smtp-in.l.google.com','someone@gmail.com'))"
+```
+
+`True` means the free path is fully live. `None` means port 25 is blocked.
+
+### Where the $5 is worth spending, if at all
+
+Only for what DNS and SMTP cannot answer:
+
+- **catch-all domains** (every address looks valid, so only a vendor's heuristics help)
+- **reputation / abuse signals**
+
+Budget at Browser Use's metered rate ($0.02/browser-hour, no subscription, no
+renewal): $5 buys roughly **250 browser-hours**, which at ~5 s per email is on
+the order of **180,000 addresses**. That is the whole $5, spent once, never
+renewed — and it is optional, because the free engine covers the common cases.
+
+### Switches
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `FV_S_DECODO_API_KEY` | unset | if set, email uses the scraped verifier |
+| `FV_S_SMTP_PROBE` | `1` | set to `0` to skip the port-25 probe (faster, less certain) |
+| `FV_S_BROWSER_USE_API_KEY` | unset | optional metered browser for what DNS cannot answer |
+
+**128 tests passing.** New coverage: bad syntax, missing MX, MX-without-SMTP
+stays unknown, disposable and role addresses, SMTP accept/reject/no-answer,
+batch order, free-provider flagging, and that the probe never raises on a dead
+host.

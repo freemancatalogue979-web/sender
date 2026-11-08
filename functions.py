@@ -59,6 +59,7 @@ from email_validator import (  # noqa: E402
     save_veriphone_settings,
     validate_emails,
     validate_emails_async,
+    validate_emails_offline_async,
     is_browser_use_available,
     is_offline_engine_available,
     load_browser_use_settings,
@@ -10475,12 +10476,27 @@ async def process_email_validation_batch(
         })
         return {"success": True, "completed": True}
 
-    # Validate the batch through Decodo -- the only transport. validate_emails
-    # fans out concurrently and never raises per address.
+    # Pick the transport: a Decodo key buys a scraped verifier verdict; without
+    # one we fall back to the free engine (syntax + MX + reputation + optional
+    # SMTP) rather than failing every address.
     results = []
-    validation_results = await validate_emails_async(
-        list(current_batch), decodo_settings
-    )
+    if decodo_settings.get("api_key"):
+        email_transport = "decodo"
+        validation_results = await validate_emails_async(
+            list(current_batch), decodo_settings
+        )
+    elif is_offline_engine_available():
+        email_transport = "local"
+        validation_results = await validate_emails_offline_async(
+            list(current_batch),
+            check_dns=True,
+            smtp_probe=bool(os.getenv("FV_S_SMTP_PROBE", "1") == "1"),
+        )
+    else:
+        email_transport = "decodo"
+        validation_results = await validate_emails_async(
+            list(current_batch), decodo_settings
+        )
     
     # Process results
     valid_count = 0

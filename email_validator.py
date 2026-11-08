@@ -1435,6 +1435,234 @@ def _run_browser_use_scrape(
 
 
 # =============================================================================
+# EMAIL VALIDATION, OFFLINE — DNS + optional SMTP, no API, no credits
+# =============================================================================
+#
+# What can be settled without a paid vendor:
+#
+#   1. syntax and normalisation          (RFC 5322, local)
+#   2. does the domain accept mail?      (MX lookup, free, DNS)
+#   3. is the domain known-disposable?   (local domain list)
+#   4. does the mailbox exist?           (SMTP RCPT probe, free, needs port 25)
+#
+# (4) is the only one that proves the *mailbox*, not just the domain. Many
+# hosting networks block outbound port 25, in which case it is skipped and the
+# domain-level answer is reported instead -- honestly, as less certain.
+#
+# What cannot be settled for free: whether a recipient at a catch-all domain
+# exists, and reputation/abuse signals. Those stay unknown rather than "valid".
+
+# Common throwaway domains. Not exhaustive; a match is a warning, not proof the
+# address is dead, so it maps to ``risky`` rather than ``invalid``.
+DISPOSABLE_DOMAINS = frozenset({
+    "mailinator.com", "guerrillamail.com", "guerrillamail.net", "10minutemail.com",
+    "tempmail.com", "temp-mail.org", "throwawaymail.com", "yopmail.com",
+    "trashmail.com", "sharklasers.com", "getnada.com", "dispostable.com",
+    "maildrop.cc", "fakeinbox.com", "mailnesia.com", "spam4.me",
+    "mintemail.com", "mytemp.email", "tempr.email", "emailondeck.com",
+    "moakt.com", "burnermail.io", "mailcatch.com", "inboxkitten.com",
+})
+
+# Free consumer providers — not invalid, just worth labelling.
+FREE_EMAIL_DOMAINS = frozenset({
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "hotmail.com",
+    "outlook.com", "live.com", "msn.com", "aol.com", "icloud.com", "me.com",
+    "gmx.com", "gmx.net", "mail.com", "yandex.com", "yandex.ru", "proton.me",
+    "protonmail.com", "zoho.com", "tutanota.com",
+})
+
+# Role mailboxes: real, but usually not a person.
+ROLE_ACCOUNTS = frozenset({
+    "admin", "administrator", "postmaster", "hostmaster", "webmaster", "abuse",
+    "noreply", "no-reply", "donotreply", "support", "help", "info", "sales",
+    "billing", "accounts", "contact", "enquiries", "office", "hello", "team",
+    "marketing", "hr", "jobs", "careers", "press", "media", "legal", "privacy",
+    "security", "compliance", "root", "sysadmin", "mailer-daemon",
+})
+
+_EMAIL_SYNTAX_RE = re.compile(r"^[A-Za-z0-9._%+\-']+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
+
+
+def _smtp_probe(
+    mx_host: str,
+    email: str,
+    timeout: float = 6.0,
+    sender: str = "verify@example.com",
+) -> Optional[bool]:
+    """
+    Ask the recipient's mail server whether the mailbox exists.
+
+    Opens an SMTP conversation and issues ``RCPT TO`` without sending a message,
+    then disconnects with ``QUIT``. Returns True (accepted), False (rejected), or
+    None when the server declines to answer (greylisting, catch-all, blocked
+    port). Never raises.
+    """
+    import smtplib
+
+    try:
+        with smtplib.SMTP(mx_host, 25, timeout=timeout) as smtp:
+            smtp.ehlo_or_helo_if_needed()
+            code, _ = smtp.mail(sender)
+            if code >= 400:
+                return None
+            code, _ = smtp.rcpt(email)
+            if 200 <= code < 300:
+                return True
+            if code in (550, 551, 553):
+                return False
+            return None
+    except Exception:
+        return None
+
+
+def validate_email_offline(
+    email: str,
+    check_dns: bool = True,
+    smtp_probe: bool = False,
+    result: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Validate one address with no paid service.
+
+    Returns the same shape as the scraped path, with ``site="local"``. The
+    verdict ladder, strongest first:
+
+    * SMTP rejected the recipient      -> invalid   (confidence 92)
+    * SMTP accepted the recipient      -> valid     (confidence 88)
+    * no MX for the domain             -> invalid   (confidence 90)
+    * disposable domain                -> risky     (confidence 60)
+    * role mailbox                     -> risky     (confidence 55)
+    * MX present, mailbox unverified   -> unknown   (confidence 45)
+    * unusable syntax                  -> invalid   (confidence 95)
+
+    MX present with no SMTP answer is deliberately ``unknown``: the domain
+    demonstrably accepts mail, but nothing proves this mailbox exists.
+    """
+    email = (email or "").strip()
+    out = result if result is not None else _blank_result(email)
+    out["site"] = "local"
+
+    # 1. Syntax
+    if not email or "@" not in email:
+        out.update(status=STATUS_INVALID, valid=False, category="malformed",
+                   confidence=95, reason="Not an email address")
+        return out
+    local_part, domain = email.rsplit("@", 1)
+    domain = domain.lower().strip().rstrip(".")
+    out["domain"] = domain or None
+    out["account"] = local_part or None
+
+    if not _EMAIL_SYNTAX_RE.match(email) or ".." in email or domain.startswith("-"):
+        out.update(status=STATUS_INVALID, valid=False, category="malformed",
+                   confidence=95, reason="Fails email syntax rules")
+        return out
+
+    out["free_email"] = domain in FREE_EMAIL_DOMAINS
+
+    # 2. DNS: can the domain receive mail at all?
+    mx_found, mx_records = (False, [])
+    if check_dns:
+        mx_found, mx_records = _domain_mx(domain)
+    out["mx_found"] = mx_found
+    out["mx_records"] = mx_records
+    out["mx_record"] = mx_records[0] if mx_records else None
+    if mx_found and mx_records:
+        out["smtp_provider"] = mx_records[0].split(".")[-2] if "." in mx_records[0] else None
+
+    if check_dns and not mx_found:
+        out.update(
+            status=STATUS_INVALID,
+            valid=False,
+            category="undeliverable",
+            confidence=90,
+            reason="Domain has no MX record, so it cannot receive mail",
+        )
+        out["checks"] = {"syntax": "valid", "mx": "missing"}
+        return out
+
+    # 3. SMTP probe: the only thing that proves the mailbox itself.
+    smtp_verdict = None
+    if smtp_probe and mx_found and mx_records:
+        for host in mx_records[:2]:
+            smtp_verdict = _smtp_probe(host, email)
+            if smtp_verdict is not None:
+                break
+        out["checks"] = {
+            "syntax": "valid",
+            "mx": "found",
+            "smtp": {True: "accepted", False: "rejected"}.get(smtp_verdict, "no answer"),
+        }
+    else:
+        out["checks"] = {"syntax": "valid", "mx": "found" if mx_found else "not checked"}
+
+    if smtp_verdict is True:
+        out.update(status=STATUS_VALID, valid=True, category="deliverable",
+                   confidence=88, reason="Mailbox server accepted the recipient")
+        return out
+    if smtp_verdict is False:
+        out.update(status=STATUS_INVALID, valid=False, category="undeliverable",
+                   confidence=92, reason="Mailbox server rejected the recipient")
+        return out
+
+    # 4. Reputation-style signals that need no network.
+    if domain in DISPOSABLE_DOMAINS:
+        out.update(status=STATUS_RISKY, valid=False, category="risky",
+                   confidence=60, reason="Disposable email domain")
+        return out
+    if local_part.lower() in ROLE_ACCOUNTS:
+        out.update(status=STATUS_RISKY, valid=False, category="risky",
+                   confidence=55, reason="Role address rather than a person")
+        return out
+
+    out.update(
+        status=STATUS_UNKNOWN,
+        valid=False,
+        category="unknown",
+        confidence=45,
+        reason="Domain accepts mail, but the mailbox could not be verified"
+        + ("" if smtp_probe else " (SMTP probe disabled)"),
+    )
+    return out
+
+
+def validate_emails_offline(
+    emails: List[str],
+    check_dns: bool = True,
+    smtp_probe: bool = False,
+    max_workers: int = MAX_WORKERS,
+) -> List[Dict[str, Any]]:
+    """Validate a batch locally, preserving input order."""
+    emails = [e for e in (emails or []) if isinstance(e, str)]
+    if not emails:
+        return []
+
+    workers = max(1, min(len(emails), max(1, max_workers)))
+
+    def _run(address: str) -> Dict[str, Any]:
+        try:
+            return validate_email_offline(address, check_dns=check_dns, smtp_probe=smtp_probe)
+        except Exception as exc:
+            logger.exception("Offline validation crashed for %s", address)
+            blank = _blank_result(address.strip())
+            blank["site"] = "local"
+            blank["error"] = f"Validation error: {exc}"
+            return blank
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(_run, emails))
+
+
+async def validate_emails_offline_async(
+    emails: List[str],
+    check_dns: bool = True,
+    smtp_probe: bool = False,
+) -> List[Dict[str, Any]]:
+    return await asyncio.to_thread(
+        validate_emails_offline, emails, check_dns, smtp_probe
+    )
+
+
+# =============================================================================
 # PHONE VALIDATION, OFFLINE — free, no API, no credits
 # =============================================================================
 #
