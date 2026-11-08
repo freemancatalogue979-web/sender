@@ -22934,15 +22934,16 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                 <div class="phone-command-panel">
                                     <h4><i class="fas fa-rocket"></i> Launch Controls</h4>
 
-                                    <!-- Phone transport: direct veriphone API when a
-                                         key is set, Decodo scrape otherwise. -->
+                                    <!-- Phone transport. Default is veriphone.io's own
+                                         free checker (no account) driven through
+                                         Decodo; a key is an optional shortcut. -->
                                     <div style="margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
                                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
                                             <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-gray);">Transport</span>
                                             <span id="phoneTransportBadge" style="font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 999px; color: #9aa4b2; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);">checking…</span>
                                         </div>
                                         <input type="password" id="veriphoneApiKey" class="form-control" autocomplete="off"
-                                               placeholder="veriphone API key (optional)"
+                                               placeholder="Optional: skip Decodo with a veriphone key"
                                                style="width: 100%; margin-bottom: 8px; font-size: 12px;">
                                         <div style="display: flex; gap: 8px;">
                                             <button class="montserrat-btn montserrat-btn-primary montserrat-btn-sm" onclick="saveVeriphoneKey()">
@@ -37732,10 +37733,10 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 };
                 if (data.transport === 'veriphone-api') {
                     apply('DIRECT API', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
-                          'Direct veriphone JSON API — no browser automation');
+                          'Using an optional veriphone API key');
                 } else {
-                    apply('DECODO SCRAPE', '#fbbf24', 'rgba(251,191,36,0.12)', 'rgba(251,191,36,0.35)',
-                          'No API key — falling back to scraping veriphone.io through Decodo');
+                    apply('FREE CHECKER', '#4ade80', 'rgba(74,222,128,0.12)', 'rgba(74,222,128,0.35)',
+                          "veriphone.io's own free checker through Decodo - no account, no key");
                 }
             } catch (error) {
                 console.error('Failed to load veriphone config:', error);

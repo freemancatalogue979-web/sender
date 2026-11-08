@@ -266,11 +266,17 @@ Also fixed: an empty result cell (`Carrier` blank) used to let the next label bl
 
 ---
 
-## 15. Phone validation: direct API first, scrape as fallback
+## 15. Phone validation: the free web checker, with an optional API shortcut
 
-Scraping veriphone.io through Decodo works, but it spends a browser session to
-recover four fields that veriphone will hand over as JSON. The phone path now
-prefers the documented API and keeps the scrape only for setups without a key.
+The phone validator uses **veriphone.io's own free checker** — the one at the top
+of their homepage, "try it free, no account required" — driven through Decodo
+exactly like the email validator drives skrapp.io. There is no signup, no API
+key, and no credit balance to manage.
+
+An API key is **optional**. If one happens to be configured, the code takes a
+single-request shortcut instead of a browser session. If not, the free checker
+runs. Either way the output shape is identical. Do not read this section as
+"the phone validator requires a veriphone account" — it does not.
 
 ### Order of preference
 
@@ -280,13 +286,15 @@ validate_phone(number, country_code)
   ├─ to_e164(number, country_code)          → "+2347069977249"
   ├─ is_plausible_e164(...)                 → refuse malformed input, no lookup
   │
-  ├─ key configured?
+  ├─ key configured?  (optional, usually no)
   │    ├─ yes → GET https://api.veriphone.io/v3/verify   (one request, no browser)
   │    │         └─ fails ⇒ return the error  (no silent fallback)
-  │    └─ no  → validate_phone_via_decodo(...)           (existing scrape path)
+  │    └─ no  → DEFAULT: the free veriphone.io checker through Decodo
   │
   └─ verdict is never `valid` unless veriphone says so
 ```
+
+The default path — no key — is the one this repo is built around.
 
 The key point is the **no silent fallback** rule. If a key exists and the call
 fails, the row is recorded as `failed` with the reason. Falling back to the
@@ -332,10 +340,12 @@ the scrape path keeps `site = veriphone`.
 
 ### Configuration
 
-| Transport  | How to get it                                  |
-|------------|------------------------------------------------|
-| API        | `FV_S_VERIPHONE_API_KEY`, or `POST /validator/veriphone/config` |
-| Scrape     | leave the key blank — Decodo is used           |
+| Transport  | When it runs                                   | What it needs        |
+|------------|------------------------------------------------|----------------------|
+| Free checker (**default**) | no veriphone key configured     | Decodo credentials   |
+| Direct API (**optional**)  | a veriphone key is configured   | a veriphone key      |
+
+Leave the key blank and the free checker runs. That is the intended setup.
 
 Stored keys are Fernet-encrypted at `fv-s-<uid>/validator-config/veriphone.json`
 (same scheme as the Decodo credentials). The GET endpoint only ever reports
