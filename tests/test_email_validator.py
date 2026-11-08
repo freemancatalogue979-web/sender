@@ -431,3 +431,249 @@ def test_validator_sends_e164_not_the_national_number(monkeypatch):
     monkeypatch.setattr(ev, "_call_decodo", fake_call)
     ev.validate_phone_via_decodo("7069977249", "NG", SETTINGS)
     assert seen["value"] == "+2347069977249"
+
+
+# =============================================================================
+# PHONE VALIDATOR — direct veriphone JSON API (no browser)
+# =============================================================================
+
+VP_SETTINGS = {"api_key": "vp-test-key", "api_url": ev.VERIPHONE_API_URL}
+
+VP_OK = {
+    "status": "success",
+    "phone": "+2347069977249",
+    "phone_valid": True,
+    "phone_type": "mobile",
+    "carrier": "MTN Nigeria",
+    "country": "Nigeria",
+    "country_code": "NG",
+    "phone_region": "Lagos",
+    "international_number": "+234 706 997 7249",
+    "e164": "+2347069977249",
+}
+
+VP_INVALID = {**VP_OK, "phone_valid": False, "phone_type": None, "carrier": None}
+
+
+class _FakeResponse:
+    def __init__(self, status_code=200, payload=None, text=""):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("no json")
+        return self._payload
+
+
+def test_api_path_is_used_when_a_key_exists(monkeypatch):
+    """With a key, Decodo must never be called at all."""
+    called = {"decodo": 0, "api": 0, "url": None, "params": None, "headers": None}
+
+    def fake_decodo(*a, **k):
+        called["decodo"] += 1
+        raise AssertionError("Decodo must not be used when the API key is set")
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        called["api"] += 1
+        called["url"] = url
+        called["params"] = params
+        called["headers"] = headers
+        return _FakeResponse(200, VP_OK)
+
+    monkeypatch.setattr(ev, "_call_decodo", fake_decodo)
+    monkeypatch.setattr(ev.requests, "get", fake_get)
+
+    result = ev.validate_phone("7069977249", "NG", settings=VP_SETTINGS)
+
+    assert called["decodo"] == 0
+    assert called["api"] == 1
+    assert called["url"] == ev.VERIPHONE_API_URL
+    # E.164 is what gets sent, not the national number.
+    assert called["params"]["phone"] == "+2347069977249"
+    assert called["headers"]["authorization"] == "Bearer vp-test-key"
+
+    assert result["status"] == ev.STATUS_VALID
+    assert result["valid"] is True
+    assert result["carrier"] == "MTN Nigeria"
+    assert result["line_type"] == "mobile"
+    assert result["country"] == "Nigeria"
+    assert result["country_code"] == "NG"
+    assert result["region"] == "Lagos"
+    assert result["confidence"] == 99
+    assert result["site"] == "veriphone-api"
+    assert result["formatted_number"] == "+234 706 997 7249"
+
+
+def test_api_invalid_number(monkeypatch):
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(200, VP_INVALID))
+    result = ev.validate_phone("+2340000000000", "NG", settings=VP_SETTINGS)
+    assert result["status"] == ev.STATUS_INVALID
+    assert result["valid"] is False
+    assert result["category"] == "undeliverable"
+
+
+def test_api_falls_back_to_scrape_only_without_a_key(monkeypatch):
+    called = {"decodo": 0}
+
+    def fake_decodo(email, adapter, settings):
+        called["decodo"] += 1
+        return VERIPHONE_MOBILE
+
+    monkeypatch.setattr(ev, "_call_decodo", fake_decodo)
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(200, VP_OK))
+
+    result = ev.validate_phone("7069977249", "NG", settings={"api_key": ""})
+    assert called["decodo"] == 1
+    assert result["site"] == "veriphone"
+
+
+def test_api_error_does_not_silently_fall_back(monkeypatch):
+    """A bad key must surface, not burn scraping credits behind your back."""
+    called = {"decodo": 0}
+
+    def fake_decodo(*a, **k):
+        called["decodo"] += 1
+        raise AssertionError("must not fall back on API error")
+
+    monkeypatch.setattr(ev, "_call_decodo", fake_decodo)
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(401, None, "unauthorized"))
+
+    result = ev.validate_phone("7069977249", "NG", settings=VP_SETTINGS)
+    assert called["decodo"] == 0
+    assert "401" in result["error"]
+    assert result["valid"] is False
+
+
+@pytest.mark.parametrize("status_code,fragment", [
+    (429, "rate limit"),
+    (500, "500"),
+])
+def test_api_http_errors_are_reported(status_code, fragment, monkeypatch):
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(status_code, None, "boom"))
+    result = ev.validate_phone("7069977249", "NG", settings=VP_SETTINGS)
+    assert fragment.lower() in result["error"].lower()
+
+
+def test_api_in_band_error_status_is_raised(monkeypatch):
+    payload = {"status": "error", "message": "invalid api key"}
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(200, payload))
+    result = ev.validate_phone("7069977249", "NG", settings=VP_SETTINGS)
+    assert "invalid api key" in result["error"]
+
+
+def test_api_timeout_is_reported(monkeypatch):
+    def boom(*a, **k):
+        raise ev.requests.exceptions.Timeout()
+
+    monkeypatch.setattr(ev.requests, "get", boom)
+    result = ev.validate_phone("7069977249", "NG", settings=VP_SETTINGS)
+    assert "timed out" in result["error"]
+
+
+def test_api_missing_validity_field_is_unknown(monkeypatch):
+    payload = {k: v for k, v in VP_OK.items() if k != "phone_valid"}
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(200, payload))
+    result = ev.validate_phone("+2347069977249", "NG", settings=VP_SETTINGS)
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["valid"] is False
+
+
+def test_api_string_boolean_is_coerced(monkeypatch):
+    payload = {**VP_OK, "phone_valid": "true"}
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(200, payload))
+    result = ev.validate_phone("+2347069977249", "NG", settings=VP_SETTINGS)
+    assert result["status"] == ev.STATUS_VALID
+
+
+def test_veriphone_settings_round_trip_encrypted(tmp_path, monkeypatch):
+    monkeypatch.setenv("FV_S_SECRET_KEY", "test-secret")
+    monkeypatch.delenv("FV_S_VERIPHONE_API_KEY", raising=False)
+
+    saved = ev.save_veriphone_settings("u1", tmp_path, {"api_key": "super-secret"})
+    assert saved["has_api_key"] is True
+
+    raw = (tmp_path / "fv-s-u1" / "validator-config" / "veriphone.json").read_text()
+    assert "super-secret" not in raw  # encrypted at rest
+
+    loaded = ev.load_veriphone_settings("u1", tmp_path)
+    assert loaded["api_key"] == "super-secret"
+
+
+def test_veriphone_key_falls_back_to_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("FV_S_VERIPHONE_API_KEY", "env-key")
+    assert ev.load_veriphone_settings("nobody", tmp_path)["api_key"] == "env-key"
+
+
+def test_implausible_number_is_rejected_without_calling_the_api(monkeypatch):
+    """Truncated input must never be blessed as valid by the API."""
+    called = {"api": 0}
+
+    def fake_api(e164, settings):
+        called["api"] += 1
+        return VP_OK
+
+    monkeypatch.setattr(ev, "_call_veriphone_api", fake_api)
+
+    result = ev.validate_phone("+069977249", "NG", settings=VP_SETTINGS)
+    assert called["api"] == 0
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["valid"] is False
+    assert result["category"] == "malformed"
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("+2347069977249", True),
+    ("+447911123456", True),
+    ("+069977249", False),          # leading zero after +
+    ("+2347", False),               # too short
+    ("+1234567890123456", False),   # 16 digits
+    ("2347069977249", False),       # no +
+])
+def test_is_plausible_e164(value, expected):
+    assert ev.is_plausible_e164(value) is expected
+
+
+def test_api_verdict_about_a_different_number_is_not_trusted(monkeypatch):
+    """A cached/mismatched echo must not validate the wrong number."""
+    payload = {**VP_OK, "phone_valid": True, "e164": "+447911123456"}
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: _FakeResponse(200, payload))
+
+    result = ev.validate_phone("+2347069977249", "NG", settings=VP_SETTINGS)
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["valid"] is False
+    assert "different number" in result["reason"]
+
+
+def test_phone_start_queues_numbers_verbatim_and_infers_country(tmp_path, monkeypatch):
+    """Regression: /phone/start queued mangled numbers and dropped the country."""
+    import asyncio
+    import json
+
+    import api
+
+    user_id = "queuetest"
+    base = tmp_path
+    (base / f"fv-s-{user_id}" / "phone-lists").mkdir(parents=True)
+    (base / f"fv-s-{user_id}" / "validator-sessions").mkdir(parents=True)
+    (base / f"fv-s-{user_id}" / "validator-active").mkdir(parents=True)
+    (base / f"fv-s-{user_id}" / "logs.json").write_text("{}")
+    (base / f"fv-s-{user_id}" / "phone-lists" / "L1.json").write_text(json.dumps({
+        "id": "L1", "name": "phones",
+        "numbers": [
+            {"number": "07069977249", "country_code": "NG"},
+            {"number": "+14155552671", "country_code": "US"},
+        ],
+    }))
+    monkeypatch.setattr(api, "USERS_BASE_PATH", base)
+
+    response = asyncio.run(api.start_phone_validation({"list_id": "L1"}, {"user_id": user_id}))
+
+    session = json.loads(
+        (base / f"fv-s-{user_id}" / "validator-sessions" / f"{response['session_id']}.json")
+        .read_text()
+    )
+    assert session["queue"] == ["07069977249", "+14155552671"]
+    assert session["country_code"] == "NG"
+    assert response["transport"] in ("veriphone-api", "decodo-scrape")

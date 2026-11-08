@@ -7163,6 +7163,7 @@ async def start_phone_validation(
     country_code = request_data.get("country_code")
     batch_size = request_data.get("batch_size", DEFAULT_VALIDATION_BATCH_SIZE)
 
+    list_data = None
     if list_id and not phone_numbers:
         list_data = get_phone_list_numbers(user_id, USERS_BASE_PATH, list_id)
         if not list_data:
@@ -7177,11 +7178,27 @@ async def start_phone_validation(
     if not phone_numbers:
         raise HTTPException(status_code=400, detail="phone_numbers or list_id is required")
     
-    # Format phone numbers
-    formatted_numbers = []
-    for phone in phone_numbers:
-        country, formatted = format_phone_number(phone)
-        formatted_numbers.append(formatted)
+    # Keep the numbers as submitted. format_phone_number() strips the dial code
+    # (and, for a bare "07069977249", even the trunk zero) which used to be
+    # queued instead of the real number -- "+23469977249" for three different
+    # inputs. Normalisation now happens once, in to_e164(), right before the
+    # lookup, and only as a hint.
+    formatted_numbers = [str(phone).strip() for phone in phone_numbers if str(phone).strip()]
+
+    # If no country hint came with the request, infer one rather than sending
+    # national digits to veriphone with no context.
+    if not country_code:
+        for entry in (list_data or {}).get("numbers", []):
+            candidate = (entry.get("country_code") or "").strip().upper()
+            if candidate:
+                country_code = candidate
+                break
+    if not country_code:
+        for candidate in formatted_numbers:
+            detected, _ = format_phone_number(candidate)
+            if detected and detected not in ("UNKNOWN", ""):
+                country_code = detected
+                break
     
     # Create session
     result = create_phone_validation_session(
@@ -7203,7 +7220,8 @@ async def start_phone_validation(
         "list_name": list_name,
         "country_code": country_code,
         "batch_size": batch_size,
-        "site": "veriphone"
+        "site": "veriphone",
+        "transport": result.get("session", {}).get("transport"),
     }
 
 
@@ -7227,6 +7245,7 @@ async def get_phone_validator_session(
         "status": session.get("status"),
         "list_name": session.get("list_name"),
         "site": session.get("site", "veriphone"),
+        "transport": session.get("transport"),
         "batch_size": session.get("batch_size"),
         "progress": {
             "total": session.get("total_items"),
@@ -7379,6 +7398,80 @@ async def save_validator_proxy_config(
 ):
     """Deprecated alias of POST /validator/decodo/config."""
     return await save_decodo_validator_config(config_data, current_user)
+
+
+@validator_router.get("/veriphone/config")
+async def get_veriphone_config(current_user: dict = Depends(get_current_user)):
+    """
+    Get the user's veriphone API configuration.
+
+    When an API key is present the phone validator calls the JSON API
+    directly (one GET, no browser). Without one it falls back to scraping
+    veriphone.io through Decodo.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import load_veriphone_settings
+
+    settings = load_veriphone_settings(user_id, USERS_BASE_PATH)
+    has_key = bool(settings.get("api_key"))
+    cfg = USERS_BASE_PATH / f"fv-s-{user_id}" / "validator-config" / "veriphone.json"
+
+    return {
+        "configured": has_key,
+        "api_url": settings.get("api_url"),
+        "transport": "veriphone-api" if has_key else "decodo-scrape",
+        "source": "user" if cfg.exists() else ("environment" if has_key else None),
+    }
+
+
+@validator_router.post("/veriphone/config")
+async def save_veriphone_config(
+    config_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save a veriphone API key (write-only, encrypted at rest).
+
+    Omitting ``api_key`` leaves the stored key untouched.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import save_veriphone_settings
+
+    saved = save_veriphone_settings(user_id, USERS_BASE_PATH, config_data)
+    return {
+        "success": True,
+        "message": "veriphone configuration saved",
+        "transport": "veriphone-api" if saved.get("has_api_key") else "decodo-scrape",
+        **saved,
+    }
+
+
+@validator_router.post("/veriphone/test")
+async def test_veriphone_config(current_user: dict = Depends(get_current_user)):
+    """Run one real API lookup to prove the key works."""
+    user_id = current_user["user_id"]
+
+    from email_validator import load_veriphone_settings, validate_phone
+
+    settings = load_veriphone_settings(user_id, USERS_BASE_PATH)
+    if not settings.get("api_key"):
+        raise HTTPException(
+            status_code=400,
+            detail="No veriphone API key configured. Set FV_S_VERIPHONE_API_KEY or save one here.",
+        )
+
+    result = validate_phone("+14155552671", "US", settings=settings)
+    return {
+        "success": not result.get("error"),
+        "error": result.get("error"),
+        "transport": "veriphone-api",
+        "status": result.get("status"),
+        "valid": result.get("valid"),
+        "carrier": result.get("carrier"),
+        "line_type": result.get("line_type"),
+    }
 
 
 @validator_router.post("/decodo/test")

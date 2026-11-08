@@ -66,6 +66,10 @@ VERIPHONE_URL = "https://veriphone.io/"
 VERIPHONE_INPUT_ID = "phone-input"
 VERIPHONE_SUBMIT_ID = "checker-submit"
 
+# The real JSON API. Preferred over scraping the checker page: one GET, no
+# browser, no HTML parsing, stable response contract.
+VERIPHONE_API_URL = "https://api.veriphone.io/v3/verify"
+
 # Domains that emailhippo handles more reliably than skrapp.
 HIPPO_DOMAIN_RE = re.compile(r"(yahoo|ymail|aol|aim)\b", re.IGNORECASE)
 
@@ -223,6 +227,75 @@ def save_decodo_settings(
         "api_url": payload["api_url"],
         "target_url": payload["target_url"],
         "target_type": payload["target_type"],
+        "has_api_key": bool(payload["api_key"]),
+    }
+
+
+# =============================================================================
+# VERIPHONE API SETTINGS
+# =============================================================================
+
+def load_veriphone_settings(
+    user_id: Optional[str] = None,
+    base_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """
+    Resolve veriphone API settings for a user.
+
+    Precedence: saved user config → ``FV_S_VERIPHONE_API_KEY`` env → empty.
+    The key is stored encrypted at rest and decrypted here for use.
+    """
+    import os
+
+    settings: Dict[str, Any] = {"api_url": VERIPHONE_API_URL, "api_key": ""}
+
+    if user_id and base_path:
+        cfg_file = Path(base_path) / f"fv-s-{user_id}" / "validator-config" / "veriphone.json"
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                settings["api_url"] = saved.get("api_url") or settings["api_url"]
+                settings["api_key"] = decrypt_secret(saved.get("api_key", "") or "")
+            except Exception as exc:
+                logger.warning("Could not read veriphone config for %s: %s", user_id, exc)
+
+    if not settings["api_key"]:
+        settings["api_key"] = os.getenv("FV_S_VERIPHONE_API_KEY", "")
+
+    return settings
+
+
+def save_veriphone_settings(
+    user_id: str,
+    base_path: Path,
+    data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Persist per-user veriphone settings. The API key is encrypted at rest."""
+    cfg_dir = Path(base_path) / f"fv-s-{user_id}" / "validator-config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = cfg_dir / "veriphone.json"
+
+    existing: Dict[str, Any] = {}
+    if cfg_file.exists():
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except Exception:
+            existing = {}
+
+    api_key = (data.get("api_key") or "").strip()
+    payload = {
+        "api_url": (data.get("api_url") or existing.get("api_url") or VERIPHONE_API_URL).strip(),
+        "api_key": encrypt_secret(api_key) if api_key else existing.get("api_key", ""),
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+
+    with open(cfg_file, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+    return {
+        "api_url": payload["api_url"],
         "has_api_key": bool(payload["api_key"]),
     }
 
@@ -944,6 +1017,23 @@ def to_e164(phone_number: str, country_code: str = "") -> str:
     return "+" + digits
 
 
+# E.164 allows at most 15 digits; national significant numbers are at least 6.
+_MIN_E164_DIGITS = 6
+_MAX_E164_DIGITS = 15
+
+
+def is_plausible_e164(value: str) -> bool:
+    """Cheap structural check: ``+`` then 6-15 digits, no leading zero."""
+    if not value or not value.startswith("+"):
+        return False
+    digits = value[1:]
+    if not digits.isdigit() or len(digits) < _MIN_E164_DIGITS:
+        return False
+    if len(digits) > _MAX_E164_DIGITS:
+        return False
+    return not digits.startswith("0")
+
+
 def _blank_phone_result(phone_number: str, country_code: str = "") -> Dict[str, Any]:
     """Phone result with every field the session/list/UI layer reads."""
     return {
@@ -1018,6 +1108,182 @@ def classify_phone(raw: Dict[str, Any]) -> Tuple[str, str, int]:
         return STATUS_UNKNOWN, "Lookup returned a number but no classification", 30
 
     return STATUS_UNKNOWN, "Verifier returned no conclusive result", 0
+
+
+def _call_veriphone_api(e164: str, settings: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Call the real veriphone JSON API for one number.
+
+    Returns the parsed JSON body. Raises DecodoError on any transport/auth
+    problem so the caller can distinguish "no answer" from "no verdict"
+    (the error type is shared deliberately: both means involve the scraping
+    vendor, and callers only need failed-vs-unknown).
+    """
+    api_key = settings.get("api_key")
+    if not api_key:
+        raise DecodoError(
+            "No veriphone API key configured. Set FV_S_VERIPHONE_API_KEY or save one "
+            "in the validator settings."
+        )
+
+    url = settings.get("api_url") or VERIPHONE_API_URL
+    params = {"phone": e164}
+    headers = {
+        "accept": "application/json",
+        # Bearer is the documented form; the query-param form is also accepted
+        # by veriphone, so we send both to be resilient to either.
+        "authorization": f"Bearer {api_key}",
+    }
+    params["key"] = api_key
+
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
+    except requests.exceptions.Timeout as exc:
+        raise DecodoError("veriphone request timed out") from exc
+    except requests.exceptions.RequestException as exc:
+        raise DecodoError(f"veriphone request failed: {exc}") from exc
+
+    if response.status_code in (401, 403):
+        raise DecodoError("veriphone rejected the API key (401/403)")
+    if response.status_code == 429:
+        raise DecodoError("veriphone rate limit hit (429)")
+    if response.status_code != 200:
+        snippet = (response.text or "")[:200].replace("\n", " ")
+        raise DecodoError(f"veriphone error {response.status_code}: {snippet}")
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise DecodoError("veriphone returned non-JSON response") from exc
+
+    if not isinstance(payload, dict):
+        raise DecodoError("veriphone returned an unexpected payload")
+
+    # veriphone reports failures in-band.
+    if str(payload.get("status", "")).lower() == "error":
+        raise DecodoError(f"veriphone error: {payload.get('message') or payload.get('error')}")
+
+    return payload
+
+
+def _result_from_veriphone_api(payload: Dict[str, Any], phone_number: str, e164: str) -> Dict[str, Any]:
+    """Map a veriphone API response onto the shared phone-result shape."""
+    result = _blank_phone_result(phone_number)
+    result["site"] = "veriphone-api"
+    result["e164"] = e164
+    result["raw"] = payload
+
+    phone_valid = payload.get("phone_valid")
+    phone_type = payload.get("phone_type")
+    carrier = payload.get("carrier")
+    country = payload.get("country")
+    region = payload.get("phone_region")
+
+    if isinstance(phone_valid, str):
+        phone_valid = phone_valid.strip().lower() in ("true", "yes", "1")
+
+    if phone_valid is True:
+        status, confidence = STATUS_VALID, 99
+        reason = "Verified by veriphone API"
+        # Guard against a mismatched or cached response: if the API echoes a
+        # different number, the verdict is not about our input.
+        returned = re.sub(r"\D", "", str(payload.get("e164") or payload.get("phone") or ""))
+        if returned and returned != re.sub(r"\D", "", e164):
+            status, confidence = STATUS_UNKNOWN, 0
+            reason = "veriphone API returned a different number"
+    elif phone_valid is False:
+        status, confidence = STATUS_INVALID, 99
+        reason = payload.get("status") or "veriphone reports the number as invalid"
+    else:
+        status, confidence = STATUS_UNKNOWN, 0
+        reason = "veriphone returned no validity verdict"
+
+    # A valid number with a carrier/type is the strongest signal available;
+    # mirror the scraped path so downstream buckets stay consistent.
+    result["status"] = status
+    result["valid"] = status == STATUS_VALID
+    result["reason"] = reason
+    result["confidence"] = confidence
+    result["category"] = (
+        "deliverable" if status == STATUS_VALID
+        else "undeliverable" if status == STATUS_INVALID
+        else "unknown"
+    )
+
+    result["formatted_number"] = (
+        payload.get("international_number")
+        or payload.get("e164")
+        or payload.get("local_number")
+        or e164
+    )
+    result["line_type"] = phone_type
+    result["carrier"] = carrier
+    result["country"] = country
+    result["region"] = region
+
+    country_code = payload.get("country_code")
+    if country_code:
+        result["country_code"] = str(country_code).upper()
+    elif country:
+        match = re.search(r"\(([A-Za-z]{2})\)", country)
+        if match:
+            result["country_code"] = match.group(1).upper()
+
+    return result
+
+
+def validate_phone(
+    phone_number: str,
+    country_code: str = "",
+    settings: Optional[Dict[str, Any]] = None,
+    decodo_settings: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Validate a phone number, preferring the veriphone JSON API.
+
+    Order of preference:
+      1. veriphone API  -- one GET, no browser, no HTML parsing
+      2. Decodo scrape of veriphone.io -- only if no API key is configured
+
+    If an API key *is* configured but the call fails, the error is returned
+    rather than silently falling back, so a bad key is visible instead of
+    costing extra scraping credits.
+    """
+    phone_number = (phone_number or "").strip()
+    if not phone_number:
+        result = _blank_phone_result(phone_number, country_code)
+        result["error"] = "Empty phone number"
+        return result
+
+    e164 = to_e164(phone_number, country_code)
+
+    # A value that cannot be a telephone number must never be reported valid.
+    # Truncated input ("+069977249") can come from a mis-parsed list or a bad
+    # country hint; do not spend a lookup on it and do not mark it good.
+    if not is_plausible_e164(e164):
+        result = _blank_phone_result(phone_number, country_code)
+        result["site"] = "local"
+        result["e164"] = e164 or None
+        result["category"] = "malformed"
+        result["reason"] = "Not a plausible international number"
+        result["status"] = STATUS_UNKNOWN
+        return result
+
+    vp = settings if settings is not None else load_veriphone_settings()
+
+    if vp.get("api_key"):
+        try:
+            payload = _call_veriphone_api(e164, vp)
+            return _result_from_veriphone_api(payload, phone_number, e164)
+        except DecodoError as exc:
+            result = _blank_phone_result(phone_number, country_code)
+            result["site"] = "veriphone-api"
+            result["e164"] = e164
+            result["error"] = str(exc)
+            return result
+
+    # No API key: fall back to scraping through Decodo.
+    return validate_phone_via_decodo(phone_number, country_code, decodo_settings)
 
 
 def validate_phone_via_decodo(
@@ -1105,6 +1371,7 @@ async def validate_phones_async(
     numbers: List[str],
     country_code: str = "",
     settings: Optional[Dict[str, Any]] = None,
+    veriphone_settings: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Concurrent wrapper used by the batch endpoint."""
     numbers = [n for n in (numbers or []) if isinstance(n, str)]
@@ -1113,7 +1380,12 @@ async def validate_phones_async(
 
     def _run(number: str) -> Dict[str, Any]:
         try:
-            return validate_phone_via_decodo(number, country_code, settings)
+            return validate_phone(
+                number,
+                country_code,
+                settings=veriphone_settings,
+                decodo_settings=settings,
+            )
         except Exception as exc:  # never let one number sink the batch
             logger.exception("Phone validation crashed for %s", number)
             blank = _blank_phone_result(number, country_code)

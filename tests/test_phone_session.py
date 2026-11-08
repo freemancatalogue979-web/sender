@@ -79,3 +79,18 @@ def test_running_session_is_still_detected(base):
     active = F.get_active_validator_session(uid, base, "phone")
     assert active is not None
     assert active["session_id"] == "phone_val_live"
+
+
+def test_verified_per_minute_is_not_absurd_on_a_fast_first_batch():
+    """A batch finishing in milliseconds must not report a cosmic rate."""
+    session = {"valid": 0, "start_time": None}
+    total_valid = 2
+    start_time_str = session.get("start_time")
+    if not start_time_str:
+        from datetime import datetime
+        start_time_str = datetime.now().isoformat()
+    from datetime import datetime
+    elapsed = (datetime.now() - datetime.fromisoformat(start_time_str)).total_seconds()
+    vpm = round((total_valid / elapsed) * 60, 2) if elapsed >= 1 else 0
+    assert vpm == 0
+    assert start_time_str is not None

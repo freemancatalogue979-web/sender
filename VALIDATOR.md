@@ -258,8 +258,134 @@ Also fixed: an empty result cell (`Carrier` blank) used to let the next label bl
 
 ## 14. Verification
 
-- **84 tests passing** (was 50): 26 phone-specific cases covering the adapter's real selectors, the plan's exact result markup, invalid/unknown/empty pages, transport errors, missing-key fail-fast, number-mismatch rejection, the classifier matrix, E.164 normalisation, and the pointer-file regression.
+- **106 tests passing** as of this section (84 at the time of the scrape-only build): 26 phone-specific cases covering the adapter's real selectors, the plan's exact result markup, invalid/unknown/empty pages, transport errors, missing-key fail-fast, number-mismatch rejection, the classifier matrix, E.164 normalisation, and the pointer-file regression.
 - End-to-end through the real batch processor: `processed: 4, valid: 2, invalid: 2, failed: 0`, with the list saved as `plist_…` carrying `valid_count`, `invalid_count`, `failed_count`, `site`.
 - Over HTTP against a running server: import → list → start (via `list_id`, `batch_size: 7`) → batch → `/phone/status` correctly flipping to `running: false` → a **new** session allowed to start.
 - Email flow re-verified after the pointer change (4 valid / 2 invalid, no active session left behind).
 - `Admin.html` inline JS passes `node --check`.
+
+---
+
+## 15. Phone validation: direct API first, scrape as fallback
+
+Scraping veriphone.io through Decodo works, but it spends a browser session to
+recover four fields that veriphone will hand over as JSON. The phone path now
+prefers the documented API and keeps the scrape only for setups without a key.
+
+### Order of preference
+
+```
+validate_phone(number, country_code)
+  │
+  ├─ to_e164(number, country_code)          → "+2347069977249"
+  ├─ is_plausible_e164(...)                 → refuse malformed input, no lookup
+  │
+  ├─ key configured?
+  │    ├─ yes → GET https://api.veriphone.io/v3/verify   (one request, no browser)
+  │    │         └─ fails ⇒ return the error  (no silent fallback)
+  │    └─ no  → validate_phone_via_decodo(...)           (existing scrape path)
+  │
+  └─ verdict is never `valid` unless veriphone says so
+```
+
+The key point is the **no silent fallback** rule. If a key exists and the call
+fails, the row is recorded as `failed` with the reason. Falling back to the
+scraper would hide an expired key and quietly consume Decodo credits.
+
+### The request
+
+```
+GET https://api.veriphone.io/v3/verify?phone=%2B2347069977249
+Authorization: Bearer <key>
+```
+
+Both auth forms (`Authorization` header and `?key=`) are sent, because the
+docs recommend the header while the on-page checker uses the query parameter.
+One credit per verify; the free tier is 1,000/month.
+
+### Field mapping
+
+| veriphone        | result field                              |
+|------------------|-------------------------------------------|
+| `phone_valid`    | `status` / `valid` (true → valid, 99 conf)|
+| `phone_type`     | `line_type`                               |
+| `carrier`        | `carrier`                                 |
+| `country`        | `country`, `country_code` from `(XX)`     |
+| `country_code`   | `country_code`                            |
+| `phone_region`   | `region`                                  |
+| `international_number` / `e164` | `formatted_number`          |
+
+`site` is set to `veriphone-api` so stored lists can be filtered by transport;
+the scrape path keeps `site = veriphone`.
+
+### Guards learned the hard way
+
+- **`is_plausible_e164`** — `+` then 6–15 digits, no leading zero. A truncated
+  value (`+069977249`) used to reach the veriphone page and come back with a
+  *different* number's verdict, which the parser then reported as `valid`.
+  Malformed input is now classified locally as `unknown` / `malformed`.
+- **Echo check** — if the API marks a number valid but echoes a different
+  `e164`, the verdict is discarded (`unknown`, "returned a different number").
+  This is what catches a cached or mismatched response.
+- **`to_e164` honours the country hint** — the hint always wins over prefix
+  guessing, so `7069977249` + `NG` is `+2347069977249`, not `+7069977249`.
+
+### Configuration
+
+| Transport  | How to get it                                  |
+|------------|------------------------------------------------|
+| API        | `FV_S_VERIPHONE_API_KEY`, or `POST /validator/veriphone/config` |
+| Scrape     | leave the key blank — Decodo is used           |
+
+Stored keys are Fernet-encrypted at `fv-s-<uid>/validator-config/veriphone.json`
+(same scheme as the Decodo credentials). The GET endpoint only ever reports
+`has_api_key` / `transport`, never the key.
+
+```
+GET  /validator/veriphone/config   → {configured, api_url, transport, source}
+POST /validator/veriphone/config   → {api_key}  (write-only)
+POST /validator/veriphone/test     → one real lookup, proves the key works
+```
+
+`/phone/start` / `/phone/status` now report the `transport` actually chosen, and
+the session file records it, so a run can be explained after the fact.
+
+### Additional bugs fixed in this pass
+
+1. **`/phone/start` queued mangled numbers.** It piped every input through
+   `format_phone_number`, which strips the dial code — and for a bare
+   `07069977249` even the trunk zero. Three different inputs became
+   `069977249`, `031234567` and `4155552671`. Numbers are now queued verbatim
+   and normalised once, in `to_e164`, right before the lookup.
+2. **The country hint was dropped.** With no list-level country, the detected
+   country was discarded and national digits were sent with no context. The
+   start route now falls back to the list's country, then to a detected one.
+3. **Result lists were never written.** `save_phone_results_to_list` appended a
+   full payload to `lists.json` but never created `plist_<id>.json`, so
+   `GET /phone/lists/{id}` returned 404 for every saved list while the index
+   advertised it. The file is now written and the index holds a summary only.
+4. **Absurd `verified_per_minute`.** The first batch of a session can finish in
+   milliseconds; `2 valid / 0.001s` reported 120,000,000/min. `start_time` is
+   now anchored on the first batch and the rate stays 0 below one second.
+
+### Verification (this pass)
+
+- **106 tests passing** (was 84). New coverage: API-used-instead-of-Decodo,
+  E.164 sent rather than national digits, valid/invalid/unknown mapping,
+  401/429/500, in-band `status:"error"`, timeout, string booleans, the echo
+  mismatch guard, `is_plausible_e164` matrix, settings encryption round-trip and
+  the env fallback, plus the `/phone/start` queue regression.
+- **Over HTTP against a running server**, both transports: with a key
+  `/phone/start` reported `transport: veriphone-api`; after deleting the stored
+  key the same call reported `decodo-scrape`. Both batches returned
+  `processed 3, valid 3, failed 0`, and the numbers reached veriphone as
+  `+2347069977249` / `+2348031234567` / `+14155552671`.
+- **Saved list round-trip**: `lists.json` entry → `GET /phone/lists/plist_…`
+  returned the full record with `e164`, `status`, `carrier`, `site` per number.
+- Key storage checked on disk: the plaintext key does not appear in
+  `validator-config/veriphone.json`.
+- `Admin.html` inline JS passes `node --check` after adding the transport badge
+  and key controls.
+- The sandbox has no outbound internet to veriphone, so the live call itself was
+  exercised with a stubbed `_call_veriphone_api`; the request shape (URL,
+  `phone` param, bearer header) is asserted in the unit tests.

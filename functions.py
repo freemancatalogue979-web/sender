@@ -38,8 +38,11 @@ from email_validator import (  # noqa: E402
     VALID_STATUSES,
     load_decodo_settings,
     save_decodo_settings,
+    load_veriphone_settings,
+    save_veriphone_settings,
     validate_emails,
     validate_emails_async,
+    validate_phone,
     validate_phones_async,
     validate_phone_via_decodo,
 )
@@ -10775,7 +10778,7 @@ def create_phone_validation_session(
         "current_number": None,
         "list_name": list_name or f"Phone Validation {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "country_code": country_code,
-        "transport": "decodo",
+        "transport": "veriphone-api" if load_veriphone_settings(user_id, base_path).get("api_key") else "decodo-scrape",
         "site": "veriphone",
         "batch_size": batch_size,
         "results": [],
@@ -10947,8 +10950,11 @@ async def process_phone_validation(
         return {"success": True, "completed": True}
 
     country_code = session.get('country_code') or ""
+    veriphone_settings = load_veriphone_settings(user_id, base_path)
+    transport = "veriphone-api" if veriphone_settings.get("api_key") else "decodo-scrape"
+
     validation_results = await validate_phones_async(
-        list(current_batch), country_code, decodo_settings
+        list(current_batch), country_code, decodo_settings, veriphone_settings
     )
 
     results = []
@@ -10989,12 +10995,17 @@ async def process_phone_validation(
     total_invalid = session.get('invalid', 0) + invalid_count
     total_failed = session.get('failed', 0) + failed_count
 
-    start_time_str = session.get('start_time') or datetime.now().isoformat()
+    # Anchor the clock on the first batch that actually runs, and keep it.
+    start_time_str = session.get('start_time')
+    if not start_time_str:
+        start_time_str = datetime.now().isoformat()
     try:
         elapsed = (datetime.now() - datetime.fromisoformat(start_time_str)).total_seconds()
     except (TypeError, ValueError):
         elapsed = 0
-    vpm = round((total_valid / elapsed) * 60, 2) if elapsed > 0 else 0
+    # Sub-second elapsed times produce absurd rates (batch 1 can finish in
+    # ~0.01s); report 0 until there is a measurable window.
+    vpm = round((total_valid / elapsed) * 60, 2) if elapsed >= 1 else 0
 
     all_results = list(session.get('results', []) or [])
     all_results.extend(results)
@@ -11004,6 +11015,7 @@ async def process_phone_validation(
         "valid": total_valid,
         "invalid": total_invalid,
         "failed": total_failed,
+        "transport": transport,
         "verified_per_minute": vpm,
         "queue": [str(q) for q in queue],
         "current_batch": [],
@@ -11108,9 +11120,15 @@ def save_phone_results_to_list(
         "numbers": numbers
     }
     
-    # Save to phone lists index
+    # Write the list itself. Only the index used to be written, so every
+    # result list was unreachable: get_phone_lists() found an entry whose id
+    # resolved to a file that never existed, and GET /phone/lists/{id} 404'd.
+    list_file = phone_lists_dir / f"{list_id}.json"
+    with open(list_file, 'w', encoding='utf-8') as f:
+        json.dump(phone_list_data, f, indent=2, ensure_ascii=False)
+
+    # Save to phone lists index (summary only -- numbers live in the file).
     phone_lists_index = phone_lists_dir / "lists.json"
-    
     try:
         if phone_lists_index.exists():
             with open(phone_lists_index, 'r', encoding='utf-8') as f:
@@ -11118,15 +11136,24 @@ def save_phone_results_to_list(
         else:
             lists = []
     except Exception:
-        pass
-
         lists = []
-    
-    lists.append(phone_list_data)
-    
+
+    lists.append({
+        "id": list_id,
+        "name": list_name,
+        "created_at": phone_list_data["created_at"],
+        "updated_at": phone_list_data["updated_at"],
+        "country_code": country_code,
+        "total_numbers": phone_list_data["total_numbers"],
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "failed_count": failed_count,
+        "site": phone_list_data["site"],
+    })
+
     with open(phone_lists_index, 'w', encoding='utf-8') as f:
         json.dump(lists, f, indent=2, ensure_ascii=False)
-    
+
     return list_id
 
 
