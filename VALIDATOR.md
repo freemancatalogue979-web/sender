@@ -794,3 +794,68 @@ lookups). **Traffic is the bill, not time.** So:
 **143 tests passing.** New: the proxy-country matrix (default `us`, normalised
 region codes, `""`/`none`/`direct`/`off` meaning no proxy) and a test asserting
 one browser is created per number, which is what makes the IPs differ.
+
+
+---
+
+## 21. What 100,000 numbers actually cost
+
+Measured on this machine (10 threads), free engine:
+
+```
+100,000 numbers validated in 13.3s  (7,501/sec)  ->  $0.00
+status mix: 68,750 invalid, 29,873 valid, 1,377 unknown
+```
+
+### Browser Use, 100,000 lookups
+
+Browser **time** is cheap; **traffic** is the bill.
+
+| Meter | 100k lookups | Cost |
+|---|---|---|
+| Browser time @ 9 s/lookup | 250 browser-hours | **$5.00** |
+| Browser time @ 5 s/lookup (waits trimmed) | 139 browser-hours | **$2.78** |
+| Traffic, residential @ $5/GB, 0.3 MB/page | 29 GB | **$146** |
+| Traffic, residential, 1 MB/page | 98 GB | **$488** |
+| Traffic, direct @ $0.20/GB, 1 MB/page | 98 GB | **$19.53** |
+
+So **a $20 budget cannot do 100k lookups through the residential proxy.** The
+proxy is ~25× the price of direct egress, and once you multiply it by page
+weight the number explodes.
+
+What $20 buys, residential proxy on:
+
+| Page weight | Numbers |
+|---|---|
+| 0.1 MB | ~37,500 |
+| 0.3 MB | ~13,250 |
+| 1.0 MB | ~4,060 |
+
+### The way to make $20 cover 100k
+
+1. **Run the free engine first.** It settles 98.6% of a real list in seconds
+   (68,750 of 100,000 were flatly invalid in the test above). Only the survivors
+   are worth paying for — that alone cuts the paid work by an order of magnitude.
+2. **Block images, fonts and media.** The verifier needs HTML plus one script.
+   Dropping assets typically takes a page from ~1 MB to ~0.1 MB, i.e. $488 to
+   ~$49 on residential, or ~$2 on direct.
+3. **Use direct egress, not the residential proxy**, if the target is not
+   blocking you: $0.20/GB instead of $5/GB. Keep the proxy only where you are
+   actually being rate-limited.
+
+At 0.1 MB/page and direct egress: 100k lookups ≈ **$2 traffic + $5 time ≈ $7**,
+inside $20 with room to spare.
+
+### Wall-clock is the other constraint
+
+9 s/lookup sequentially is 250 hours for 100k. At 10 concurrent browsers that is
+~25 hours of wall clock — and 10 is the concurrency a new Browser Use project
+starts with. Batching a 100k list through a browser at all is a multi-hour job;
+the free engine does the same 100k in 13 seconds.
+
+### The honest recommendation for 100k
+
+Do the free pass on all 100,000 (13 s, $0.00). Spend money only on what it
+cannot answer — most importantly **carrier for +1 numbers**, which the numbering
+plan genuinely does not contain. That subset is a fraction of the list, and it
+fits comfortably inside $20 even with the residential proxy on.
