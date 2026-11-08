@@ -859,3 +859,89 @@ Do the free pass on all 100,000 (13 s, $0.00). Spend money only on what it
 cannot answer — most importantly **carrier for +1 numbers**, which the numbering
 plan genuinely does not contain. That subset is a fraction of the list, and it
 fits comfortably inside $20 even with the residential proxy on.
+
+
+---
+
+## 22. ScrapingBee as the phone scraper
+
+ScrapingBee drives the veriphone form the same way the other transports do, but
+inside their managed browser, using `js_scenario`.
+
+```
+GET https://app.scrapingbee.com/api/v1
+  ?api_key=...&url=https://veriphone.io&render_js=true
+  &js_scenario={"instructions":[
+      {"wait":1000},
+      {"click":"#phone-input"},
+      {"fill":["#phone-input","+2347069977249"]},
+      {"click":"#checker-submit"},
+      {"wait":10000}]}
+```
+
+The scenario is **generated from the site adapter**, not hand-written:
+`build_js_scenario()` maps the adapter's `click` / `input` / `wait` actions onto
+`click` / `fill` / `wait`, then appends a settling wait for the result grid. The
+phone adapter and the email adapter both produce valid scenarios from the same
+code, so a selector change is made in one place.
+
+### Cost per number
+
+| Configuration | Credits |
+|---|---|
+| `render_js` + `js_scenario` (what this needs) | **5** |
+| `+ premium_proxy` | **25** |
+| Plain fetch, no JS | 1 |
+| Failed render (HTTP 500) | **0** — refunded |
+
+One number = **5 credits**. On the 1,000-credit trial that is 200 phone checks;
+on a 250,000-credit Freelance plan it is 50,000. Premium proxy is off by default
+because it multiplies the price by five.
+
+### Configuration
+
+```
+FV_S_SCRAPINGBEE_API_KEY=...      # or save it in the validator settings
+FV_S_SCRAPER_PROVIDER=scrapingbee # make it the phone transport
+```
+
+`GET  /validator/scrapingbee/config` → `configured`, `premium_proxy`,
+`country_code`, live **credits** (the usage call is free)
+`POST /validator/scrapingbee/config` → key, country, premium flag (key is
+encrypted at rest, never returned)
+`GET  /validator/scrapingbee/usage` → remaining credits; check before a batch
+
+The key is Fernet-encrypted at `validator-config/scrapingbee.json`, same scheme as
+Decodo and veriphone.
+
+### Bug caught while wiring this
+
+The first version resolved ScrapingBee credentials only from a `scrapingbee`
+sub-dict, so a top-level `api_key` handed in by the batch layer was ignored and
+every call failed "No API key". It now accepts the sub-dict, a top-level key, or
+the saved/env settings, in that order.
+
+A second one: an explicit provider choice was losing to the free offline engine,
+so a run configured for ScrapingBee silently returned `site: "local"` **without
+ever calling ScrapingBee**. An explicit `scrapingbee`/`browser-use` choice now
+beats the free engine — asking for the automation must run the automation.
+
+### Verified end to end
+
+Through the real HTTP pipeline with only ScrapingBee's HTTP stubbed:
+
+```
+start  -> transport: "scrapingbee"
+batch  -> processed 3, valid 3, invalid 0, failed 0
+  07069977249      valid  MTN       Nigeria (NG)        site=scrapingbee
+  08031234567      valid  Airtel    Nigeria (NG)        site=scrapingbee
+  +14155552671     valid  T-Mobile  United States (US)  site=scrapingbee
+```
+
+Note the carriers: **Airtel** and **T-Mobile** come from the page, which the
+offline engine cannot produce for a `+1` number. That is what the 5 credits buy.
+
+**157 tests passing.** New coverage: the generated js_scenario, request shape
+(api_key / render_js / url / js_scenario / bearer), premium proxy only when
+asked, 401/429/500 messages, missing key, encrypted settings, a usage lookup that
+never raises, explicit-choice-beats-local, and an end-to-end phone result.

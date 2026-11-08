@@ -729,6 +729,192 @@ def extract_html(payload: Any) -> Optional[str]:
     return None
 
 
+# =============================================================================
+# SCRAPINGBEE — managed scraping API with click/fill scenarios
+# =============================================================================
+#
+# Each veriphone lookup is one GET to app.scrapingbee.com/api/v1 carrying a
+# js_scenario that fills the phone input, clicks Validate, and waits for the
+# result grid. Credits (published): 1 plain, 5 with JavaScript rendering (what
+# this needs), 10 premium proxy, 25 premium + JS, 75 stealth + JS. A 500 is not
+# charged, and every response carries its real cost in the Spb-cost header.
+
+SCRAPINGBEE_API_URL = "https://app.scrapingbee.com/api/v1"
+SCRAPINGBEE_USAGE_URL = "https://app.scrapingbee.com/api/v1/usage"
+SCRAPINGBEE_RESULT_WAIT_MS = 6000
+
+
+def load_scrapingbee_settings(
+    user_id: Optional[str] = None,
+    base_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """ScrapingBee credentials (env FV_S_SCRAPINGBEE_API_KEY or encrypted)."""
+    import os
+
+    settings: Dict[str, Any] = {"api_key": "", "premium_proxy": False, "country_code": ""}
+
+    if user_id and base_path:
+        cfg_file = Path(base_path) / f"fv-s-{user_id}" / "validator-config" / "scrapingbee.json"
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                settings["api_key"] = decrypt_secret(saved.get("api_key", "") or "")
+                settings["premium_proxy"] = bool(saved.get("premium_proxy"))
+                settings["country_code"] = saved.get("country_code") or ""
+            except Exception as exc:
+                logger.warning("Could not read scrapingbee config for %s: %s", user_id, exc)
+
+    if not settings["api_key"]:
+        settings["api_key"] = os.getenv("FV_S_SCRAPINGBEE_API_KEY", "")
+
+    return settings
+
+
+def save_scrapingbee_settings(
+    user_id: str,
+    base_path: Path,
+    data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Persist ScrapingBee settings. The API key is encrypted at rest."""
+    cfg_dir = Path(base_path) / f"fv-s-{user_id}" / "validator-config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = cfg_dir / "scrapingbee.json"
+
+    existing: Dict[str, Any] = {}
+    if cfg_file.exists():
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except Exception:
+            existing = {}
+
+    raw_key = (data.get("api_key") or "").strip()
+    if raw_key:
+        existing["api_key"] = encrypt_secret(raw_key)
+    if "premium_proxy" in data:
+        existing["premium_proxy"] = bool(data.get("premium_proxy"))
+    if "country_code" in data:
+        existing["country_code"] = (data.get("country_code") or "").strip().lower()
+
+    with open(cfg_file, "w", encoding="utf-8") as f:
+        json.dump(existing, f, indent=2)
+
+    return {
+        "has_api_key": bool(existing.get("api_key")),
+        "premium_proxy": bool(existing.get("premium_proxy")),
+        "country_code": existing.get("country_code") or "",
+    }
+
+
+def build_js_scenario(adapter: "SiteAdapter", value: str) -> Dict[str, Any]:
+    """
+    Translate a site adapter's browser actions into a ScrapingBee js_scenario.
+
+    The adapter stays the single source of truth for selectors: the phone
+    adapter's click/input/click/wait sequence becomes fill + click + click +
+    wait here, so ScrapingBee drives the same form Decodo and Playwright do.
+    """
+    instructions: List[Dict[str, Any]] = []
+    for action in adapter.browser_actions(value):
+        kind = action.get("type")
+        selector = (action.get("selector") or {}).get("value")
+        if kind == "wait":
+            ms = int(float(action.get("wait_time_s", 1)) * 1000)
+            # Merge into a trailing wait rather than queueing two sleeps in a row.
+            if instructions and "wait" in instructions[-1]:
+                instructions[-1]["wait"] += ms
+            else:
+                instructions.append({"wait": ms})
+        elif kind == "click" and selector:
+            instructions.append({"click": selector})
+        elif kind == "input" and selector:
+            instructions.append({"fill": [selector, action.get("value", "")]})
+
+    # The result grid renders after an in-page fetch; give it a fixed window.
+    if instructions and "wait" in instructions[-1]:
+        instructions[-1]["wait"] += SCRAPINGBEE_RESULT_WAIT_MS
+    else:
+        instructions.append({"wait": SCRAPINGBEE_RESULT_WAIT_MS})
+    return {"instructions": instructions}
+
+
+def _call_scrapingbee(
+    adapter: "SiteAdapter",
+    value: str,
+    settings: Dict[str, Any],
+) -> str:
+    """Render one page through ScrapingBee and return its text. Raises DecodoError."""
+    api_key = settings.get("api_key")
+    if not api_key:
+        raise DecodoError(
+            "No ScrapingBee API key configured. Set FV_S_SCRAPINGBEE_API_KEY or save "
+            "one in the validator settings."
+        )
+
+    params: Dict[str, Any] = {
+        "api_key": api_key,
+        "url": adapter.url,
+        "render_js": "true",          # the checker is a SPA; 5 credits/request
+        "block_resources": "true",    # drop images/fonts: faster, no extra cost
+        "js_scenario": json.dumps(build_js_scenario(adapter, value)),
+    }
+    if settings.get("premium_proxy"):
+        params["premium_proxy"] = "true"
+    if settings.get("country_code"):
+        params["country_code"] = settings["country_code"]
+
+    try:
+        response = requests.get(
+            SCRAPINGBEE_API_URL,
+            params=params,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=REQUEST_TIMEOUT,
+        )
+    except requests.exceptions.Timeout as exc:
+        raise DecodoError("ScrapingBee request timed out") from exc
+    except requests.exceptions.RequestException as exc:
+        raise DecodoError(f"ScrapingBee request failed: {exc}") from exc
+
+    if response.status_code in (401, 403):
+        raise DecodoError("ScrapingBee rejected the API key (401/403)")
+    if response.status_code == 429:
+        raise DecodoError("ScrapingBee rate limit hit (429) — or out of credits")
+    if response.status_code == 500:
+        # ScrapingBee does not charge for a 500, so retrying is free.
+        raise DecodoError("ScrapingBee failed to render the page (500, not charged)")
+    if response.status_code != 200:
+        snippet = (response.text or "")[:200].replace("\n", " ")
+        raise DecodoError(f"ScrapingBee error {response.status_code}: {snippet}")
+
+    credits = response.headers.get("Spb-cost") or response.headers.get("spb-cost")
+    if credits:
+        logger.info("ScrapingBee charged %s credit(s) for %s", credits, adapter.url)
+
+    if not (response.text or "").strip():
+        raise DecodoError("ScrapingBee returned an empty page")
+    return response.text
+
+
+def scrapingbee_usage(settings: Dict[str, Any]) -> Dict[str, Any]:
+    """Current credit balance. Costs 0 credits; useful before a big batch."""
+    api_key = (settings or {}).get("api_key")
+    if not api_key:
+        return {"error": "No ScrapingBee API key configured"}
+    try:
+        response = requests.get(
+            SCRAPINGBEE_USAGE_URL,
+            params={"api_key": api_key},
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30,
+        )
+        if response.status_code != 200:
+            return {"error": f"usage lookup failed ({response.status_code})"}
+        return response.json()
+    except Exception as exc:
+        return {"error": f"usage lookup failed: {exc}"}
+
+
 def active_scraper_provider(settings: Optional[Dict[str, Any]] = None) -> str:
     """
     Which scraping provider to drive.
@@ -761,6 +947,15 @@ def scrape_site(
 
     if provider == "browser-use":
         return _run_browser_use_scrape(adapter, value, load_browser_use_settings())
+
+    if provider == "scrapingbee":
+        # Prefer an explicit sub-dict, then a top-level key already in hand
+        # (how the batch layer passes it), then whatever is saved/env.
+        settings = settings or {}
+        sb = settings.get("scrapingbee")
+        if not sb:
+            sb = settings if settings.get("api_key") else load_scrapingbee_settings()
+        return _call_scrapingbee(adapter, value, sb)
 
     return extract_html(
         _call_decodo(value, adapter, settings if settings is not None else load_decodo_settings())
@@ -1896,6 +2091,67 @@ def validate_phone_offline(
     return out
 
 
+def validate_phone_via_scrapingbee(
+    phone_number: str,
+    country_code: str = "",
+    settings: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Validate one number by driving the veriphone form through ScrapingBee.
+
+    Same contract as the other scrape paths: the adapter supplies the selectors
+    (turned into a js_scenario), ``classify_phone`` decides the verdict, and a
+    transport failure becomes ``error`` rather than a silent "invalid".
+    """
+    result = _blank_phone_result(phone_number, country_code)
+    result["site"] = "scrapingbee"
+
+    if not phone_number:
+        result["error"] = "Empty phone number"
+        return result
+
+    settings = settings if settings is not None else load_scrapingbee_settings()
+    if not settings.get("api_key"):
+        result["error"] = (
+            "No ScrapingBee API key configured. Set FV_S_SCRAPINGBEE_API_KEY or save "
+            "one in the validator settings."
+        )
+        return result
+
+    adapter = _ADAPTERS["veriphone"]
+    e164 = to_e164(phone_number, country_code)
+    result["e164"] = e164
+
+    try:
+        html = _call_scrapingbee(adapter, e164, settings)
+    except DecodoError as exc:
+        result["error"] = str(exc)
+        return result
+    except Exception as exc:
+        result["error"] = f"ScrapingBee failed: {exc}"
+        return result
+
+    raw = adapter.parse(html)
+    status, reason, confidence = classify_phone(raw)
+    result["raw"] = raw
+    result["status"] = status
+    result["valid"] = status == STATUS_VALID
+    result["reason"] = reason
+    result["confidence"] = confidence
+    result["category"] = (
+        "deliverable" if status == STATUS_VALID
+        else "undeliverable" if status == STATUS_INVALID
+        else "unknown"
+    )
+    result["formatted_number"] = raw.get("number") or e164
+    result["line_type"] = raw.get("line_type")
+    result["carrier"] = raw.get("carrier")
+    result["country"] = raw.get("country")
+    result["region"] = raw.get("region")
+    result["city"] = raw.get("city")
+    return result
+
+
 def validate_phone_via_browser_use(
     phone_number: str,
     country_code: str = "",
@@ -2017,7 +2273,19 @@ def validate_phone(
     # operator asked for it, and it is the only path that can render a page the
     # offline tables cannot answer. Note it takes its OWN credentials -- passing
     # the Decodo settings here silently failed the key check.
-    chosen = (decodo_settings or {}).get("transport") or (settings or {}).get("transport")
+    import os
+
+    chosen = (
+        (decodo_settings or {}).get("transport")
+        or (settings or {}).get("transport")
+        or os.getenv("FV_S_SCRAPER_PROVIDER")
+        or ""
+    ).strip().lower()
+
+    if chosen == "scrapingbee":
+        return validate_phone_via_scrapingbee(
+            phone_number, country_code, load_scrapingbee_settings()
+        )
     if chosen == "browser-use":
         return validate_phone_via_browser_use(
             phone_number,

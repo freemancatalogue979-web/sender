@@ -7477,6 +7477,54 @@ async def test_veriphone_config(current_user: dict = Depends(get_current_user)):
     }
 
 
+@validator_router.get("/scrapingbee/config")
+async def get_scrapingbee_config(current_user: dict = Depends(get_current_user)):
+    """ScrapingBee settings plus the live credit balance (never the key)."""
+    user_id = current_user["user_id"]
+
+    from email_validator import load_scrapingbee_settings, scrapingbee_usage
+
+    settings = load_scrapingbee_settings(user_id, USERS_BASE_PATH)
+    cfg = USERS_BASE_PATH / f"fv-s-{user_id}" / "validator-config" / "scrapingbee.json"
+    usage = scrapingbee_usage(settings) if settings.get("api_key") else {}
+
+    return {
+        "configured": bool(settings.get("api_key")),
+        "premium_proxy": settings.get("premium_proxy", False),
+        "country_code": settings.get("country_code", ""),
+        "source": "user" if cfg.exists() else ("environment" if settings.get("api_key") else None),
+        "credits": usage.get("remaining") or usage.get("credits_left") or usage,
+        "notes": (
+            "Phone lookups use render_js + js_scenario (fill/click), which is 5 "
+            "credits per number. A failed render (500) is not charged."
+        ),
+    }
+
+
+@validator_router.post("/scrapingbee/config")
+async def save_scrapingbee_config(
+    config_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save ScrapingBee credentials (write-only, encrypted at rest)."""
+    user_id = current_user["user_id"]
+
+    from email_validator import save_scrapingbee_settings
+
+    saved = save_scrapingbee_settings(user_id, USERS_BASE_PATH, config_data)
+    return {"success": True, "message": "ScrapingBee configuration saved", **saved}
+
+
+@validator_router.get("/scrapingbee/usage")
+async def scrapingbee_credit_usage(current_user: dict = Depends(get_current_user)):
+    """Remaining credits. Free to call (0 credits) — check before a big batch."""
+    user_id = current_user["user_id"]
+
+    from email_validator import load_scrapingbee_settings, scrapingbee_usage
+
+    return scrapingbee_usage(load_scrapingbee_settings(user_id, USERS_BASE_PATH))
+
+
 @validator_router.get("/browser-use/config")
 async def get_browser_use_config(current_user: dict = Depends(get_current_user)):
     """Browser Use cloud browser settings (the key itself is never returned)."""

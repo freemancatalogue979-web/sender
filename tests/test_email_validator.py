@@ -3,6 +3,7 @@
 These exercise the parsing/verdict engine against representative rendered
 HTML, with no network access: the Decodo call is monkeypatched.
 """
+import json
 import pytest
 from concurrent.futures import ThreadPoolExecutor
 
@@ -1154,3 +1155,190 @@ def test_a_fresh_browser_is_created_per_lookup_so_ips_rotate(monkeypatch):
         ))
 
     assert len(created) == 3, "one browser per number is required for IP rotation"
+
+
+# =============================================================================
+# SCRAPINGBEE — veriphone web automation through js_scenario
+# =============================================================================
+
+def test_js_scenario_drives_the_veriphone_form():
+    sc = ev.build_js_scenario(ev._ADAPTERS["veriphone"], "+2347069977249")
+    ins = sc["instructions"]
+    assert {"fill": ["#phone-input", "+2347069977249"]} in ins
+    assert {"click": "#checker-submit"} in ins
+    # A leading settle wait is fine; two sleeps back-to-back are not.
+    assert not any("wait" in a and "wait" in b for a, b in zip(ins, ins[1:])), ins
+    # The last instruction must be a long enough wait for the result grid.
+    assert "wait" in ins[-1]
+    assert ins[-1]["wait"] >= 6000
+    assert ins.index({"click": "#checker-submit"}) < len(ins) - 1
+
+
+def test_js_scenario_is_built_from_the_email_adapter_too():
+    sc = ev.build_js_scenario(ev._ADAPTERS["skrapp"], "a@b.com")
+    ins = sc["instructions"]
+    assert any("fill" in i for i in ins)
+    assert any("click" in i for i in ins)
+
+
+def test_scrapingbee_request_shape(monkeypatch):
+    captured = {}
+
+    class R:
+        status_code = 200
+        text = "Number +234 706 997 7249\nType mobile\nCarrier MTN\nValid Valid"
+        headers = {"Spb-cost": "5"}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured.update(url=url, params=params, headers=headers)
+        return R()
+
+    monkeypatch.setattr(ev.requests, "get", fake_get)
+    out = ev._call_scrapingbee(ev._ADAPTERS["veriphone"], "+2347069977249", {"api_key": "SB"})
+
+    assert captured["url"] == ev.SCRAPINGBEE_API_URL
+    p = captured["params"]
+    assert p["api_key"] == "SB"
+    assert p["render_js"] == "true"
+    assert p["url"] == ev.VERIPHONE_URL
+    assert json.loads(p["js_scenario"])["instructions"]
+    assert captured["headers"]["Authorization"] == "Bearer SB"
+    assert "Number" in out
+
+
+def test_scrapingbee_uses_premium_proxy_only_when_asked(monkeypatch):
+    captured = {}
+
+    class R:
+        status_code = 200
+        text = "ok"
+        headers = {}
+
+    monkeypatch.setattr(ev.requests, "get",
+                        lambda url, params=None, **k: captured.update(p=params) or R())
+
+    ev._call_scrapingbee(ev._ADAPTERS["veriphone"], "+1", {"api_key": "SB"})
+    assert "premium_proxy" not in captured["p"]
+
+    ev._call_scrapingbee(
+        ev._ADAPTERS["veriphone"], "+1",
+        {"api_key": "SB", "premium_proxy": True, "country_code": "us"},
+    )
+    assert captured["p"]["premium_proxy"] == "true"
+    assert captured["p"]["country_code"] == "us"
+
+
+@pytest.mark.parametrize("status,fragment", [
+    (401, "rejected the API key"),
+    (429, "rate limit"),
+    (500, "not charged"),      # 500s are free, so the message says so
+])
+def test_scrapingbee_errors_are_readable(status, fragment, monkeypatch):
+    class R:
+        status_code = status
+        text = "boom"
+        headers = {}
+
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: R())
+    with pytest.raises(ev.DecodoError) as exc:
+        ev._call_scrapingbee(ev._ADAPTERS["veriphone"], "+1", {"api_key": "SB"})
+    assert fragment in str(exc.value)
+
+
+def test_scrapingbee_requires_a_key():
+    with pytest.raises(ev.DecodoError) as exc:
+        ev._call_scrapingbee(ev._ADAPTERS["veriphone"], "+1", {})
+    assert "API key" in str(exc.value)
+
+
+def test_phone_validation_end_to_end_via_scrapingbee(monkeypatch):
+    class R:
+        status_code = 200
+        text = ("Number +234 706 997 7249\nType mobile\nCarrier MTN\n"
+                "Country Nigeria (NG)\nValid Valid")
+        headers = {"Spb-cost": "5"}
+
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: R())
+
+    result = ev.scrape_site(
+        ev._ADAPTERS["veriphone"], "+2347069977249",
+        {"provider": "scrapingbee", "api_key": "SB"},
+    )
+    raw = ev._ADAPTERS["veriphone"].parse(result)
+    status, _, _ = ev.classify_phone(raw)
+    assert status == ev.STATUS_VALID
+    assert raw["carrier"] == "MTN"
+
+
+def test_scrapingbee_settings_round_trip_encrypted(tmp_path, monkeypatch):
+    monkeypatch.setenv("FV_S_SECRET_KEY", "s3cret")
+    monkeypatch.delenv("FV_S_SCRAPINGBEE_API_KEY", raising=False)
+
+    saved = ev.save_scrapingbee_settings(
+        "u7", tmp_path, {"api_key": "sb-secret", "premium_proxy": True, "country_code": "US"}
+    )
+    assert saved["has_api_key"] is True
+
+    raw = (tmp_path / "fv-s-u7" / "validator-config" / "scrapingbee.json").read_text()
+    assert "sb-secret" not in raw
+
+    loaded = ev.load_scrapingbee_settings("u7", tmp_path)
+    assert loaded["api_key"] == "sb-secret"
+    assert loaded["premium_proxy"] is True
+    assert loaded["country_code"] == "us"
+
+
+def test_usage_lookup_never_raises(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(ev.requests, "get", boom)
+    assert "error" in ev.scrapingbee_usage({"api_key": "k"})
+    assert "error" in ev.scrapingbee_usage({})
+
+
+def test_explicit_scrapingbee_choice_beats_the_free_engine(monkeypatch):
+    """
+    Asking for scrapingbee must run the web automation, not the local tables --
+    the whole point is the automation.
+    """
+    called = {"local": 0, "sb": 0}
+
+    monkeypatch.setattr(
+        ev, "validate_phone_offline",
+        lambda *a, **k: called.__setitem__("local", called["local"] + 1),
+    )
+    monkeypatch.setattr(
+        ev, "validate_phone_via_scrapingbee",
+        lambda n, c, s=None: called.__setitem__("sb", called["sb"] + 1) or {"status": "valid"},
+    )
+
+    ev.validate_phone(
+        "+2347069977249", "NG",
+        settings={"api_key": ""},
+        decodo_settings={"transport": "scrapingbee", "api_key": "decodo"},
+        browser_use_settings={"api_key": ""},
+    )
+    assert called["sb"] == 1
+    assert called["local"] == 0
+
+
+def test_scrapingbee_phone_path_end_to_end(monkeypatch):
+    class R:
+        status_code = 200
+        text = ("Number +1 423 631 9525\nType mobile\nCarrier T-Mobile\n"
+                "Country United States (US)\nValid Valid")
+        headers = {"Spb-cost": "5"}
+
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: R())
+    r = ev.validate_phone_via_scrapingbee("+1 (423) 631-9525", "", settings={"api_key": "SB"})
+    assert r["status"] == ev.STATUS_VALID
+    assert r["carrier"] == "T-Mobile"
+    assert r["site"] == "scrapingbee"
+    assert r["e164"] == "+14236319525"
+
+
+def test_scrapingbee_phone_path_requires_a_key():
+    r = ev.validate_phone_via_scrapingbee("+1", "", settings={})
+    assert "API key" in r["error"]
+    assert r["valid"] is False

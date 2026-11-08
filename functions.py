@@ -32,6 +32,14 @@ logger = logging.getLogger(__name__)
 # There is no Playwright browser and no ZeroBounce account in this codebase;
 # every lookup is a Decodo Web Scraping API request (see email_validator.py).
 # ---------------------------------------------------------------------------
+def is_scrapingbee_configured() -> bool:
+    """True when a ScrapingBee key is available (env or saved)."""
+    try:
+        return bool(load_scrapingbee_settings().get("api_key"))
+    except Exception:
+        return False
+
+
 def phone_transport_label(veriphone_settings: dict = None) -> str:
     """
     Which transport phone validation will use.
@@ -42,6 +50,8 @@ def phone_transport_label(veriphone_settings: dict = None) -> str:
     """
     if (veriphone_settings or {}).get("api_key"):
         return "veriphone-api"
+    if is_scrapingbee_configured():
+        return "scrapingbee"
     if is_offline_engine_available():
         return "local"
     if is_browser_use_available():
@@ -63,6 +73,7 @@ from email_validator import (  # noqa: E402
     is_browser_use_available,
     is_offline_engine_available,
     load_browser_use_settings,
+    load_scrapingbee_settings,
     validate_phone,
     validate_phones_async,
     validate_phone_via_decodo,
