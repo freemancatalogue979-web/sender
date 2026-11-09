@@ -1891,3 +1891,84 @@ def test_request_timeout_is_bounded():
     """ScrapingBee's own ceiling is 40s; waiting longer only waits on nothing."""
     assert ev.REQUEST_TIMEOUT <= 60
     assert ev.REQUEST_TIMEOUT >= 10
+
+
+# =============================================================================
+# The full veriphone JSON API answer
+#
+# The API returns far more than a verdict -- the number in three formats, the
+# dialling prefix, the region, the timezone -- and all of it was being dropped,
+# so a paid lookup showed no more than a scraped one.
+# =============================================================================
+
+VERIPHONE_US_VOIP = {
+    "status": "success", "phone": "+12012014514", "phone_valid": True,
+    "phone_type": "voip", "phone_region": "New Jersey",
+    "country": "United States", "country_code": "US", "country_prefix": "1",
+    "international_number": "+1 201-201-4514", "local_number": "(201) 201-4514",
+    "e164": "+12012014514", "carrier": "Bandwidth.com", "mode": "static",
+    "timezone": ["America/New_York"], "geographical": True,
+}
+
+
+def test_api_result_keeps_every_field_the_api_returned():
+    result = ev._result_from_veriphone_api(
+        VERIPHONE_US_VOIP, "2012014514", "+12012014514"
+    )
+
+    assert result["status"] == ev.STATUS_VALID
+    assert result["formatted_number"] == "+1 201-201-4514"
+    assert result["international_number"] == "+1 201-201-4514"
+    assert result["local_number"] == "(201) 201-4514"
+    assert result["dial_code"] == "+1"
+    assert result["country_prefix"] == "1"
+    assert result["country"] == "United States"
+    assert result["country_code"] == "US"
+    assert result["region"] == "New Jersey"
+    assert result["carrier"] == "Bandwidth.com"
+    assert result["line_type"] == "voip"
+    assert result["timezone"] == ["America/New_York"]
+    assert result["geographical"] is True
+
+
+def test_api_fields_survive_the_scrub():
+    result = ev._result_from_veriphone_api(
+        VERIPHONE_US_VOIP, "2012014514", "+12012014514"
+    )
+    cleaned = ev.scrub_phone_result(result)
+
+    assert cleaned["local_number"] == "(201) 201-4514"
+    assert cleaned["timezone"] == ["America/New_York"]
+    assert cleaned["dial_code"] == "+1"
+    assert cleaned["region"] == "New Jersey"
+    assert cleaned["status"] == ev.STATUS_VALID
+
+
+def test_saved_list_keeps_the_api_fields(tmp_path):
+    session = {
+        "list_name": "api-fields",
+        "country_code": "US",
+        "site": "veriphone-api",
+        "results": [ev._result_from_veriphone_api(
+            VERIPHONE_US_VOIP, "2012014514", "+12012014514"
+        )],
+    }
+    list_id = functions.save_phone_results_to_list("fieldsuser", tmp_path, session)
+    stored = json.loads(
+        (tmp_path / "fv-s-fieldsuser" / "phone-lists" / f"{list_id}.json").read_text()
+    )
+    entry = stored["numbers"][0]
+
+    assert entry["local_number"] == "(201) 201-4514"
+    assert entry["timezone"] == ["America/New_York"]
+    assert entry["dial_code"] == "+1"
+    assert entry["region"] == "New Jersey"
+
+
+def test_save_veriphone_config_route_does_not_crash():
+    """This raised NameError: phone_transport_label was never imported."""
+    import api
+    import inspect
+
+    source = inspect.getsource(api.save_veriphone_config)
+    assert "from functions import phone_transport_label" in source

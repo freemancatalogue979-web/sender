@@ -7452,6 +7452,7 @@ async def save_veriphone_config(
     user_id = current_user["user_id"]
 
     from email_validator import save_veriphone_settings
+    from functions import phone_transport_label
 
     saved = save_veriphone_settings(user_id, USERS_BASE_PATH, config_data)
     return {

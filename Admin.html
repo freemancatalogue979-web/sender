@@ -15464,6 +15464,21 @@
         .num-col-carrier { color: rgba(255, 255, 255, 0.78); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .num-col-type { color: var(--text-gray); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+        .hud-number { display: flex; flex-direction: column; gap: 2px; }
+        .num-col-carrier { display: flex; flex-direction: column; gap: 2px; }
+
+        .hud-number-sub, .num-cell-sub {
+            display: block;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 9.5px;
+            font-weight: 500;
+            letter-spacing: 0;
+            color: rgba(255, 255, 255, 0.34);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .num-empty {
             display: flex;
             flex-direction: column;
@@ -37611,9 +37626,11 @@
             const raw = String(n.line_type || '').trim().toLowerCase();
             if (!raw || /[<>{};]/.test(raw)) return '—';
             const words = raw.replace(/_/g, ' ').split(/\s+/).filter(Boolean).slice(0, 4);
+            // Acronyms that must keep their capitals: VoIP, not Voip.
+            const ACRONYMS = { voip: 'VoIP', pstn: 'PSTN', isdn: 'ISDN', sim: 'SIM' };
             const label = words.map(w => (w === 'or' || w === 'and')
                 ? w
-                : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                : (ACRONYMS[w] || w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
             return label || '—';
         }
 
@@ -37621,15 +37638,53 @@
             return phoneCleanToken(n.carrier, 28) || '—';
         }
 
+        // The veriphone JSON API answers with more than a verdict: the number in
+        // its local form, the region, and the timezone. None of it was reaching
+        // the UI, so a paid lookup looked poorer than it was.
+        function phoneLocalNumber(n) {
+            const local = phoneCleanToken(n.local_number, 24);
+            return local || '';
+        }
+
+        function phoneRegion(n) {
+            const region = phoneCleanToken(n.region, 32);
+            const dial = phoneCleanToken(n.dial_code, 6);
+            if (region) return region;
+            return dial || '';
+        }
+
+        function phoneTimezone(n) {
+            const tz = n.timezone;
+            if (Array.isArray(tz) && tz.length) return phoneCleanToken(tz[0], 40) || '';
+            if (typeof tz === 'string') return phoneCleanToken(tz, 40) || '';
+            return '';
+        }
+
+        // A one-line summary under the number: everything the API told us that
+        // the table has no column for.
+        function phoneDetailLine(n) {
+            const bits = [];
+            const local = phoneLocalNumber(n);
+            if (local) bits.push('local ' + local);
+            const region = phoneCleanToken(n.region, 32);
+            if (region) bits.push(region);
+            const tz = phoneTimezone(n);
+            if (tz) bits.push(tz);
+            if (n.is_prepaid === true) bits.push('prepaid');
+            if (n.geographical === true && !region) bits.push('geographic number');
+            return bits.join(' · ');
+        }
+
         function renderNumRow(n, index) {
             const status = phoneRowStatus(n);
             const country = phoneCountryLabel(n);
+            const detail = phoneDetailLine(n);
             return `
                 <div class="num-row" data-status="${status.key}">
                     <span class="num-col-index">${index}</span>
                     <span class="num-col-number">${escapeHtml(phoneRowNumber(n))}</span>
                     <span class="num-col-country">${phoneFlag(n.country_code, n.country)}<span class="num-country-name">${escapeHtml(country.name)}</span></span>
-                    <span class="num-col-carrier">${escapeHtml(phoneCarrier(n))}</span>
+                    <span class="num-col-carrier">${escapeHtml(phoneCarrier(n))}${detail ? `<span class="num-cell-sub">${escapeHtml(detail)}</span>` : ''}</span>
                     <span class="num-col-type">${escapeHtml(phoneLineType(n))}</span>
                     <span class="num-col-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
                 </div>`;
@@ -39496,12 +39551,13 @@
                 rows.innerHTML = filtered.map(n => {
                     const status = phoneRowStatus(n);
                     const country = phoneCountryLabel(n);
+                    const detail = phoneDetailLine(n);
                     const checked = n.validated_at ? new Date(n.validated_at).toLocaleTimeString() : '—';
                     const conf = n.confidence ? `<span class="hud-conf">${n.confidence}%</span>` : '';
                     return `
                         <div class="hud-row hud-row-data" data-status="${status.key}">
                             <span class="hud-dot ${status.key}"></span>
-                            <span class="hud-number">${escapeHtml(phoneRowNumber(n))}</span>
+                            <span class="hud-number">${escapeHtml(phoneRowNumber(n))}${detail ? `<span class="hud-number-sub">${escapeHtml(detail)}</span>` : ''}</span>
                             <span class="hud-country">${phoneFlag(n.country_code, n.country)}<span>${escapeHtml(country.name)}</span></span>
                             <span class="hud-carrier">${escapeHtml(phoneCarrier(n))}${conf}</span>
                             <span class="hud-type">${escapeHtml(phoneLineType(n))}</span>
@@ -39549,13 +39605,21 @@
                 return;
             }
             const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-            const lines = [['number', 'e164', 'country', 'country_code', 'carrier',
-                            'line_type', 'status', 'valid', 'confidence', 'reason', 'checked_at'].join(',')];
+            // Every field the lookup returned, not just the verdict: this is the
+            // CSV someone actually wants when they paid per number.
+            const lines = [['number', 'e164', 'international', 'local', 'dial_code',
+                            'country', 'country_code', 'region', 'timezone', 'carrier',
+                            'line_type', 'status', 'valid', 'confidence', 'prepaid',
+                            'geographical', 'reason', 'checked_at'].join(',')];
             all.forEach(n => {
                 const c = phoneCountryLabel(n);
-                lines.push([n.number, n.e164, c.name, c.iso, n.carrier, n.line_type,
-                            phoneRowStatus(n).label, n.valid, n.confidence,
-                            n.reason || n.error, n.validated_at].map(esc).join(','));
+                const tz = Array.isArray(n.timezone) ? n.timezone.join('; ') : (n.timezone || '');
+                lines.push([
+                    n.number, n.e164, n.international_number, n.local_number, n.dial_code,
+                    c.name, c.iso, n.region, tz, n.carrier,
+                    n.line_type, phoneRowStatus(n).label, n.valid, n.confidence,
+                    n.is_prepaid, n.geographical, n.reason || n.error, n.validated_at,
+                ].map(esc).join(','));
             });
             const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);

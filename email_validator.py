@@ -1603,11 +1603,23 @@ def is_plausible_e164(value: str) -> bool:
 
 
 def _blank_phone_result(phone_number: str, country_code: str = "") -> Dict[str, Any]:
-    """Phone result with every field the session/list/UI layer reads."""
+    """
+    Phone result with every field the session/list/UI layer reads.
+
+    The veriphone JSON API answers with more than a verdict: the dialling
+    prefix, the region, the timezone, and the number in three formats. Those
+    were being thrown away and only "valid + carrier" survived, so a row could
+    not show the rest of what was actually paid for.
+    """
     return {
         "number": phone_number,
         "country_code": country_code or "",
         "formatted_number": None,
+        # Every format the API returns, kept rather than re-derived
+        "international_number": None,
+        "local_number": None,
+        "country_prefix": None,
+        "dial_code": None,
         # Verdict mirror of the email path
         "valid": False,
         "status": STATUS_UNKNOWN,
@@ -1620,6 +1632,8 @@ def _blank_phone_result(phone_number: str, country_code: str = "") -> Dict[str, 
         "country": None,
         "region": None,
         "city": None,
+        "timezone": None,
+        "geographical": None,
         # Legacy keys kept for stored lists / existing UI bindings
         "is_prepaid": None,
         "is_leaked": None,
@@ -1784,10 +1798,23 @@ def _result_from_veriphone_api(payload: Dict[str, Any], phone_number: str, e164:
         or payload.get("local_number")
         or e164
     )
+    # The rest of the answer, kept verbatim. A caller can then show the local
+    # form, the dialling code, and the timezone without paying for a second
+    # lookup or guessing them from the E.164 string.
+    result["international_number"] = payload.get("international_number")
+    result["local_number"] = payload.get("local_number")
+    result["country_prefix"] = payload.get("country_prefix")
+    dial = str(payload.get("country_prefix") or "").strip()
+    result["dial_code"] = f"+{dial}" if dial.isdigit() else None
+    result["timezone"] = payload.get("timezone")
+    result["geographical"] = payload.get("geographical")
     result["line_type"] = phone_type
     result["carrier"] = carrier
     result["country"] = country
     result["region"] = region
+    result["city"] = payload.get("phone_city") or payload.get("city")
+    result["is_prepaid"] = payload.get("prepaid")
+    result["is_leaked"] = payload.get("leaked")
 
     country_code = payload.get("country_code")
     if country_code:

@@ -11207,6 +11207,15 @@ def save_phone_results_to_list(
             "error": result.get('error'),
             "is_prepaid": result.get('is_prepaid'),
             "is_leaked": result.get('is_leaked'),
+            # The rest of the veriphone answer: the number in its local form,
+            # the dialling prefix, the timezone. Kept so a saved list can show
+            # everything a lookup cost, not just valid/not.
+            "international_number": result.get('international_number'),
+            "local_number": result.get('local_number'),
+            "country_prefix": result.get('country_prefix'),
+            "dial_code": result.get('dial_code'),
+            "timezone": result.get('timezone'),
+            "geographical": result.get('geographical'),
             "added_at": datetime.now().isoformat()
         }
         numbers.append(entry)
