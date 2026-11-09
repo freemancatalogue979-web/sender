@@ -1052,6 +1052,534 @@
             border-color: var(--text-white);
         }
 
+        /* =================================================
+         * Scraper transport card
+         * Reuses the app's own parts: .form-label, .montserrat-select
+         * + .select-arrow, .montserrat-btn, .proxy-toggle-switch.
+         * Only the shell and the small status/foot strip are new.
+         * ================================================= */
+        .scraper-card {
+            position: relative;
+            padding: 16px;
+            margin-bottom: 18px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+        }
+
+        .scraper-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #8a2be2, #00e5ff);
+            opacity: 0.6;
+        }
+
+        .scraper-card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .scraper-card-heading {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        .scraper-card-icon {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 28px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            color: #00e5ff;
+            background: rgba(0, 229, 255, 0.09);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+        }
+
+        .scraper-card-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-white);
+            letter-spacing: 0.3px;
+        }
+
+        .scraper-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            color: #9aa4b2;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .scraper-badge-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .scraper-badge.is-live { color: #4ade80; background: rgba(74, 222, 128, 0.1); border-color: rgba(74, 222, 128, 0.32); }
+        .scraper-badge.is-warn { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.32); }
+        .scraper-badge.is-error { color: #f87171; background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.32); }
+
+        /* Field group: the panel's own label size, tightened for this column. */
+        .scraper-field { margin-bottom: 12px; }
+        .scraper-field .form-label { margin-bottom: 7px; font-size: 10px; }
+        .scraper-field-hint {
+            display: block;
+            margin-top: 3px;
+            font-size: 9.5px;
+            font-weight: 500;
+            letter-spacing: 0;
+            text-transform: none;
+            color: rgba(255, 255, 255, 0.32);
+        }
+
+        .scraper-field-note {
+            margin-top: 6px;
+            font-size: 9px;
+            line-height: 1.4;
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        /* Reuse .montserrat-select, only shrink it to the card's scale. */
+        .scraper-select {
+            padding: 10px 34px 10px 12px;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 10px;
+        }
+
+        .scraper-card .select-arrow { right: 13px; font-size: 10px; }
+
+        .scraper-form-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 66px;
+            gap: 8px;
+            align-items: start;
+        }
+
+        .scraper-form-row .scraper-field { margin-bottom: 0; }
+
+        .scraper-input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .scraper-input {
+            width: 100%;
+            min-width: 0;
+            padding: 10px 30px 10px 12px;
+            font-size: 12px;
+            border-radius: 10px;
+        }
+
+        .scraper-field-compact .scraper-input { padding: 10px 10px; text-align: center; }
+
+        .scraper-input::placeholder { color: rgba(255, 255, 255, 0.22); }
+
+        .scraper-input-reveal {
+            position: absolute;
+            right: 6px;
+            display: grid;
+            place-items: center;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.35);
+            background: transparent;
+            font-size: 9px;
+            transition: color 0.2s ease, background 0.2s ease;
+        }
+
+        .scraper-input-reveal:hover { color: #00e5ff; background: rgba(0, 229, 255, 0.1); }
+
+        .scraper-actions {
+            display: flex;
+            align-items: stretch;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .scraper-actions .montserrat-btn {
+            padding: 10px 14px;
+            min-height: 38px;
+            font-size: 11.5px;
+            border-radius: 10px;
+            gap: 6px;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        .scraper-actions .montserrat-btn-primary { flex: 1 1 auto; min-width: 0; }
+        .scraper-actions .montserrat-btn .btn-icon { font-size: 11px; }
+
+        .scraper-status {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 10px 12px;
+            margin-top: 12px;
+            border-radius: 9px;
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 2px solid rgba(255, 255, 255, 0.14);
+            font-size: 10px;
+            line-height: 1.5;
+            color: var(--text-gray);
+            word-break: break-word;
+        }
+
+        .scraper-status-icon { flex: 0 0 auto; margin-top: 2px; font-size: 9px; opacity: 0.75; }
+        .scraper-status.is-live { border-left-color: #4ade80; color: #b9f6ca; }
+        .scraper-status.is-live .scraper-status-icon { color: #4ade80; opacity: 1; }
+        .scraper-status.is-warn { border-left-color: #fbbf24; color: #fde68a; }
+        .scraper-status.is-warn .scraper-status-icon { color: #fbbf24; opacity: 1; }
+        .scraper-status.is-error { border-left-color: #f87171; color: #fecaca; }
+        .scraper-status.is-error .scraper-status-icon { color: #f87171; opacity: 1; }
+        .scraper-status.is-busy .scraper-status-icon { color: #00e5ff; opacity: 1; animation: scraperSpin 1s linear infinite; }
+
+        @keyframes scraperSpin { to { transform: rotate(360deg); } }
+
+        .scraper-foot {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+
+        .scraper-foot:empty { display: none; }
+
+        .scraper-credits {
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+            color: #00e5ff;
+            background: rgba(0, 229, 255, 0.08);
+            border: 1px solid rgba(0, 229, 255, 0.22);
+        }
+
+        .scraper-credits.is-low {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.08);
+            border-color: rgba(248, 113, 113, 0.28);
+        }
+
+        .scraper-advanced {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .scraper-advanced summary {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            list-style: none;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-gray);
+            transition: color 0.2s ease;
+        }
+
+        .scraper-advanced summary::-webkit-details-marker { display: none; }
+        .scraper-advanced summary:hover { color: var(--text-white); }
+        .scraper-chevron { font-size: 7px; transition: transform 0.2s ease; }
+        .scraper-advanced[open] .scraper-chevron { transform: rotate(90deg); }
+        .scraper-advanced-body { padding-top: 12px; }
+        .scraper-advanced-note { margin-top: 2px; font-size: 9px; line-height: 1.5; color: var(--text-gray); }
+
+        /* ---- groups: one idea per block, not one long wall ---- */
+        .scraper-group {
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+        }
+
+        .scraper-group:last-of-type { border-bottom: none; padding-bottom: 0; }
+
+        .scraper-group-label {
+            display: block;
+            margin-bottom: 9px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.34);
+        }
+
+        /* The key field and its reveal button read as one control. */
+        .scraper-input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .scraper-input-group .scraper-input { padding-right: 38px; }
+
+        .scraper-input-reveal {
+            position: absolute;
+            right: 4px;
+            display: grid;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 11px;
+            cursor: pointer;
+            transition: color 0.2s ease, background 0.2s ease;
+        }
+
+        .scraper-input-reveal:hover { color: var(--text-white); background: rgba(255, 255, 255, 0.06); }
+
+        /* A labelled inline field, smaller than a full group. */
+        .scraper-field-inline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 12px;
+            margin-bottom: 0;
+        }
+
+        .scraper-inline-label {
+            font-size: 11px;
+            color: var(--text-gray);
+            white-space: nowrap;
+        }
+
+        .scraper-input-short {
+            width: 74px;
+            flex: 0 0 auto;
+            padding: 7px 9px;
+            text-align: center;
+            text-transform: uppercase;
+            font-size: 11px;
+        }
+
+        /* Icon-only action, same height as the buttons beside it. */
+        .scraper-icon-btn {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            min-height: 38px;
+            height: auto;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-gray);
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .scraper-icon-btn:hover { color: var(--text-white); border-color: rgba(255, 255, 255, 0.22); }
+
+        .scraper-advanced-tag {
+            margin-left: auto;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 8.5px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-transform: none;
+        }
+
+        .scraper-advanced summary { justify-content: flex-start; width: 100%; }
+
+                    /* The offline engine reads no key. */
+        .scraper-card.is-local #scraperKeyFields,
+        .scraper-card.is-local #scraperSaveBtn { display: none; }
+
+        @media (max-width: 380px) {
+            .scraper-form-row { grid-template-columns: minmax(0, 1fr); }
+            .scraper-field-compact { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: 8px; }
+            .scraper-field-compact .form-label { margin-bottom: 0; }
+        }
+
+        .validator-hero-header {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 18px;
+            gap: 14px;
+        }
+
+        .validator-hero-content {
+            gap: 12px;
+        }
+
+        .validator-hero-icon {
+            width: 48px;
+            height: 48px;
+            font-size: 20px;
+        }
+
+        .validator-hero-title {
+            font-size: 22px;
+        }
+
+        .validator-hero-subtitle {
+            font-size: 12px;
+        }
+
+        .validator-hero-stats {
+            width: 100%;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .hero-stat-item {
+            flex: 1 1 calc(50% - 6px);
+            align-items: flex-start;
+        }
+
+        .hero-stat-value {
+            font-size: 22px;
+        }
+
+        .validator-tabs-wrapper {
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 6px;
+        }
+
+        .validator-tab-btn {
+            flex: 1 1 calc(50% - 4px);
+            min-width: 0;
+            padding: 10px 8px;
+        }
+
+        .validator-tab-btn .tab-label,
+        .validator-inner-tab-btn .inner-tab-text {
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .validator-inner-tabs-container {
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 6px;
+        }
+
+        .validator-inner-tab-btn {
+            flex: 1 1 calc(50% - 3px);
+            min-width: 0;
+            padding: 9px 8px;
+        }
+
+        .validator-panel-header {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 14px;
+            gap: 12px;
+        }
+
+        .panel-header-left {
+            gap: 10px;
+        }
+
+        .panel-header-icon {
+            width: 40px;
+            height: 40px;
+            font-size: 18px;
+        }
+
+        .panel-header-info h3 {
+            font-size: 15px;
+        }
+
+        .panel-header-info p {
+            font-size: 11px;
+        }
+
+        .panel-header-actions {
+            width: 100%;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .panel-header-actions .montserrat-btn {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 8px 10px;
+            font-size: 12px;
+        }
+
+        .validator-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .validator-stat-card {
+            padding: 12px;
+        }
+
+        .stat-card-icon {
+            width: 36px;
+            height: 36px;
+            font-size: 16px;
+        }
+
+        .stat-card-value {
+            font-size: 20px;
+        }
+
+        .stat-card-label {
+            font-size: 10px;
+        }
+
+        .validator-action-section {
+            flex-direction: column;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .validator-primary-actions,
+        .validator-secondary-actions {
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: stretch;
+        }
+
+        .validator-primary-actions .montserrat-btn,
+        .validator-secondary-actions .montserrat-btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+
         /* Responsive */
         @media (max-width: 768px) {
             .mobile-menu-toggle {
@@ -2258,533 +2786,6 @@
             /* =================================================
              * 9) VALIDATOR — hero, tabs, stats, panel header
              * ================================================= */
-            /* =================================================
-             * Scraper transport card
-             * Reuses the app's own parts: .form-label, .montserrat-select
-             * + .select-arrow, .montserrat-btn, .proxy-toggle-switch.
-             * Only the shell and the small status/foot strip are new.
-             * ================================================= */
-            .scraper-card {
-                position: relative;
-                padding: 16px;
-                margin-bottom: 18px;
-                border-radius: 16px;
-                border: 1px solid var(--border-color);
-                background: rgba(255, 255, 255, 0.03);
-                overflow: hidden;
-            }
-
-            .scraper-card::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 3px;
-                background: linear-gradient(90deg, #8a2be2, #00e5ff);
-                opacity: 0.6;
-            }
-
-            .scraper-card-head {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 10px;
-                margin-bottom: 16px;
-            }
-
-            .scraper-card-heading {
-                display: flex;
-                align-items: center;
-                gap: 9px;
-            }
-
-            .scraper-card-icon {
-                width: 28px;
-                height: 28px;
-                flex: 0 0 28px;
-                display: grid;
-                place-items: center;
-                border-radius: 8px;
-                color: #00e5ff;
-                background: rgba(0, 229, 255, 0.09);
-                border: 1px solid rgba(0, 229, 255, 0.2);
-            }
-
-            .scraper-card-title {
-                font-size: 13px;
-                font-weight: 600;
-                color: var(--text-white);
-                letter-spacing: 0.3px;
-            }
-
-            .scraper-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-                padding: 4px 8px;
-                border-radius: 999px;
-                font-size: 9px;
-                font-weight: 800;
-                letter-spacing: 0.6px;
-                text-transform: uppercase;
-                white-space: nowrap;
-                color: #9aa4b2;
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.12);
-            }
-
-            .scraper-badge-dot {
-                width: 5px;
-                height: 5px;
-                border-radius: 50%;
-                background: currentColor;
-            }
-
-            .scraper-badge.is-live { color: #4ade80; background: rgba(74, 222, 128, 0.1); border-color: rgba(74, 222, 128, 0.32); }
-            .scraper-badge.is-warn { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.32); }
-            .scraper-badge.is-error { color: #f87171; background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.32); }
-
-            /* Field group: the panel's own label size, tightened for this column. */
-            .scraper-field { margin-bottom: 12px; }
-            .scraper-field .form-label { margin-bottom: 7px; font-size: 10px; }
-            .scraper-field-hint {
-                display: block;
-                margin-top: 3px;
-                font-size: 9.5px;
-                font-weight: 500;
-                letter-spacing: 0;
-                text-transform: none;
-                color: rgba(255, 255, 255, 0.32);
-            }
-
-            .scraper-field-note {
-                margin-top: 6px;
-                font-size: 9px;
-                line-height: 1.4;
-                color: rgba(255, 255, 255, 0.35);
-            }
-
-            /* Reuse .montserrat-select, only shrink it to the card's scale. */
-            .scraper-select {
-                padding: 10px 34px 10px 12px;
-                font-size: 12px;
-                font-weight: 500;
-                border-radius: 10px;
-            }
-
-            .scraper-card .select-arrow { right: 13px; font-size: 10px; }
-
-            .scraper-form-row {
-                display: grid;
-                grid-template-columns: minmax(0, 1fr) 66px;
-                gap: 8px;
-                align-items: start;
-            }
-
-            .scraper-form-row .scraper-field { margin-bottom: 0; }
-
-            .scraper-input-group {
-                position: relative;
-                display: flex;
-                align-items: center;
-                min-width: 0;
-            }
-
-            .scraper-input {
-                width: 100%;
-                min-width: 0;
-                padding: 10px 30px 10px 12px;
-                font-size: 12px;
-                border-radius: 10px;
-            }
-
-            .scraper-field-compact .scraper-input { padding: 10px 10px; text-align: center; }
-
-            .scraper-input::placeholder { color: rgba(255, 255, 255, 0.22); }
-
-            .scraper-input-reveal {
-                position: absolute;
-                right: 6px;
-                display: grid;
-                place-items: center;
-                width: 20px;
-                height: 20px;
-                padding: 0;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                color: rgba(255, 255, 255, 0.35);
-                background: transparent;
-                font-size: 9px;
-                transition: color 0.2s ease, background 0.2s ease;
-            }
-
-            .scraper-input-reveal:hover { color: #00e5ff; background: rgba(0, 229, 255, 0.1); }
-
-            .scraper-actions {
-                display: flex;
-                align-items: stretch;
-                gap: 6px;
-                margin-bottom: 12px;
-            }
-
-            .scraper-actions .montserrat-btn {
-                padding: 10px 14px;
-                min-height: 38px;
-                font-size: 11.5px;
-                border-radius: 10px;
-                gap: 6px;
-                justify-content: center;
-                white-space: nowrap;
-            }
-
-            .scraper-actions .montserrat-btn-primary { flex: 1 1 auto; min-width: 0; }
-            .scraper-actions .montserrat-btn .btn-icon { font-size: 11px; }
-
-            .scraper-status {
-                display: flex;
-                align-items: flex-start;
-                gap: 8px;
-                padding: 10px 12px;
-                margin-top: 12px;
-                border-radius: 9px;
-                background: rgba(0, 0, 0, 0.2);
-                border-left: 2px solid rgba(255, 255, 255, 0.14);
-                font-size: 10px;
-                line-height: 1.5;
-                color: var(--text-gray);
-                word-break: break-word;
-            }
-
-            .scraper-status-icon { flex: 0 0 auto; margin-top: 2px; font-size: 9px; opacity: 0.75; }
-            .scraper-status.is-live { border-left-color: #4ade80; color: #b9f6ca; }
-            .scraper-status.is-live .scraper-status-icon { color: #4ade80; opacity: 1; }
-            .scraper-status.is-warn { border-left-color: #fbbf24; color: #fde68a; }
-            .scraper-status.is-warn .scraper-status-icon { color: #fbbf24; opacity: 1; }
-            .scraper-status.is-error { border-left-color: #f87171; color: #fecaca; }
-            .scraper-status.is-error .scraper-status-icon { color: #f87171; opacity: 1; }
-            .scraper-status.is-busy .scraper-status-icon { color: #00e5ff; opacity: 1; animation: scraperSpin 1s linear infinite; }
-
-            @keyframes scraperSpin { to { transform: rotate(360deg); } }
-
-            .scraper-foot {
-                display: flex;
-                justify-content: flex-end;
-                margin-top: 8px;
-            }
-
-            .scraper-foot:empty { display: none; }
-
-            .scraper-credits {
-                padding: 3px 8px;
-                border-radius: 999px;
-                font-size: 9px;
-                font-weight: 700;
-                letter-spacing: 0.2px;
-                white-space: nowrap;
-                color: #00e5ff;
-                background: rgba(0, 229, 255, 0.08);
-                border: 1px solid rgba(0, 229, 255, 0.22);
-            }
-
-            .scraper-credits.is-low {
-                color: #f87171;
-                background: rgba(248, 113, 113, 0.08);
-                border-color: rgba(248, 113, 113, 0.28);
-            }
-
-            .scraper-advanced {
-                margin-top: 12px;
-                padding-top: 10px;
-                border-top: 1px solid rgba(255, 255, 255, 0.06);
-            }
-
-            .scraper-advanced summary {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                list-style: none;
-                cursor: pointer;
-                font-size: 10px;
-                font-weight: 600;
-                color: var(--text-gray);
-                transition: color 0.2s ease;
-            }
-
-            .scraper-advanced summary::-webkit-details-marker { display: none; }
-            .scraper-advanced summary:hover { color: var(--text-white); }
-            .scraper-chevron { font-size: 7px; transition: transform 0.2s ease; }
-            .scraper-advanced[open] .scraper-chevron { transform: rotate(90deg); }
-            .scraper-advanced-body { padding-top: 12px; }
-            .scraper-advanced-note { margin-top: 2px; font-size: 9px; line-height: 1.5; color: var(--text-gray); }
-
-            /* ---- groups: one idea per block, not one long wall ---- */
-            .scraper-group {
-                padding-bottom: 16px;
-                margin-bottom: 16px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.055);
-            }
-
-            .scraper-group:last-of-type { border-bottom: none; padding-bottom: 0; }
-
-            .scraper-group-label {
-                display: block;
-                margin-bottom: 9px;
-                font-size: 9px;
-                font-weight: 700;
-                letter-spacing: 1px;
-                text-transform: uppercase;
-                color: rgba(255, 255, 255, 0.34);
-            }
-
-            /* The key field and its reveal button read as one control. */
-            .scraper-input-group {
-                position: relative;
-                display: flex;
-                align-items: center;
-            }
-
-            .scraper-input-group .scraper-input { padding-right: 38px; }
-
-            .scraper-input-reveal {
-                position: absolute;
-                right: 4px;
-                display: grid;
-                place-items: center;
-                width: 30px;
-                height: 30px;
-                border: none;
-                border-radius: 8px;
-                background: transparent;
-                color: rgba(255, 255, 255, 0.35);
-                font-size: 11px;
-                cursor: pointer;
-                transition: color 0.2s ease, background 0.2s ease;
-            }
-
-            .scraper-input-reveal:hover { color: var(--text-white); background: rgba(255, 255, 255, 0.06); }
-
-            /* A labelled inline field, smaller than a full group. */
-            .scraper-field-inline {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 10px;
-                margin-top: 12px;
-                margin-bottom: 0;
-            }
-
-            .scraper-inline-label {
-                font-size: 11px;
-                color: var(--text-gray);
-                white-space: nowrap;
-            }
-
-            .scraper-input-short {
-                width: 74px;
-                flex: 0 0 auto;
-                padding: 7px 9px;
-                text-align: center;
-                text-transform: uppercase;
-                font-size: 11px;
-            }
-
-            /* Icon-only action, same height as the buttons beside it. */
-            .scraper-icon-btn {
-                display: grid;
-                place-items: center;
-                width: 38px;
-                min-height: 38px;
-                height: auto;
-                border-radius: 10px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                background: rgba(255, 255, 255, 0.04);
-                color: var(--text-gray);
-                font-size: 11px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-            }
-
-            .scraper-icon-btn:hover { color: var(--text-white); border-color: rgba(255, 255, 255, 0.22); }
-
-            .scraper-advanced-tag {
-                margin-left: auto;
-                padding: 2px 7px;
-                border-radius: 999px;
-                font-size: 8.5px;
-                font-weight: 600;
-                letter-spacing: 0.3px;
-                color: rgba(255, 255, 255, 0.4);
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                text-transform: none;
-            }
-
-            .scraper-advanced summary { justify-content: flex-start; width: 100%; }
-
-                        /* The offline engine reads no key. */
-            .scraper-card.is-local #scraperKeyFields,
-            .scraper-card.is-local #scraperSaveBtn { display: none; }
-
-            @media (max-width: 380px) {
-                .scraper-form-row { grid-template-columns: minmax(0, 1fr); }
-                .scraper-field-compact { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: 8px; }
-                .scraper-field-compact .form-label { margin-bottom: 0; }
-            }
-
-            .validator-hero-header {
-                flex-direction: column;
-                align-items: flex-start;
-                padding: 18px;
-                gap: 14px;
-            }
-
-            .validator-hero-content {
-                gap: 12px;
-            }
-
-            .validator-hero-icon {
-                width: 48px;
-                height: 48px;
-                font-size: 20px;
-            }
-
-            .validator-hero-title {
-                font-size: 22px;
-            }
-
-            .validator-hero-subtitle {
-                font-size: 12px;
-            }
-
-            .validator-hero-stats {
-                width: 100%;
-                flex-wrap: wrap;
-                gap: 12px;
-            }
-
-            .hero-stat-item {
-                flex: 1 1 calc(50% - 6px);
-                align-items: flex-start;
-            }
-
-            .hero-stat-value {
-                font-size: 22px;
-            }
-
-            .validator-tabs-wrapper {
-                flex-wrap: wrap;
-                gap: 8px;
-                padding: 6px;
-            }
-
-            .validator-tab-btn {
-                flex: 1 1 calc(50% - 4px);
-                min-width: 0;
-                padding: 10px 8px;
-            }
-
-            .validator-tab-btn .tab-label,
-            .validator-inner-tab-btn .inner-tab-text {
-                font-size: 12px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-
-            .validator-inner-tabs-container {
-                flex-wrap: wrap;
-                gap: 6px;
-                padding: 6px;
-            }
-
-            .validator-inner-tab-btn {
-                flex: 1 1 calc(50% - 3px);
-                min-width: 0;
-                padding: 9px 8px;
-            }
-
-            .validator-panel-header {
-                flex-direction: column;
-                align-items: flex-start;
-                padding: 14px;
-                gap: 12px;
-            }
-
-            .panel-header-left {
-                gap: 10px;
-            }
-
-            .panel-header-icon {
-                width: 40px;
-                height: 40px;
-                font-size: 18px;
-            }
-
-            .panel-header-info h3 {
-                font-size: 15px;
-            }
-
-            .panel-header-info p {
-                font-size: 11px;
-            }
-
-            .panel-header-actions {
-                width: 100%;
-                flex-wrap: wrap;
-                gap: 6px;
-            }
-
-            .panel-header-actions .montserrat-btn {
-                flex: 1 1 auto;
-                min-width: 0;
-                padding: 8px 10px;
-                font-size: 12px;
-            }
-
-            .validator-stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
-            }
-
-            .validator-stat-card {
-                padding: 12px;
-            }
-
-            .stat-card-icon {
-                width: 36px;
-                height: 36px;
-                font-size: 16px;
-            }
-
-            .stat-card-value {
-                font-size: 20px;
-            }
-
-            .stat-card-label {
-                font-size: 10px;
-            }
-
-            .validator-action-section {
-                flex-direction: column;
-                gap: 10px;
-                align-items: stretch;
-            }
-
-            .validator-primary-actions,
-            .validator-secondary-actions {
-                width: 100%;
-                flex-wrap: wrap;
-                justify-content: stretch;
-            }
-
-            .validator-primary-actions .montserrat-btn,
-            .validator-secondary-actions .montserrat-btn {
-                width: 100%;
-                justify-content: center;
-            }
-
             /* =================================================
              * 10) MONITOR — stats 4-col, split layout stacked
              * ================================================= */
@@ -22470,100 +22471,6 @@
                 </div>
             </div>
 
-            <!--
-                    <div class="modal-header">
-                        <h3><i class="fas fa-file-import"></i> Import Mailboxes</h3>
-                        <button class="modal-close" onclick="closeImportMailboxesModal()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-section">
-                            <label>Import Format</label>
-                            <div class="format-tabs">
-                                <button class="format-tab active" data-format="simple" onclick="selectImportFormat('simple')">Simple</button>
-                                <button class="format-tab" data-format="full" onclick="selectImportFormat('full')">Full</button>
-                                <button class="format-tab" data-format="json" onclick="selectImportFormat('json')">JSON</button>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <label>Format Help</label>
-                            <div class="format-help" id="importFormatHelp">
-                                <p><strong>Simple format:</strong> email:password (one per line)</p>
-                                <p><code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="611412041321060c00080d4f020e0c">[email&#160;protected]</a>:apppassword123</code></p>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <label>Paste Import Data</label>
-                            <textarea id="importMailboxesData_old" placeholder="Paste your mailbox data here...
-
-Supported formats:
-• Simple: email:password (one per line)
-• Full: email:password:imap_host:imap_port:smtp_host:smtp_port (one per line)
-• JSON: [{"email": "...", "password": "...", ...}]
-
-Example (Simple format):
-user1@example.com:password123
-user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste="setTimeout(detectImportFormat, 10)"></textarea>
-                            <div class="auto-detect-indicator" id="autoDetectIndicator">
-                                <i class="fas fa-magic"></i>
-                                <span>Auto-detecting format...</span>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <div class="import-progress" id="importProgress" style="display: none;">
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="importProgressFill"></div>
-                                </div>
-                                <div class="progress-text" id="importProgressText">Processing 0/0...</div>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <div class="form-group-checkbox">
-                                <input type="checkbox" id="importTestOnly">
-                                <label for="importTestOnly">Test only (don't save)</label>
-                            </div>
-                        </div>
-
-                        <div class="import-results" id="importResults" style="display: none;">
-                            <div class="results-header">
-                                <h4><i class="fas fa-list-check"></i> Import Results</h4>
-                                <button class="btn-link" onclick="toggleImportResultsDetails()">
-                                    <i class="fas fa-chevron-down" id="importResultsToggleIcon"></i> Show Details
-                                </button>
-                            </div>
-                            <div class="results-summary" id="importResultsSummary"></div>
-                            <div class="results-list" id="importResultsList" style="display: none;"></div>
-                        </div>
-
-                        <div class="import-error-summary" id="importErrorSummary" style="display: none;">
-                            <div class="error-header">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <span>Failed to import</span>
-                            </div>
-                            <div class="error-actions">
-                                <button class="btn btn-sm" onclick="retryFailedImports()">
-                                    <i class="fas fa-redo"></i> Retry Failed
-                                </button>
-                                <button class="btn btn-sm btn-secondary" onclick="downloadFailedImports()">
-                                    <i class="fas fa-download"></i> Download Failed List
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-primary" onclick="importMailboxesData()">
-                            <i class="fas fa-file-import"></i> Import
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            -->
             <!-- Import Mailboxes Modal -->
             <div id="importMailboxesModal" class="modal-overlay">
                 <div class="modal-content mailbox-modal import-modal-large">
@@ -24084,111 +23991,111 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                         <div class="launch-section-label">Service &amp; credentials</div>
 
                                         <div class="scraper-card">
-                                                <!-- which service runs the lookup -->
-                                                <div class="scraper-group">
-                                                    <span class="scraper-group-label">Service</span>
-                                                    <div class="select-wrapper">
-                                                        <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select" onchange="switchScraperProvider(this.value)">
-                                                            <option value="scrapingbee">ScrapingBee</option>
-                                                            <option value="decodo">Decodo</option>
-                                                            <option value="browser-use">Browser Use</option>
-                                                            <option value="local">Offline — free, no network</option>
-                                                        </select>
-                                                        <i class="fas fa-chevron-down select-arrow"></i>
-                                                    </div>
+                                            <!-- which service runs the lookup -->
+                                            <div class="scraper-group">
+                                                <span class="scraper-group-label">Service</span>
+                                                <div class="select-wrapper">
+                                                    <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select" onchange="switchScraperProvider(this.value)">
+                                                        <option value="scrapingbee">ScrapingBee</option>
+                                                        <option value="decodo">Decodo</option>
+                                                        <option value="browser-use">Browser Use</option>
+                                                        <option value="local">Offline — free, no network</option>
+                                                    </select>
+                                                    <i class="fas fa-chevron-down select-arrow"></i>
                                                 </div>
-
-                                                <!-- the credential for that service -->
-                                                <div class="scraper-group" id="scraperKeyFields">
-                                                    <span class="scraper-group-label">Credentials</span>
-
-                                                    <div class="scraper-field">
-                                                        <div class="scraper-input-group">
-                                                            <input type="password" id="scraperApiKey" class="form-control scraper-input"
-                                                                   autocomplete="off" spellcheck="false" placeholder="Paste your API key"
-                                                                   onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
-                                                            <button type="button" class="scraper-input-reveal"
-                                                                    onclick="toggleKeyVisibility()" title="Show or hide the key">
-                                                                <i class="fas fa-eye" id="scraperRevealIcon"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-
-                                                    <div class="scraper-option-row">
-                                                        <span class="proxy-toggle-switch">
-                                                            <input type="checkbox" id="scraperPremiumProxy"
-                                                                   onchange="if (typeof refreshLaunchSummary === 'function') refreshLaunchSummary();">
-                                                            <span class="proxy-toggle-slider"></span>
-                                                        </span>
-                                                        <span class="scraper-option-text">
-                                                            <span class="scraper-option-title">Rotate IP every check</span>
-                                                            <span class="scraper-option-note">Premium residential proxy. 25 credits per lookup instead of 5.</span>
-                                                        </span>
-                                                    </div>
-
-                                                    <div class="scraper-field scraper-field-inline">
-                                                        <span class="scraper-inline-label">Proxy country</span>
-                                                        <input type="text" id="scraperProxyCountry" class="form-control scraper-input scraper-input-short"
-                                                               autocomplete="off" maxlength="2" placeholder="auto">
-                                                    </div>
-                                                    </div>
-
-                                                <!-- actions -->
-                                                <div class="scraper-actions">
-                                                    <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
-                                                            id="scraperSaveBtn" onclick="saveScraperKey()">
-                                                        <span class="btn-icon"><i class="fas fa-bolt"></i></span>
-                                                        <span class="btn-text">Save &amp; Activate</span>
-                                                    </button>
-                                                    <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                            id="scraperTestBtn" onclick="testScraperProvider()">
-                                                        <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                        <span class="btn-text">Test</span>
-                                                    </button>
-                                                    <button type="button" class="scraper-icon-btn"
-                                                            onclick="loadScraperPanel()" title="Re-read from the server">
-                                                        <i class="fas fa-sync-alt"></i>
-                                                    </button>
-                                                </div>
-
-                                                <!-- what the server says right now -->
-                                                <div class="scraper-status" id="scraperStatusLine">
-                                                    <i class="fas fa-circle-info scraper-status-icon"></i>
-                                                    <span class="scraper-status-text">Loading configuration…</span>
-                                                </div>
-
-                                                <div class="scraper-foot">
-                                                    <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
-                                                </div>
-
-                                                <!-- the JSON API path, kept out of the way -->
-                                                <details class="scraper-advanced">
-                                                    <summary>
-                                                        <i class="fas fa-chevron-right scraper-chevron"></i>
-                                                        <span>veriphone JSON API key</span>
-                                                        <span class="scraper-advanced-tag">skips scraping</span>
-                                                    </summary>
-                                                    <div class="scraper-advanced-body">
-                                                        <div class="scraper-field">
-                                                            <input type="password" id="veriphoneApiKey" class="form-control scraper-input"
-                                                                   autocomplete="off" placeholder="Paste a veriphone key">
-                                                        </div>
-                                                        <div class="scraper-actions">
-                                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm" onclick="saveVeriphoneKey()">
-                                                                <span class="btn-icon"><i class="fas fa-key"></i></span>
-                                                                <span class="btn-text">Save</span>
-                                                            </button>
-                                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm" onclick="testVeriphoneKey()">
-                                                                <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                                <span class="btn-text">Test</span>
-                                                            </button>
-                                                        </div>
-                                                        <div class="scraper-advanced-note">
-                                                            Queries the JSON API directly, so no scraping credits are spent.
-                                                        </div>
-                                                    </div>
-                                                </details>
                                             </div>
+
+                                            <!-- the credential for that service -->
+                                            <div class="scraper-group" id="scraperKeyFields">
+                                                <span class="scraper-group-label">Credentials</span>
+
+                                                <div class="scraper-field">
+                                                    <div class="scraper-input-group">
+                                                        <input type="password" id="scraperApiKey" class="form-control scraper-input" aria-label="API key"
+                                                               autocomplete="off" spellcheck="false" placeholder="Paste your API key"
+                                                               onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
+                                                        <button type="button" class="scraper-input-reveal"
+                                                                onclick="toggleKeyVisibility()" title="Show or hide the key">
+                                                            <i class="fas fa-eye" id="scraperRevealIcon"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div class="scraper-option-row">
+                                                    <span class="proxy-toggle-switch">
+                                                        <input type="checkbox" id="scraperPremiumProxy"
+                                                               onchange="if (typeof refreshLaunchSummary === 'function') refreshLaunchSummary();">
+                                                        <span class="proxy-toggle-slider"></span>
+                                                    </span>
+                                                    <span class="scraper-option-text">
+                                                        <span class="scraper-option-title">Rotate IP every check</span>
+                                                        <span class="scraper-option-note">Premium residential proxy. 25 credits per lookup instead of 5.</span>
+                                                    </span>
+                                                </div>
+
+                                                <div class="scraper-field scraper-field-inline">
+                                                    <span class="scraper-inline-label">Proxy country</span>
+                                                    <input type="text" id="scraperProxyCountry" class="form-control scraper-input scraper-input-short"
+                                                           autocomplete="off" maxlength="2" placeholder="auto">
+                                                </div>
+                                            </div>
+
+                                            <!-- actions -->
+                                            <div class="scraper-actions">
+                                                <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
+                                                        id="scraperSaveBtn" onclick="saveScraperKey()">
+                                                    <span class="btn-icon"><i class="fas fa-bolt"></i></span>
+                                                    <span class="btn-text">Save &amp; Activate</span>
+                                                </button>
+                                                <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                        id="scraperTestBtn" onclick="testScraperProvider()">
+                                                    <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                    <span class="btn-text">Test</span>
+                                                </button>
+                                                <button type="button" class="scraper-icon-btn"
+                                                        onclick="loadScraperPanel()" title="Re-read from the server">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- what the server says right now -->
+                                            <div class="scraper-status" id="scraperStatusLine">
+                                                <i class="fas fa-circle-info scraper-status-icon"></i>
+                                                <span class="scraper-status-text">Loading configuration…</span>
+                                            </div>
+
+                                            <div class="scraper-foot">
+                                                <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
+                                            </div>
+
+                                            <!-- the JSON API path, kept out of the way -->
+                                            <details class="scraper-advanced">
+                                                <summary>
+                                                    <i class="fas fa-chevron-right scraper-chevron"></i>
+                                                    <span>veriphone JSON API key</span>
+                                                    <span class="scraper-advanced-tag">skips scraping</span>
+                                                </summary>
+                                                <div class="scraper-advanced-body">
+                                                    <div class="scraper-field">
+                                                        <input type="password" id="veriphoneApiKey" class="form-control scraper-input"
+                                                               aria-label="veriphone API key" autocomplete="off" placeholder="Paste a veriphone key">
+                                                    </div>
+                                                    <div class="scraper-actions">
+                                                        <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm" onclick="saveVeriphoneKey()">
+                                                            <span class="btn-icon"><i class="fas fa-key"></i></span>
+                                                            <span class="btn-text">Save</span>
+                                                        </button>
+                                                        <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm" onclick="testVeriphoneKey()">
+                                                            <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                            <span class="btn-text">Test</span>
+                                                        </button>
+                                                    </div>
+                                                    <div class="scraper-advanced-note">
+                                                        Queries the JSON API directly, so no scraping credits are spent.
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        </div>
                                     </section>
                                 </div>
                             </div>
