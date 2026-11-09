@@ -2629,9 +2629,10 @@ def scrub_phone_result(result: Dict[str, Any]) -> Dict[str, Any]:
     if not cleaned["country"]:
         code = usable_token(cleaned.get("country_code"), 2)
         cleaned["country_code"] = code
-        # An ISO code alone is not much use in a row: fill in the name when we
-        # know it, keeping the "(XX)" form the page already understands.
-        if code:
+        # Fill in the name only when the row itself held up. On a row that was
+        # scraped from the wrong part of the page, the code is as untrustworthy
+        # as the rest of it -- do not dress it up as a country.
+        if code and number:
             try:
                 from functions import country_name
 
