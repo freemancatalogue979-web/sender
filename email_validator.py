@@ -118,7 +118,11 @@ _NEXT_LABEL = re.compile(
     r"mx|smtp|reachability|deliverability)\b",
     re.IGNORECASE,
 )
-REQUEST_TIMEOUT = 60
+# One lookup's network budget. ScrapingBee's own render ceiling is 40s, so a
+# longer client timeout only ever waits for a request that has already failed --
+# the 60s timeout in the log was the client waiting on nothing. Configurable so
+# a big batch can shorten it and fail fast instead of stalling per number.
+REQUEST_TIMEOUT = int(os.getenv("FV_S_REQUEST_TIMEOUT", "45"))
 
 
 def _blank_result(email: str) -> Dict[str, Any]:
@@ -785,11 +789,21 @@ class VeriphoneAdapter(SiteAdapter):
     url = VERIPHONE_URL
     category = "phone"
 
-    # The result grid is a display:grid block of label/value spans. Waiting for
-    # it is what separates "the lookup ran" from "the page loaded", and the old
-    # fixed sleep could not tell those apart: the parser then read the page's
-    # own <title> as the carrier.
-    result_selector = "#phone-result, [data-testid='phone-result']"
+    # How to tell that the lookup ran, without guessing an element id we have
+    # never seen. The result grid always contains a span holding "Number" and a
+    # span holding a formatted number next to it; the idle page contains
+    # neither. Expressing that as a condition is what makes this reliable -- an
+    # invented selector (#phone-result) can never match, so it simply waited out
+    # the whole timeout.
+    ready_js = """
+        (() => {
+            const t = (document.body.innerText || '');
+            // The grid renders the label and the number it belongs to.
+            const hasLabel = /\\bNumber\\b/.test(t);
+            const hasNumber = /\\+\\d[\\d\\s().-]{6,}/.test(t);
+            return hasLabel && hasNumber;
+        })()
+    """
 
     def browser_actions(self, value: str) -> List[Dict[str, Any]]:
         return [
@@ -810,8 +824,27 @@ class VeriphoneAdapter(SiteAdapter):
                 "timeout_s": 5,
             },
             # The grid is rendered after an in-page fetch; give it room.
-            {"type": "wait", "wait_time_s": 4},
+            {"type": "wait", "wait_time_s": 3},
         ]
+
+    def result_ready(self, driver: Any, timeout_ms: int) -> bool:
+        """
+        Wait, in the attached browser, until the result grid actually appears.
+
+        Returns False on timeout instead of raising: the caller decides what a
+        missing grid means (it is a failed render, not an invalid number).
+        """
+        import time as _time
+
+        deadline = _time.monotonic() + (timeout_ms / 1000.0)
+        while _time.monotonic() < deadline:
+            try:
+                if driver.evaluate(self.ready_js):
+                    return True
+            except Exception:
+                pass
+            _time.sleep(0.4)
+        return False
 
     def parse(self, text: str) -> Dict[str, Any]:
         """
@@ -1003,6 +1036,9 @@ def extract_html(payload: Any) -> Optional[str]:
 SCRAPINGBEE_API_URL = "https://app.scrapingbee.com/api/v1"
 SCRAPINGBEE_USAGE_URL = "https://app.scrapingbee.com/api/v1/usage"
 SCRAPINGBEE_RESULT_WAIT_MS = 6000
+# The phone grid appears a second or two after the click; poll for it.
+SCRAPINGBEE_READY_POLLS = 4
+SCRAPINGBEE_READY_POLL_MS = 1500
 
 
 def load_scrapingbee_settings(
@@ -1092,17 +1128,19 @@ def build_js_scenario(adapter: "SiteAdapter", value: str) -> Dict[str, Any]:
         elif kind == "input" and selector:
             instructions.append({"fill": [selector, action.get("value", "")]})
 
-    # The result grid renders after an in-page fetch. If the adapter knows its
-    # selector, wait for that element rather than guessing at a sleep: a fixed
-    # wait that expires silently is exactly how page chrome ends up parsed as a
-    # result. The sleep stays as a fallback for adapters without a selector.
-    selector = getattr(adapter, "result_selector", "")
-    if selector:
-        instructions.append({"wait_for": selector})
-    if instructions and "wait" in instructions[-1]:
-        instructions[-1]["wait"] += SCRAPINGBEE_RESULT_WAIT_MS
+    # The result grid renders after an in-page fetch. Rather than sleep blindly,
+    # re-run the adapter's readiness check a few times: ScrapingBee has no
+    # "wait until a JS condition holds", so polling it with evaluate() is the
+    # equivalent, and it cannot hang on a selector that does not exist.
+    if getattr(adapter, "ready_js", ""):
+        for _ in range(SCRAPINGBEE_READY_POLLS):
+            instructions.append({"wait": SCRAPINGBEE_READY_POLL_MS})
+            instructions.append({"evaluate": adapter.ready_js})
     else:
-        instructions.append({"wait": SCRAPINGBEE_RESULT_WAIT_MS})
+        if instructions and "wait" in instructions[-1]:
+            instructions[-1]["wait"] += SCRAPINGBEE_RESULT_WAIT_MS
+        else:
+            instructions.append({"wait": SCRAPINGBEE_RESULT_WAIT_MS})
     return {"instructions": instructions}
 
 
@@ -1139,7 +1177,11 @@ def _call_scrapingbee(
             timeout=REQUEST_TIMEOUT,
         )
     except requests.exceptions.Timeout as exc:
-        raise DecodoError("ScrapingBee request timed out") from exc
+        raise DecodoError(
+            f"ScrapingBee did not answer within {REQUEST_TIMEOUT}s. The render "
+            "limit on their side is 40s, so this is usually their queue or a "
+            "blocked request — try again, or switch transport to Browser Use."
+        ) from exc
     except requests.exceptions.RequestException as exc:
         raise DecodoError(f"ScrapingBee request failed: {exc}") from exc
 
@@ -1161,14 +1203,13 @@ def _call_scrapingbee(
     if not (response.text or "").strip():
         raise DecodoError("ScrapingBee returned an empty page")
 
-    # For the phone checker, a page without the result grid means the form did
+    # For the phone checker, a page without a number in it means the form did
     # not run (bad selector, blocked, timed out). Report that as a failure --
-    # do not hand the HTML back to be parsed as if it were an answer.
-    if getattr(adapter, "result_selector", "") and not parse_veriphone_phone_page(
-        response.text
-    ).get("number"):
+    # do not hand the HTML back to be parsed as if it were an answer. This uses
+    # the parser, not a selector, so it tests the thing we actually need.
+    if adapter.category == "phone" and not parse_veriphone_phone_page(response.text).get("number"):
         raise DecodoError(
-            "ScrapingBee rendered the page but the result grid never appeared "
+            "ScrapingBee rendered the page but no result grid appeared "
             "(the form did not submit). Nothing was parsed."
         )
     return response.text
@@ -1783,6 +1824,8 @@ BROWSER_USE_DEFAULT_PROXY_COUNTRY = "us"
 _PROXY_OFF_VALUES = {"", "none", "direct", "off", "false", "0"}
 BROWSER_USE_NAV_TIMEOUT_MS = 30000
 BROWSER_USE_SETTLE_MS = 2500
+# How long to wait for the result grid inside the remote browser.
+BROWSER_USE_RESULT_TIMEOUT_MS = 20000
 
 
 def load_browser_use_settings(
@@ -1965,10 +2008,27 @@ def _run_browser_use_scrape(
                     elif kind == "input":
                         page.fill(action["selector"]["value"], action.get("value", ""))
 
+                # Wait for the result grid itself, not for a wall clock. A fixed
+                # sleep either wastes time or fires before the in-page fetch has
+                # answered; either way the parse then runs on the wrong page.
+                ready = True
+                if getattr(adapter, "result_ready", None):
+                    ready = adapter.result_ready(page, BROWSER_USE_RESULT_TIMEOUT_MS)
+
                 page.wait_for_timeout(BROWSER_USE_SETTLE_MS)
-                text = extract_html(page.content())
+                html = page.content()
+                text = extract_html(html)
                 if not text:
                     raise DecodoError("Browser Use returned an empty page")
+                if not ready:
+                    # Keep the page for inspection, then fail honestly.
+                    _debug_dump_page(html, value)
+                    raise DecodoError(
+                        "Browser Use loaded veriphone but the result grid never "
+                        "appeared (the form did not submit). Nothing was parsed."
+                    )
+                _debug_dump_page(html, value)
+                _trace("browser-use page captured", number=value, bytes=len(html))
                 return text
             finally:
                 try:
@@ -2512,14 +2572,20 @@ def validate_phone_via_browser_use(
     e164 = to_e164(phone_number, country_code)
     result["e164"] = e164
 
+    _trace("browser-use request", number=e164,
+           proxy_country=resolve_proxy_country(settings) or "none",
+           timeout_s=settings.get("browser_timeout") or BROWSER_USE_BROWSER_TIMEOUT_S)
     try:
         html = _run_browser_use_scrape(adapter, e164, settings)
     except DecodoError as exc:
+        _trace("browser-use failed", number=e164, error=exc)
         result["error"] = str(exc)
         return result
     except Exception as exc:
+        _trace("browser-use crashed", number=e164, error=exc)
         result["error"] = f"Browser Use failed: {exc}"
         return result
+    _trace("browser-use returned", number=e164, bytes=len(html))
 
     raw = adapter.parse(html)
     status, reason, confidence = classify_phone(raw)
@@ -2539,6 +2605,10 @@ def validate_phone_via_browser_use(
     result["country"] = raw.get("country")
     result["region"] = raw.get("region")
     result["city"] = raw.get("city")
+
+    _trace("verdict", number=result["formatted_number"], type=result["line_type"],
+           carrier=result["carrier"], country=result["country"],
+           status=status, confidence=confidence, reason=reason)
     return result
 
 

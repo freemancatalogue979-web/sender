@@ -1167,12 +1167,14 @@ def test_js_scenario_drives_the_veriphone_form():
     ins = sc["instructions"]
     assert {"fill": ["#phone-input", "+2347069977249"]} in ins
     assert {"click": "#checker-submit"} in ins
-    # A leading settle wait is fine; two sleeps back-to-back are not.
-    assert not any("wait" in a and "wait" in b for a, b in zip(ins, ins[1:])), ins
-    # The last instruction must be a long enough wait for the result grid.
-    assert "wait" in ins[-1]
-    assert ins[-1]["wait"] >= 6000
-    assert ins.index({"click": "#checker-submit"}) < len(ins) - 1
+    # The form is submitted, then the readiness check runs after it.
+    submit = ins.index({"click": "#checker-submit"})
+    first_check = next(i for i, a in enumerate(ins) if "evaluate" in a)
+    assert submit < first_check
+    # Enough attempts to outlast a slow in-page fetch, but bounded.
+    polls = sum(1 for a in ins if "evaluate" in a)
+    assert polls == ev.SCRAPINGBEE_READY_POLLS
+    assert polls > 1
 
 
 def test_js_scenario_is_built_from_the_email_adapter_too():
@@ -1800,12 +1802,92 @@ def test_scrapingbee_render_without_the_grid_is_a_failure(monkeypatch):
     assert "result grid" in str(exc.value)
 
 
-def test_js_scenario_waits_for_the_result_element():
-    scenario = ev.build_js_scenario(ev._ADAPTERS["veriphone"], "+2347069977249")
-    kinds = [list(step)[0] for step in scenario["instructions"]]
+def test_js_scenario_polls_for_the_result_grid():
+    """
+    Readiness is a page condition, not an element id we never saw.
 
-    assert "wait_for" in kinds
-    # Fill happens before the submit click (the first click only focuses the
-    # input), and the wait-for comes after the submit.
+    The earlier version emitted wait_for on "#phone-result", an invented
+    selector. It could never match, so every lookup sat there until the
+    transport timed out -- which is exactly the 60s timeout seen in the log.
+    """
+    scenario = ev.build_js_scenario(ev._ADAPTERS["veriphone"], "+2347069977249")
+    steps = scenario["instructions"]
+    kinds = [list(step)[0] for step in steps]
+
+    assert "wait_for" not in kinds          # no guessed selector
+    assert "evaluate" in kinds              # a real condition instead
     submit = kinds.index("click", kinds.index("fill"))
-    assert kinds.index("fill") < submit < kinds.index("wait_for")
+    assert kinds.index("fill") < submit < kinds.index("evaluate")
+
+    # The condition must look for the grid, not for page chrome.
+    condition = next(s["evaluate"] for s in steps if "evaluate" in s)
+    assert "Number" in condition
+    assert "innerText" in condition
+
+
+# =============================================================================
+# Browser Use transport
+#
+# The ScrapingBee render timed out after 60s and the log ended there, so this
+# transport has to (a) exist as a route the panel can call, (b) not wait on a
+# selector nobody has ever seen, and (c) refuse to invent a verdict when the
+# grid never appears.
+# =============================================================================
+
+def test_browser_use_test_route_exists():
+    """The panel posts here; before this it 404'd on every Test click."""
+    import api
+
+    paths = {(tuple(sorted(r.methods)), r.path) for r in api.validator_router.routes}
+    assert (("POST",), "/validator/browser-use/test") in paths
+    assert (("GET",), "/validator/browser-use/config") in paths
+
+
+def test_browser_use_config_route_is_not_shadowed():
+    """Two handlers once shared /decodo/test; the settings reader won by accident."""
+    import api
+
+    decodo = [r for r in api.validator_router.routes if r.path == "/validator/decodo/test"]
+    assert len(decodo) == 1
+    assert decodo[0].endpoint.__name__ == "test_decodo_config"
+
+
+def test_browser_use_without_a_key_fails_cleanly():
+    result = ev.validate_phone_via_browser_use("+2349028938460", "NG", {"api_key": ""})
+
+    assert result["error"]
+    assert result["status"] == ev.STATUS_UNKNOWN
+    assert result["valid"] is False
+
+
+def test_veriphone_readiness_checks_the_page_not_a_selector():
+    adapter = ev._ADAPTERS["veriphone"]
+
+    assert not hasattr(adapter, "result_selector"), "guessed selectors are gone"
+    assert "innerText" in adapter.ready_js
+    assert "Number" in adapter.ready_js
+
+
+def test_result_ready_times_out_instead_of_raising():
+    """A page that never renders the grid must return False, not hang or raise."""
+    class Dead:
+        def evaluate(self, script):
+            return False
+
+    adapter = ev._ADAPTERS["veriphone"]
+    assert adapter.result_ready(Dead(), timeout_ms=300) is False
+
+
+def test_result_ready_succeeds_when_the_grid_appears():
+    class Live:
+        def evaluate(self, script):
+            return True
+
+    adapter = ev._ADAPTERS["veriphone"]
+    assert adapter.result_ready(Live(), timeout_ms=1000) is True
+
+
+def test_request_timeout_is_bounded():
+    """ScrapingBee's own ceiling is 40s; waiting longer only waits on nothing."""
+    assert ev.REQUEST_TIMEOUT <= 60
+    assert ev.REQUEST_TIMEOUT >= 10

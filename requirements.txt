@@ -33,8 +33,9 @@ dnspython>=2.4.0
 # region with no network call and no API credits. Free, BSD/Apache licensed.
 phonenumbers>=8.13.0
 
-# Optional third transport: Browser Use cloud Chromium over CDP ($0.02/hr).
-# Not required to run the app - phone validation defaults to the offline engine
-# and falls back to Decodo when these are absent.
-# browser-use-sdk>=3.12.0
-# playwright>=1.40.0
+# Third transport: Browser Use cloud Chromium over CDP ($0.02/hr).
+# Not needed for the offline engine or Decodo, but the panel offers Browser Use
+# as a choice, so an install that lacks these cannot use what the UI advertises.
+browser-use-sdk>=3.12.0
+playwright>=1.40.0
+# playwright also needs a browser binary:  python -m playwright install chromium

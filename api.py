@@ -7664,8 +7664,8 @@ async def test_scrapingbee_config(current_user: dict = Depends(get_current_user)
     return test_scrapingbee_transport(settings)
 
 
-@validator_router.post("/decodo/test")
-async def test_decodo_config(current_user: dict = Depends(get_current_user)):
+@validator_router.get("/browser-use/config")
+async def get_browser_use_config(current_user: dict = Depends(get_current_user)):
     """Browser Use cloud browser settings (the key itself is never returned)."""
     user_id = current_user["user_id"]
 
@@ -7685,6 +7685,57 @@ async def test_decodo_config(current_user: dict = Depends(get_current_user)):
             "$0.02/browser-hour plus $5/GB proxy traffic; set proxy_country_code "
             "to 'none' to disable the proxy."
         ),
+    }
+
+
+@validator_router.post("/browser-use/test")
+async def test_browser_use_config(current_user: dict = Depends(get_current_user)):
+    """
+    Prove the Browser Use key works by driving the real veriphone form.
+
+    The panel has always called this route and it did not exist, so Test on
+    Browser Use could only ever 404. It runs the same adapter a batch run uses,
+    so a pass here means a launch will work, and it stops the remote browser
+    afterwards so billing stops with it.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import (
+        is_browser_use_available,
+        load_browser_use_settings,
+        validate_phone_via_browser_use,
+    )
+
+    settings = load_browser_use_settings(user_id, USERS_BASE_PATH)
+    if not settings.get("api_key"):
+        raise HTTPException(
+            status_code=400,
+            detail="No Browser Use API key configured. Paste one and save it first.",
+        )
+    if not is_browser_use_available():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Browser Use needs the browser-use-sdk and playwright packages "
+                "plus a playwright browser. Install them, then test again."
+            ),
+        )
+
+    result = await asyncio.to_thread(
+        validate_phone_via_browser_use, "+14155552671", "US", settings
+    )
+
+    return {
+        "success": not result.get("error") and bool(
+            result.get("country") or result.get("carrier")
+        ),
+        "error": result.get("error"),
+        "number": result.get("formatted_number"),
+        "carrier": result.get("carrier"),
+        "country": result.get("country"),
+        "line_type": result.get("line_type"),
+        "status": result.get("status"),
+        "site": result.get("site"),
     }
 
 
