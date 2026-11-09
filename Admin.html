@@ -2348,6 +2348,15 @@
             /* Field group: the panel's own label size, tightened for this column. */
             .scraper-field { margin-bottom: 12px; }
             .scraper-field .form-label { margin-bottom: 7px; font-size: 10px; }
+            .scraper-field-hint {
+                display: block;
+                margin-top: 3px;
+                font-size: 9.5px;
+                font-weight: 500;
+                letter-spacing: 0;
+                text-transform: none;
+                color: rgba(255, 255, 255, 0.32);
+            }
 
             .scraper-field-note {
                 margin-top: 6px;
@@ -23963,11 +23972,14 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
 
                                     <!-- ============ how it runs ============ -->
                                     <section class="launch-block launch-block-transport">
-                                        <div class="launch-section-label">Transport</div>
+                                        <div class="launch-section-label">Service &amp; credentials</div>
 
                                         <div class="scraper-card">
                                             <div class="form-group scraper-field">
-                                                <label class="form-label" for="scraperProviderSelect">Service</label>
+                                                <label class="form-label" for="scraperProviderSelect">
+                                                    Service
+                                                    <span class="scraper-field-hint">what actually performs the lookup</span>
+                                                </label>
                                                 <div class="select-wrapper">
                                                     <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select"
                                                             onchange="switchScraperProvider(this.value)">
@@ -24009,7 +24021,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                     </span>
                                                     <span class="scraper-option-text">
                                                         <span class="scraper-option-title">Premium proxy</span>
-                                                        <span class="scraper-option-note">A fresh residential IP per check. 25 credits, not 5.</span>
+                                                        <span class="scraper-option-note">A fresh residential IP per check, so one number can't rate-limit the next. Costs 25 credits, not 5.</span>
                                                     </span>
                                                 </label>
                                             </div>
@@ -37478,12 +37490,52 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         // One helper decides how a number reads: its international form, a flag,
         // carrier, line type and a status word. The list preview and the live HUD
         // share these, so a number never reads differently in two places.
+        // ---------------------------------------------------------------- phone rows
+        // A value is only a fact if it looks like one. Scraped pages used to hand
+        // back fragments of their own HTML as a carrier or a country, which then
+        // rendered as "Carrier: Lookup — Veriphone</title>". Anything that does
+        // not look like a country, a carrier or a line type is shown as "—" so a
+        // bad scrape can never masquerade as data.
+        function phoneCleanNumber(value) {
+            const text = String(value || '');
+            // A phone number is digits with optional +, spaces, dashes, parens.
+            const m = text.match(/\+?[\d][\d\s().-]{5,19}/);
+            return m ? m[0].trim() : '';
+        }
+
+        function phoneCleanCountry(value) {
+            let text = String(value || '').trim();
+            // "Nigeria (NG)" -> name + iso; reject HTML or sentences outright.
+            const m = text.match(/^([A-Za-z][A-Za-z .'\-]{1,40}?)(?:\s*\(([A-Za-z]{2})\))?$/);
+            if (!m) return { name: '', iso: '' };
+            return { name: m[1].trim(), iso: (m[2] || '').toUpperCase() };
+        }
+
+        function phoneCleanToken(value, limit) {
+            const text = String(value || '').trim();
+            // Carrier and line-type values are short words: "MTN", "Airtel",
+            // "fixed_line". Anything with tags, newlines or a sentence is junk.
+            if (!text || text.length > (limit || 32)) return '';
+            if (/[<>\n\r{};]/.test(text)) return '';
+            if (text.split(/\s+/).length > 3) return '';
+            return text;
+        }
+
         function phoneRowNumber(n) {
-            return n.formatted_number || n.e164 || n.number || '—';
+            return phoneCleanNumber(n.formatted_number) ||
+                   phoneCleanNumber(n.e164) ||
+                   phoneCleanNumber(n.number) ||
+                   String(n.number || '—');
         }
 
         function phoneRowStatus(n) {
             if (n.error) return { key: 'failed', label: 'Failed', title: n.error };
+            // A verdict is only as good as the number it belongs to. Older
+            // sessions stored page fragments as results; do not keep calling
+            // those "Valid" just because a boolean was saved next to them.
+            if (!phoneCleanNumber(n.formatted_number || n.e164 || n.number)) {
+                return { key: 'unknown', label: 'Unknown', title: 'No readable number in this result' };
+            }
             const status = (n.status || '').toLowerCase();
             if (status === 'unknown' || (!n.status && n.valid !== true && n.valid !== false)) {
                 return { key: 'unknown', label: 'Unknown', title: n.reason || '' };
@@ -37495,12 +37547,10 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         }
 
         function phoneCountryLabel(n) {
+            const parsed = phoneCleanCountry(n.country);
             let iso = (n.country_code || '').trim().toUpperCase();
-            if (iso.length !== 2) {
-                const m = /\(([A-Za-z]{2})\)/.exec(n.country || '');
-                if (m) iso = m[1].toUpperCase();
-            }
-            const name = (n.country || '').replace(/\s*\([A-Za-z]{2}\)\s*$/, '').trim();
+            if (!/^[A-Z]{2}$/.test(iso)) iso = parsed.iso;
+            const name = parsed.name;
             return { name: name || iso || '—', iso: iso };
         }
 
@@ -37513,8 +37563,12 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         }
 
         function phoneLineType(n) {
-            const t = (n.line_type || '').replace(/_/g, ' ').trim();
-            return t ? t.charAt(0).toUpperCase() + t.slice(1) : '—';
+            const t = phoneCleanToken(String(n.line_type || '').replace(/_/g, ' '), 20);
+            return t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : '—';
+        }
+
+        function phoneCarrier(n) {
+            return phoneCleanToken(n.carrier, 28) || '—';
         }
 
         function renderNumRow(n, index) {
@@ -37525,7 +37579,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     <span class="num-col-index">${index}</span>
                     <span class="num-col-number">${escapeHtml(phoneRowNumber(n))}</span>
                     <span class="num-col-country">${phoneFlag(n.country_code, n.country)}<span class="num-country-name">${escapeHtml(country.name)}</span></span>
-                    <span class="num-col-carrier">${escapeHtml(n.carrier || '—')}</span>
+                    <span class="num-col-carrier">${escapeHtml(phoneCarrier(n))}</span>
                     <span class="num-col-type">${escapeHtml(phoneLineType(n))}</span>
                     <span class="num-col-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
                 </div>`;
@@ -39414,7 +39468,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                             <span class="hud-dot ${status.key}"></span>
                             <span class="hud-number">${escapeHtml(phoneRowNumber(n))}</span>
                             <span class="hud-country">${phoneFlag(n.country_code, n.country)}<span>${escapeHtml(country.name)}</span></span>
-                            <span class="hud-carrier">${escapeHtml(n.carrier || '—')}${conf}</span>
+                            <span class="hud-carrier">${escapeHtml(phoneCarrier(n))}${conf}</span>
                             <span class="hud-type">${escapeHtml(phoneLineType(n))}</span>
                             <span class="hud-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
                             <span class="hud-time">${escapeHtml(checked)}</span>

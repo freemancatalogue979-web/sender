@@ -11491,8 +11491,11 @@ def add_numbers_to_phone_list(
 
 def format_phone_number(phone: str) -> tuple:
     """
-    Format phone number and extract country code
-    Returns (country_code, formatted_number)
+    Split a number into (country_code, national_number).
+
+    This is a *guess* for grouping and display. It is not the value to store:
+    ``clean_number`` below is deliberately national-only, so use
+    ``normalize_phone_number`` before persisting or dialling a number.
     """
     # Clean the number
     clean_number = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "").replace("+", "")
@@ -11560,7 +11563,105 @@ def format_phone_number(phone: str) -> tuple:
     return matched_country, clean_number
 
 
-def categorize_phone_numbers(raw_numbers: List[str]) -> dict:
+# Dial codes for the countries this app actually imports. Longest first, so
+# "234" is tested before "23" and "+1" never swallows a longer code.
+_DIAL_CODE_TABLE = {
+    "1": "US", "7": "RU", "20": "EG", "27": "ZA", "30": "GR", "31": "NL",
+    "32": "BE", "33": "FR", "34": "ES", "36": "HU", "39": "IT", "40": "RO",
+    "41": "CH", "43": "AT", "44": "GB", "45": "DK", "46": "SE", "47": "NO",
+    "48": "PL", "49": "DE", "51": "PE", "52": "MX", "53": "CU", "54": "AR",
+    "55": "BR", "56": "CL", "57": "CO", "58": "VE", "60": "MY", "61": "AU",
+    "62": "ID", "63": "PH", "64": "NZ", "65": "SG", "66": "TH", "81": "JP",
+    "82": "KR", "84": "VN", "86": "CN", "90": "TR", "91": "IN", "92": "PK",
+    "93": "AF", "94": "LK", "95": "MM", "98": "IR", "212": "MA", "213": "DZ",
+    "216": "TN", "218": "LY", "220": "GM", "221": "SN", "225": "CI",
+    "233": "GH", "234": "NG", "237": "CM", "250": "RW", "254": "KE",
+    "255": "TZ", "256": "UG", "260": "ZM", "263": "ZW", "351": "PT",
+    "353": "IE", "358": "FI", "380": "UA", "420": "CZ", "880": "BD",
+    "966": "SA", "968": "OM", "971": "AE", "972": "IL", "973": "BH",
+    "974": "QA", "965": "KW",
+}
+
+# Countries that write a trunk "0" before the national number when dialled
+# domestically: Nigeria 0706…, UK 07911…, Germany 0151…, etc.
+_TRUNK_ZERO_COUNTRIES = {
+    "NG", "GB", "GH", "KE", "ZA", "IE", "DE", "FR", "IT", "ES", "NL", "BE",
+    "CH", "AT", "SE", "NO", "DK", "FI", "PL", "PT", "RO", "TR", "RU", "UA",
+}
+
+
+def normalize_phone_number(phone: str, country_code: str = "") -> tuple:
+    """
+    Return ``(country_code, e164)`` for a number, keeping the dial code.
+
+    ``format_phone_number`` answers "which country?" and throws the dial code
+    away, which is fine for a flag but destructive for storage: importing
+    "+234 706 997 7249" stored "7069977249", and "07069977249" stored
+    "069977249" because the leading 0 was read as the start of a dial code.
+    Callers that persist a number must use this instead.
+
+    A supplied ``country_code`` is trusted over prefix guessing, and a textbook
+    national number (leading trunk zero) is resolved against it, so
+    "07069977249" + "NG" becomes "+2347069977249" rather than "+069977249".
+    """
+    raw = (phone or "").strip()
+    digits = re.sub(r"\D", "", raw)
+    if not digits:
+        return ("", "")
+
+    hint = (country_code or "").strip().upper()
+    dial_hint = ""
+    for code, iso in _DIAL_CODE_TABLE.items():
+        if iso == hint:
+            dial_hint = code
+            break
+
+    # 1. Already international.
+    if raw.startswith("+"):
+        return _split_dial_code(digits, hint)
+
+    # 2. International dialling prefix.
+    if digits.startswith("00") and len(digits) > 4:
+        return _split_dial_code(digits[2:], hint)
+
+    # 3. A national number written with its trunk zero ("07069977249").
+    if digits.startswith("0") and dial_hint:
+        return hint, "+" + dial_hint + digits.lstrip("0")
+
+    # 4. Digits already carrying their dial code.
+    if dial_hint and digits.startswith(dial_hint) and len(digits) - len(dial_hint) >= 7:
+        return hint, "+" + digits
+
+    # 5. A plain national number. The hint wins here: guessing from prefixes
+    #    reads a US "4155552671" as "+41…" (Switzerland) because 41 is a dial
+    #    code too. Only guess when there is no hint to trust.
+    if dial_hint and 6 <= len(digits) <= 13:
+        national = digits.lstrip("0") if hint in _TRUNK_ZERO_COUNTRIES else digits
+        return hint, "+" + dial_hint + national
+
+    iso, e164 = _split_dial_code(digits, hint)
+    if iso:
+        return iso, e164
+
+    # 6. Nothing matched. Never invent a trunk zero into a dial code: a bare
+    #    "07069977249" stays as-is, marked unknown, and validation will report
+    #    it as malformed instead of the app fabricating a country.
+    if digits.startswith("0"):
+        return "UNKNOWN", digits
+    return (hint or "UNKNOWN"), ("+" + digits if digits else "")
+
+
+def _split_dial_code(digits: str, hint: str = "") -> tuple:
+    """Match a bare digit string against the dial code table, longest first."""
+    for code in sorted(_DIAL_CODE_TABLE, key=len, reverse=True):
+        if digits.startswith(code) and len(digits) - len(code) >= 6:
+            return _DIAL_CODE_TABLE[code], "+" + digits
+    if hint:
+        return hint, "+" + digits
+    return "", "+" + digits
+
+
+def categorize_phone_numbers(raw_numbers: List[str], country_code: str = "") -> dict:
     """
     Categorize and clean phone numbers by country code
     Returns dict with country codes as keys and lists of cleaned numbers as values
@@ -11579,16 +11680,21 @@ def categorize_phone_numbers(raw_numbers: List[str]) -> dict:
             continue
         
         original = number.strip()
-        country_code, formatted = format_phone_number(original)
+        # Store the international form. The old code kept only the national
+        # digits, so the country code was gone by the time it reached veriphone
+        # and a trunk zero looked like a dial code.
+        entry_cc, e164 = normalize_phone_number(original, country_code)
         
         entry = {
             "original": original,
-            "cleaned": formatted,
-            "country_code": country_code,
+            # ``cleaned`` is what every caller persists; keep it dialable.
+            "cleaned": e164,
+            "e164": e164,
+            "country_code": entry_cc,
             "valid": True  # Will be validated later
         }
         
-        key = f" {country_code}"  # Space prefix for sorting
+        key = f" {entry_cc}"  # Space prefix for sorting
         if key not in results:
             results[key] = []
         results[key].append(entry)
@@ -11608,7 +11714,9 @@ def import_phone_numbers(
     Returns categorized numbers and creates phone list
     """
     # Categorize numbers by country
-    categorized = categorize_phone_numbers(raw_numbers)
+    # Pass the hint in, so a national number in a list imported as "NG" is
+    # resolved to +234 rather than guessed from its leading digits.
+    categorized = categorize_phone_numbers(raw_numbers, country_code or "")
     
     # Handle unknown country codes - use provided country_code or ask user
     if " Unknown" in categorized and country_code:

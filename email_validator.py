@@ -588,6 +588,152 @@ class EmailHippoAdapter(SiteAdapter):
         }
 
 
+# The result grid's labels, in the order veriphone renders them. A value is
+# whatever span sits immediately after a span holding one of these words.
+_PHONE_GRID_LABELS = {
+    "number": "number",
+    "phone": "number",
+    "type": "line_type",
+    "line type": "line_type",
+    "carrier": "carrier",
+    "country": "country",
+    "region": "region",
+    "city": "city",
+    "valid": "valid_field",
+    "validation": "valid_field",
+    "prepaid": "prepaid",
+    "leaked": "leaked",
+}
+
+# Words that can start a span but are never a value: skip them.
+_PHONE_LABEL_IGNORE = {"", ":", "-", "—"}
+
+
+def _spans_with_text(html: str) -> List[str]:
+    """
+    Text of every leaf element, in document order.
+
+    Leaf only: a wrapper such as ``<div style="display:grid">`` contains all the
+    spans, so matching it would swallow the grid into one unreadable string.
+    """
+    # Drop scripts and styles entirely -- they are the bulk of the false hits.
+    cleaned = re.sub(r"(?is)<(script|style|noscript)\b.*?</\1>", " ", html or "")
+    out: List[str] = []
+    # [^<]* means the element holds text only, never another tag.
+    for match in re.finditer(
+        r"(?is)<(span|div|td|th|dd|dt|p|strong|b|label)\b[^>]*>([^<]*)</\1>", cleaned
+    ):
+        text = _html_unescape(match.group(2))
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            out.append(text)
+    return out
+
+
+_PHONE_TEXT_LINE = re.compile(
+    r"^(number|phone|type|line\s*type|carrier|country|region|state|city|"
+    r"valid(?:e|ity)?|prepaid|leaked)\s*:?\s*(.*)$",
+    re.IGNORECASE,
+)
+
+
+def _parse_phone_text_grid(text: str) -> Dict[str, Any]:
+    """
+    Read the grid from already-extracted text, one label per line.
+
+    ``Carrier`` with nothing after it stays empty rather than swallowing the
+    next label -- the whole-grid-absorbed-into-one-field bug again.
+    """
+    fields: Dict[str, Any] = {
+        "number": None, "line_type": None, "carrier": None,
+        "country": None, "region": None, "city": None, "valid_field": None,
+    }
+    keys = {
+        "number": "number", "phone": "number", "type": "line_type",
+        "line type": "line_type", "carrier": "carrier", "country": "country",
+        "region": "region", "state": "region", "city": "city",
+        "valid": "valid_field", "validate": "valid_field",
+        "validity": "valid_field", "prepaid": "prepaid", "leaked": "leaked",
+    }
+
+    lines = [line.strip() for line in (text or "").splitlines()]
+    for index, line in enumerate(lines):
+        match = _PHONE_TEXT_LINE.match(line)
+        if not match:
+            continue
+        label = re.sub(r"\s+", " ", match.group(1).lower())
+        key = keys.get(label)
+        if not key or fields.get(key):
+            continue
+        value = match.group(2).strip(" -–—:|")
+        if not value:
+            # Value on the next line, but only if it is not another label.
+            for following in lines[index + 1: index + 3]:
+                following = following.strip()
+                if not following:
+                    continue
+                if _PHONE_TEXT_LINE.match(following):
+                    break
+                value = following.strip(" -–—:|")
+                break
+        if value and not _PHONE_TEXT_LINE.match(value):
+            fields[key] = value
+    return fields
+
+
+def parse_veriphone_phone_page(html: str) -> Dict[str, Any]:
+    """
+    Extract the veriphone result grid from a rendered page.
+
+    Returns the same keys the old regex parser did, all ``None`` when the grid
+    is not present -- which is the honest answer when the page rendered but the
+    lookup did not run, and keeps ``classify_phone`` from inventing a verdict.
+    """
+    fields: Dict[str, Any] = {
+        "number": None,
+        "line_type": None,
+        "carrier": None,
+        "country": None,
+        "region": None,
+        "city": None,
+        "valid_field": None,
+    }
+    if not html:
+        return fields
+
+    # Work on the body only: <title> lives in <head> and was being read as a
+    # carrier name.
+    body_start = re.search(r"(?is)<body\b", html)
+    body = html[body_start.start():] if body_start else html
+    body = re.sub(r"(?is)<head\b.*?</head>", " ", body)
+
+    if "<" not in body:
+        # Already text (the Decodo path extracts it first). The grid then reads
+        # as one "label value" pair per line, with empty values kept as blanks.
+        return _parse_phone_text_grid(body)
+
+    spans = _spans_with_text(body)
+    for index, text in enumerate(spans):
+        key = _PHONE_GRID_LABELS.get(text.lower().strip(" :"))
+        if not key or key in fields and fields[key]:
+            continue
+        # The value is the next non-empty span that is not itself a label.
+        for candidate in spans[index + 1: index + 4]:
+            lowered = candidate.lower().strip(" :")
+            if lowered in _PHONE_LABEL_IGNORE:
+                continue
+            if lowered in _PHONE_GRID_LABELS:
+                break  # the label had no value; do not steal the next one
+            fields[key] = candidate
+            break
+
+    # A value that is obviously page chrome means the grid was not rendered.
+    if fields.get("number") and not re.search(r"\d{3}", fields["number"]):
+        for key in list(fields):
+            fields[key] = None
+    return fields
+
+
 class VeriphoneAdapter(SiteAdapter):
     """
     veriphone.io — the phone-number checker.
@@ -607,6 +753,12 @@ class VeriphoneAdapter(SiteAdapter):
     name = "veriphone"
     url = VERIPHONE_URL
     category = "phone"
+
+    # The result grid is a display:grid block of label/value spans. Waiting for
+    # it is what separates "the lookup ran" from "the page loaded", and the old
+    # fixed sleep could not tell those apart: the parser then read the page's
+    # own <title> as the carrier.
+    result_selector = "#phone-result, [data-testid='phone-result']"
 
     def browser_actions(self, value: str) -> List[Dict[str, Any]]:
         return [
@@ -631,15 +783,21 @@ class VeriphoneAdapter(SiteAdapter):
         ]
 
     def parse(self, text: str) -> Dict[str, Any]:
-        return {
-            "number": self.field(text, r"Number"),
-            "line_type": self.field(text, r"Type"),
-            "carrier": self.field(text, r"Carrier"),
-            "country": self.field(text, r"Country"),
-            "region": self.field(text, r"Region|State"),
-            "city": self.field(text, r"City"),
-            "valid_field": self.field(text, r"Valid(?:e|ity)?"),
-        }
+        """
+        Read the rendered result grid, and only the result grid.
+
+        The grid is a CSS ``display:grid`` of sibling spans, so its text form
+        runs label and value together with no punctuation:
+
+            Number+234 706 997 7249Type mobileCarrier MTNCountry Nigeria (NG)
+
+        A regex over the whole page cannot tell that from the page's own copy --
+        and did not: it read the ``<title>`` and the marketing paragraph out of
+        the raw HTML and reported them as a carrier and a country. So parse the
+        DOM, keep the spans that hold a known label, and take the value span
+        that follows each one.
+        """
+        return parse_veriphone_phone_page(text)
 
 
 _ADAPTERS: Dict[str, SiteAdapter] = {
@@ -903,7 +1061,13 @@ def build_js_scenario(adapter: "SiteAdapter", value: str) -> Dict[str, Any]:
         elif kind == "input" and selector:
             instructions.append({"fill": [selector, action.get("value", "")]})
 
-    # The result grid renders after an in-page fetch; give it a fixed window.
+    # The result grid renders after an in-page fetch. If the adapter knows its
+    # selector, wait for that element rather than guessing at a sleep: a fixed
+    # wait that expires silently is exactly how page chrome ends up parsed as a
+    # result. The sleep stays as a fallback for adapters without a selector.
+    selector = getattr(adapter, "result_selector", "")
+    if selector:
+        instructions.append({"wait_for": selector})
     if instructions and "wait" in instructions[-1]:
         instructions[-1]["wait"] += SCRAPINGBEE_RESULT_WAIT_MS
     else:
@@ -965,6 +1129,17 @@ def _call_scrapingbee(
 
     if not (response.text or "").strip():
         raise DecodoError("ScrapingBee returned an empty page")
+
+    # For the phone checker, a page without the result grid means the form did
+    # not run (bad selector, blocked, timed out). Report that as a failure --
+    # do not hand the HTML back to be parsed as if it were an answer.
+    if getattr(adapter, "result_selector", "") and not parse_veriphone_phone_page(
+        response.text
+    ).get("number"):
+        raise DecodoError(
+            "ScrapingBee rendered the page but the result grid never appeared "
+            "(the form did not submit). Nothing was parsed."
+        )
     return response.text
 
 
@@ -1293,7 +1468,9 @@ def to_e164(phone_number: str, country_code: str = "") -> str:
     Normalise a number to E.164 for veriphone.
 
     ``format_phone_number`` in functions.py deliberately strips the dial code
-    and returns a national number, so the stored value cannot be sent as-is.
+    and returns a national number, which is why numbers are now persisted with
+    its sibling ``normalize_phone_number`` instead. This function is the last
+    line of defence: it must accept both a stored E.164 value and a raw one.
     A supplied ``country_code`` always wins over prefix guessing, because short
     dial codes (7 = RU, 55 = BR) would otherwise capture unrelated national
     numbers.
@@ -1326,6 +1503,12 @@ def to_e164(phone_number: str, country_code: str = "") -> str:
     for code in _DIAL_CODES_BY_LENGTH:
         if digits.startswith(code) and len(digits) - len(code) >= 7:
             return "+" + digits
+
+    # A bare national number with a trunk zero has no country attached. Sending
+    # "+07069977249" claims a dial code of 07, which no country owns; report it
+    # unprefixed so validation rejects it as malformed instead.
+    if digits.startswith("0"):
+        return digits
 
     return "+" + digits
 
@@ -2401,6 +2584,59 @@ def validate_phone(
 
     # Offline engine not installed: fall back to scraping through Decodo.
     return validate_phone_via_decodo(phone_number, country_code, decodo_settings)
+
+
+def scrub_phone_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Remove page chrome from a stored per-number result.
+
+    A lookup that never produced a result grid used to have the page's own
+    <title> and marketing copy scraped into ``number``/``carrier``/``country``.
+    Those rows were saved, and the monitor showed "Carrier: Lookup —
+    Veriphone</title>". The parser no longer produces them, but sessions saved
+    before that fix still hold them, so clean on the way out too.
+    """
+    if not isinstance(result, dict):
+        return result
+
+    def usable_number(value: Any) -> Optional[str]:
+        text = str(value or "")
+        match = re.search(r"\+?\d[\d\s().-]{5,19}", text)
+        return match.group(0).strip() if match else None
+
+    def usable_country(value: Any) -> Optional[str]:
+        text = str(value or "").strip()
+        if not re.match(r"^[A-Za-z][A-Za-z .'\-]{1,40}(?:\s*\([A-Za-z]{2}\))?$", text):
+            return None
+        return text
+
+    def usable_token(value: Any, limit: int = 32) -> Optional[str]:
+        text = str(value or "").strip()
+        if not text or len(text) > limit:
+            return None
+        if re.search(r"[<>\n\r{};]", text) or len(text.split()) > 3:
+            return None
+        return text
+
+    cleaned = dict(result)
+    number = (usable_number(cleaned.get("formatted_number"))
+              or usable_number(cleaned.get("e164"))
+              or usable_number(cleaned.get("number")))
+    cleaned["formatted_number"] = number
+    cleaned["carrier"] = usable_token(cleaned.get("carrier"), 28)
+    cleaned["line_type"] = usable_token(cleaned.get("line_type"), 20)
+    cleaned["country"] = usable_country(cleaned.get("country"))
+    if not cleaned["country"]:
+        code = usable_token(cleaned.get("country_code"), 2)
+        cleaned["country_code"] = code
+
+    # No readable number means there is no verdict worth trusting.
+    if not number and not cleaned.get("error"):
+        cleaned["status"] = STATUS_UNKNOWN
+        cleaned["valid"] = False
+        cleaned["reason"] = "No readable number in this result"
+        cleaned["confidence"] = 0
+    return cleaned
 
 
 def test_scrapingbee_transport(settings: Dict[str, Any]) -> Dict[str, Any]:

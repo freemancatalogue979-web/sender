@@ -7236,6 +7236,8 @@ async def get_phone_validator_session(
     current_user: dict = Depends(get_current_user)
 ):
     """Get phone validation session details"""
+    from email_validator import scrub_phone_result
+
     user_id = current_user["user_id"]
     session = get_validator_session(user_id, USERS_BASE_PATH, session_id)
     
@@ -7264,7 +7266,12 @@ async def get_phone_validator_session(
         "queue_count": len(session.get("queue", [])),
         "current_number": session.get("current_number"),
         # Per-number detail for the live log (mirrors the email session).
-        "last_batch_results": session.get("last_batch_results", [])
+        # Scrubbed on the way out: a bad scrape must never reach the HUD as if
+        # it were a carrier or a country, even from an old saved session.
+        "last_batch_results": [
+            scrub_phone_result(item)
+            for item in session.get("last_batch_results", [])
+        ]
     }
 
 

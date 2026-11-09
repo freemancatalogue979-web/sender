@@ -8,6 +8,7 @@ import pytest
 from concurrent.futures import ThreadPoolExecutor
 
 import email_validator as ev
+import functions
 
 
 # ---------------------------------------------------------------- fixtures
@@ -1211,7 +1212,12 @@ def test_scrapingbee_uses_premium_proxy_only_when_asked(monkeypatch):
 
     class R:
         status_code = 200
-        text = "ok"
+        # A phone render must contain the result grid, or the transport now
+        # reports "the form did not submit" instead of returning the page.
+        text = (
+            "<body><div><span>Number</span><span>+234 706 997 7249</span>"
+            "<span>Type</span><span>mobile</span></div></body>"
+        )
         headers = {}
 
     monkeypatch.setattr(ev.requests, "get",
@@ -1577,3 +1583,229 @@ def test_switch_endpoint_reports_the_new_transport(tmp_path, monkeypatch):
 
     assert result["provider"] == "scrapingbee"
     assert result["transport"] == "scrapingbee"
+
+
+# =============================================================================
+# The veriphone result grid
+#
+# The card in plan.txt promises: Number / Type / Carrier / Country. The parser
+# used to regex the whole page, so a rendered page that had not run a lookup
+# still "found" a carrier -- in the <title> and the marketing copy -- and the
+# HUD showed "Carrier: Lookup — Veriphone</title>".
+# =============================================================================
+
+PHONE_PAGE_WITH_GRID = """<!DOCTYPE html><html lang="en"><head>
+<title>Phone Validator &amp; Carrier Lookup — Veriphone</title>
+<style>.x{color:red}</style>
+<script>var t = "Number Type Carrier Country";</script>
+</head><body>
+<h1>Phone Validator &amp; Carrier Lookup — Veriphone</h1>
+<p>Validate phone numbers in milliseconds — one number or millions, by API or
+CSV. 1,000 free lookups a month.</p>
+<div style="display: grid; grid-template-columns: auto 1fr;">
+  <span style="color: var(--muted-foreground);">Number</span>
+  <span style="font-family: 'SF Mono';">+234 706 997 7249</span>
+  <span style="color: var(--muted-foreground);">Type</span>
+  <span style="text-transform: capitalize;">mobile</span>
+  <span style="color: var(--muted-foreground);">Carrier</span>
+  <span>MTN</span>
+  <span style="color: var(--muted-foreground);">Country</span>
+  <span>Nigeria (NG)</span>
+</div>
+<div class="faq"><h2>Is this a valid phone number?</h2><p>We answer in milliseconds.</p></div>
+</body></html>"""
+
+PHONE_PAGE_WITHOUT_GRID = """<html><head><title>Phone Validator — Veriphone</title></head>
+<body><h1>Phone Validator</h1><p>Carrier and country in one call.</p></body></html>"""
+
+
+def test_veriphone_parser_reads_the_result_grid():
+    raw = ev._ADAPTERS["veriphone"].parse(PHONE_PAGE_WITH_GRID)
+
+    assert raw["number"] == "+234 706 997 7249"
+    assert raw["line_type"] == "mobile"
+    assert raw["carrier"] == "MTN"
+    assert raw["country"] == "Nigeria (NG)"
+
+
+def test_veriphone_parser_grades_the_grid_as_valid():
+    raw = ev._ADAPTERS["veriphone"].parse(PHONE_PAGE_WITH_GRID)
+    status, reason, confidence = ev.classify_phone(raw)
+
+    assert status == ev.STATUS_VALID
+    assert "MTN" in reason
+    assert confidence > 0
+
+
+def test_veriphone_parser_ignores_page_chrome():
+    """The <title> and the marketing paragraph are not results."""
+    raw = ev._ADAPTERS["veriphone"].parse(PHONE_PAGE_WITHOUT_GRID)
+
+    assert all(value is None for value in raw.values())
+    status, _, _ = ev.classify_phone(raw)
+    assert status == ev.STATUS_UNKNOWN
+
+
+def test_veriphone_parser_tolerates_a_missing_carrier():
+    page = (
+        "<body><div><span>Number</span><span>+44 7911 123456</span>"
+        "<span>Type</span><span>mobile</span>"
+        "<span>Country</span><span>United Kingdom (GB)</span></div></body>"
+    )
+    raw = ev._ADAPTERS["veriphone"].parse(page)
+
+    assert raw["number"] == "+44 7911 123456"
+    assert raw["carrier"] is None
+    assert raw["country"] == "United Kingdom (GB)"
+
+
+# =============================================================================
+# Storing a number keeps its dial code
+#
+# "i put a number with country code it sends only the number" -- the importer
+# stored the national digits only, so +2347069977249 was queued as "7069977249"
+# and a trunk-zero "07069977249" as "069977249" (0 read as a dial code).
+# =============================================================================
+
+@pytest.mark.parametrize("raw, hint, expected", [
+    ("+2347069977249", "", "+2347069977249"),
+    ("+234 706 997 7249", "", "+2347069977249"),
+    ("2347069977249", "", "+2347069977249"),
+    ("07069977249", "NG", "+2347069977249"),
+    ("07069977249", "", "07069977249"),      # no hint: never invent a country
+    ("+14155552671", "", "+14155552671"),
+    ("4155552671", "US", "+14155552671"),    # not "+41..." (Switzerland)
+    ("07911123456", "GB", "+447911123456"),
+    ("+44 7911 123456", "", "+447911123456"),
+    ("0044 7911 123456", "", "+447911123456"),
+])
+def test_normalize_phone_number_keeps_the_dial_code(raw, hint, expected):
+    country_code, e164 = functions.normalize_phone_number(raw, hint)
+
+    assert e164 == expected
+    # A country is either a real ISO-2 code or the explicit "UNKNOWN" marker;
+    # it is never a guess dressed up as fact.
+    assert country_code == "UNKNOWN" or len(country_code) == 2
+
+
+def test_normalize_phone_number_reports_the_country():
+    assert functions.normalize_phone_number("+2347069977249")[0] == "NG"
+    assert functions.normalize_phone_number("+14155552671")[0] == "US"
+    assert functions.normalize_phone_number("07069977249", "NG")[0] == "NG"
+
+
+def test_imported_numbers_keep_their_country_code():
+    """The bug the user hit: importing with a dial code stored no dial code."""
+    categorized = functions.categorize_phone_numbers(
+        ["+2347069977249", "+14155552671"]
+    )
+    stored = [entry["cleaned"] for entries in categorized.values() for entry in entries]
+
+    assert "+2347069977249" in stored
+    assert "+14155552671" in stored
+    assert "7069977249" not in stored
+
+
+def test_imported_trunk_zero_numbers_resolve_against_the_hint():
+    categorized = functions.categorize_phone_numbers(["07069977249"], "NG")
+    entry = list(categorized.values())[0][0]
+
+    assert entry["e164"] == "+2347069977249"
+    assert entry["country_code"] == "NG"
+
+
+def test_stored_number_survives_the_lookup_normaliser():
+    """Whatever the importer stores, to_e164() must send the same number."""
+    for raw, hint in [("+2347069977249", ""), ("07069977249", "NG"),
+                      ("+14155552671", ""), ("07911123456", "GB")]:
+        country_code, stored = functions.normalize_phone_number(raw, hint)
+        assert ev.to_e164(stored, country_code) == stored
+
+
+# =============================================================================
+# Stored results are scrubbed on the way out
+#
+# Sessions saved before the parser fix still contain the page's <title> in the
+# number, carrier and country fields. The HUD read them back verbatim, so the
+# fix has to apply to old rows too -- not just to new parses.
+# =============================================================================
+
+SCRAPED_JUNK_RESULT = {
+    "number": "Validator &amp; Carrier Lookup — Veriphone</title>",
+    "formatted_number": "Validator &amp; Carrier Lookup — Veriphone</title>",
+    "country": "in milliseconds — one number or millions, by API or CSV.",
+    "carrier": "Lookup — Veriphone</title>",
+    "line_type": 'Html><html lang="en"><head>',
+    "country_code": "US",
+    "status": "valid",
+    "valid": True,
+    "confidence": 90,
+}
+
+
+def test_scrub_removes_page_chrome_from_an_old_result():
+    cleaned = ev.scrub_phone_result(SCRAPED_JUNK_RESULT)
+
+    assert cleaned["formatted_number"] is None
+    assert cleaned["carrier"] is None
+    assert cleaned["country"] is None
+    assert cleaned["line_type"] is None
+
+
+def test_scrub_downgrades_a_verdict_with_no_readable_number():
+    cleaned = ev.scrub_phone_result(SCRAPED_JUNK_RESULT)
+
+    assert cleaned["status"] == ev.STATUS_UNKNOWN
+    assert cleaned["valid"] is False
+    assert "readable number" in cleaned["reason"]
+
+
+def test_scrub_keeps_a_genuine_result_intact():
+    genuine = {
+        "number": "07069977249",
+        "e164": "+2347069977249",
+        "formatted_number": "+234 706 997 7249",
+        "country": "Nigeria (NG)",
+        "country_code": "NG",
+        "carrier": "MTN",
+        "line_type": "mobile",
+        "status": "valid",
+        "valid": True,
+        "confidence": 90,
+    }
+    cleaned = ev.scrub_phone_result(genuine)
+
+    assert cleaned["formatted_number"] == "+234 706 997 7249"
+    assert cleaned["country"] == "Nigeria (NG)"
+    assert cleaned["carrier"] == "MTN"
+    assert cleaned["line_type"] == "mobile"
+    assert cleaned["status"] == "valid"
+
+def test_scrapingbee_render_without_the_grid_is_a_failure(monkeypatch):
+    """A page that never ran the lookup is not an answer.
+
+    This is the bug behind "Carrier: Lookup — Veriphone</title>": the render
+    returned the marketing page, the parser read its <title>, and the row was
+    saved as if it were a lookup.
+    """
+    class R:
+        status_code = 200
+        text = "<html><head><title>Phone Validator — Veriphone</title></head><body>Validate numbers</body></html>"
+        headers = {}
+
+    monkeypatch.setattr(ev.requests, "get", lambda *a, **k: R())
+    with pytest.raises(ev.DecodoError) as exc:
+        ev._call_scrapingbee(ev._ADAPTERS["veriphone"], "+2347069977249", {"api_key": "SB"})
+
+    assert "result grid" in str(exc.value)
+
+
+def test_js_scenario_waits_for_the_result_element():
+    scenario = ev.build_js_scenario(ev._ADAPTERS["veriphone"], "+2347069977249")
+    kinds = [list(step)[0] for step in scenario["instructions"]]
+
+    assert "wait_for" in kinds
+    # Fill happens before the submit click (the first click only focuses the
+    # input), and the wait-for comes after the submit.
+    submit = kinds.index("click", kinds.index("fill"))
+    assert kinds.index("fill") < submit < kinds.index("wait_for")
