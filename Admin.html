@@ -15131,7 +15131,9 @@
 
         .phone-command-layout {
             display: grid;
-            grid-template-columns: 1fr 1.4fr 1fr;
+            /* Launch Controls is its own sub-tab now, so this row is only
+               Import + Matrix and can breathe. */
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
             gap: 18px;
             min-height: 380px;
         }
@@ -15277,41 +15279,136 @@
             50% { box-shadow: 0 0 12px 2px rgba(0, 229, 255, 0.2); }
         }
 
-        /* Launch Controls column: same header furniture as the Email panel,
-           same button system as everywhere else. No bespoke gradients. */
-        .launch-head {
+        /* =================================================
+         * Launch Controls sub-tab
+         * Full width instead of a 1fr column: two columns of
+         * workable size, transport on the left, the run on the
+         * right with its progress report underneath.
+         * ================================================= */
+        .launch-panel {
+            border-radius: 18px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 24px;
+        }
+
+        .launch-panel-head { margin-bottom: 22px; }
+
+        .launch-panel .launch-head {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding-bottom: 16px;
-            margin-bottom: 16px;
+            gap: 14px;
+            padding-bottom: 18px;
+            margin-bottom: 0;
             border-bottom: 1px solid var(--border-color);
         }
 
-        #phoneValidatorContent .launch-head .panel-header-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            font-size: 18px;
-            flex: 0 0 42px;
+        .launch-panel .launch-head .panel-header-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 13px;
+            flex: 0 0 46px;
         }
 
-        #phoneValidatorContent .launch-head .panel-header-info { min-width: 0; }
-
-        #phoneValidatorContent .launch-head .panel-header-info h3 {
-            font-size: 15px;
+        .launch-panel .launch-head .panel-header-info h3 {
+            font-size: 17px;
             font-weight: 600;
             letter-spacing: 0.3px;
-            margin: 0 0 3px 0;
+            margin: 0 0 4px 0;
         }
 
-        #phoneValidatorContent .launch-head .panel-header-info p {
-            font-size: 10.5px;
-            line-height: 1.4;
+        .launch-panel .launch-head .panel-header-info p {
+            font-size: 12px;
+            line-height: 1.45;
             color: var(--text-gray);
             margin: 0;
         }
 
+        .launch-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .launch-col { min-width: 0; }
+
+        .launch-section-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-gray);
+            margin-bottom: 12px;
+        }
+
+        .launch-section-label::after {
+            content: '';
+            flex: 1 1 auto;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        /* Transport card gets real width: the key field is readable again. */
+        .launch-panel .scraper-card {
+            margin-bottom: 0;
+            padding: 18px;
+        }
+
+        .launch-panel .scraper-select {
+            padding: 12px 36px 12px 14px;
+            font-size: 13px;
+        }
+
+        .launch-panel .scraper-input {
+            padding: 12px 32px 12px 14px;
+            font-size: 13px;
+        }
+
+        .launch-panel .scraper-field .form-label { font-size: 10.5px; }
+        .launch-panel .scraper-form-row { grid-template-columns: minmax(0, 1fr) 84px; gap: 10px; }
+
+        .launch-panel .scraper-actions .montserrat-btn {
+            padding: 11px 14px;
+            font-size: 12px;
+        }
+
+        .launch-panel .scraper-status { font-size: 11px; padding: 10px 12px; }
+
+        /* Run column: the action, then the progress it reports. */
+        .launch-col-run {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .launch-col-run .phone-control-stack { margin-top: 0; gap: 10px; }
+
+        .launch-col-run .montserrat-btn.launch-btn {
+            padding: 15px 18px;
+            font-size: 14px;
+            border-radius: 13px;
+        }
+
+        .launch-col-run .phone-control-row button { padding: 11px 12px; font-size: 12px; }
+
+        .launch-col-run .validator-progress-container {
+            margin-top: 0 !important;
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            background: rgba(0, 0, 0, 0.22);
+        }
+
+        @media (max-width: 900px) {
+            .launch-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+        }
+
+        /* Launch Controls column: same header furniture as the Email panel,
+           same button system as everywhere else. No bespoke gradients. */
         .phone-control-stack {
             display: flex;
             flex-direction: column;
@@ -23165,6 +23262,10 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                             <span class="inner-tab-icon"><i class="fas fa-bolt"></i></span>
                             <span class="inner-tab-text">Command Center</span>
                         </button>
+                        <button class="validator-inner-tab-btn" data-phone-inner-tab="phoneLaunch">
+                            <span class="inner-tab-icon"><i class="fas fa-rocket"></i></span>
+                            <span class="inner-tab-text">Launch Controls</span>
+                        </button>
                         <button class="validator-inner-tab-btn" data-phone-inner-tab="phoneMonitor">
                             <span class="inner-tab-icon"><i class="fas fa-satellite-dish"></i></span>
                             <span class="inner-tab-text">Live HUD</span>
@@ -23245,10 +23346,20 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                     </div>
                                 </div>
 
-                                <div class="phone-command-panel">
-                                    <!-- Header reproduces the Email panel's pattern:
-                                         icon tile + h3 + line of context, so the two
-                                         validator tabs read as one product. -->
+                                
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Phone Launch Controls Panel
+                         Own sub-tab rather than a squeezed 1fr column: the
+                         transport form needs a readable key field, and this
+                         keeps launch, progress and the run controls together. -->
+                    <div class="validator-inner-content" id="phoneLaunchPanel" style="display: none;">
+                        <div class="phone-command-center">
+                            <div class="launch-panel">
+                                <div class="launch-panel-head">
                                     <div class="launch-head">
                                         <div class="panel-header-left">
                                             <div class="panel-header-icon phone-icon">
@@ -23262,186 +23373,190 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                             </div>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <!-- Scraper transport: which service renders the
-                                         veriphone page. Dropdown + fields + buttons in
-                                         the panel's own vocabulary; a key pasted here
-                                         applies to the next batch, no restart. -->
-                                    <div class="scraper-card">
-                                        <div class="scraper-card-head">
-                                            <div class="scraper-card-heading">
-                                                <span class="scraper-card-icon">
-                                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
-                                                        <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
-                                                    </svg>
+                                <div class="launch-grid">
+                                    <div class="launch-col">
+                                        <div class="launch-section-label">Transport</div>
+                                        <div class="scraper-card">
+                                            <div class="scraper-card-head">
+                                                <div class="scraper-card-heading">
+                                                    <span class="scraper-card-icon">
+                                                        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+                                                            <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
+                                                        </svg>
+                                                    </span>
+                                                    <span class="scraper-card-title">Scraper</span>
+                                                </div>
+                                                <span id="phoneTransportBadge" class="scraper-badge">
+                                                    <span class="scraper-badge-dot"></span>
+                                                    <span class="scraper-badge-text">Checking…</span>
                                                 </span>
-                                                <span class="scraper-card-title">Scraper</span>
                                             </div>
-                                            <span id="phoneTransportBadge" class="scraper-badge">
-                                                <span class="scraper-badge-dot"></span>
-                                                <span class="scraper-badge-text">Checking…</span>
-                                            </span>
-                                        </div>
 
-                                        <div class="form-group scraper-field">
-                                            <label class="form-label" for="scraperProviderSelect">
-                                                Transport
-                                            </label>
-                                            <div class="select-wrapper">
-                                                <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select"
-                                                        onchange="switchScraperProvider(this.value)">
-                                                    <option value="scrapingbee">ScrapingBee</option>
-                                                    <option value="decodo">Decodo</option>
-                                                    <option value="browser-use">Browser Use</option>
-                                                    <option value="local">Offline — free, no network</option>
-                                                </select>
-                                                <i class="fas fa-chevron-down select-arrow"></i>
+                                            <div class="form-group scraper-field">
+                                                <label class="form-label" for="scraperProviderSelect">
+                                                    Transport
+                                                </label>
+                                                <div class="select-wrapper">
+                                                    <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select"
+                                                            onchange="switchScraperProvider(this.value)">
+                                                        <option value="scrapingbee">ScrapingBee</option>
+                                                        <option value="decodo">Decodo</option>
+                                                        <option value="browser-use">Browser Use</option>
+                                                        <option value="local">Offline — free, no network</option>
+                                                    </select>
+                                                    <i class="fas fa-chevron-down select-arrow"></i>
+                                                </div>
+                                                <div class="scraper-field-note" id="scraperProviderNote">5 credits per number</div>
                                             </div>
-                                            <div class="scraper-field-note" id="scraperProviderNote">5 credits per number</div>
-                                        </div>
 
-                                        <div id="scraperKeyFields">
-                                            <div class="scraper-form-row">
-                                                <div class="form-group scraper-field">
-                                                    <label class="form-label" for="scraperApiKey">API key</label>
-                                                    <div class="scraper-input-group">
-                                                        <input type="password" id="scraperApiKey" class="form-control scraper-input"
-                                                               autocomplete="off" spellcheck="false" placeholder="Paste key"
-                                                               onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
-                                                        <button type="button" class="scraper-input-reveal"
-                                                                onclick="toggleKeyVisibility()" title="Show or hide the key">
-                                                            <i class="fas fa-eye" id="scraperRevealIcon"></i>
-                                                        </button>
+                                            <div id="scraperKeyFields">
+                                                <div class="scraper-form-row">
+                                                    <div class="form-group scraper-field">
+                                                        <label class="form-label" for="scraperApiKey">API key</label>
+                                                        <div class="scraper-input-group">
+                                                            <input type="password" id="scraperApiKey" class="form-control scraper-input"
+                                                                   autocomplete="off" spellcheck="false" placeholder="Paste key"
+                                                                   onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
+                                                            <button type="button" class="scraper-input-reveal"
+                                                                    onclick="toggleKeyVisibility()" title="Show or hide the key">
+                                                                <i class="fas fa-eye" id="scraperRevealIcon"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-group scraper-field scraper-field-compact">
+                                                        <label class="form-label" for="scraperProxyCountry">Country</label>
+                                                        <input type="text" id="scraperProxyCountry" class="form-control scraper-input"
+                                                               autocomplete="off" maxlength="2" placeholder="any">
                                                     </div>
                                                 </div>
-                                                <div class="form-group scraper-field scraper-field-compact">
-                                                    <label class="form-label" for="scraperProxyCountry">Country</label>
-                                                    <input type="text" id="scraperProxyCountry" class="form-control scraper-input"
-                                                           autocomplete="off" maxlength="2" placeholder="any">
-                                                </div>
+
+                                                <label class="scraper-switch-row">
+                                                    <span class="proxy-toggle-switch">
+                                                        <input type="checkbox" id="scraperPremiumProxy">
+                                                        <span class="proxy-toggle-slider"></span>
+                                                    </span>
+                                                    <span class="scraper-switch-text">
+                                                        <span class="scraper-switch-title">Premium proxy</span>
+                                                        <span class="scraper-switch-note">25 credits per number instead of 5</span>
+                                                    </span>
+                                                </label>
                                             </div>
 
-                                            <label class="scraper-switch-row">
-                                                <span class="proxy-toggle-switch">
-                                                    <input type="checkbox" id="scraperPremiumProxy">
-                                                    <span class="proxy-toggle-slider"></span>
-                                                </span>
-                                                <span class="scraper-switch-text">
-                                                    <span class="scraper-switch-title">Premium proxy</span>
-                                                    <span class="scraper-switch-note">25 credits per number instead of 5</span>
-                                                </span>
-                                            </label>
-                                        </div>
+                                            <div class="scraper-actions">
+                                                <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
+                                                        id="scraperSaveBtn" onclick="saveScraperKey()">
+                                                    <span class="btn-icon"><i class="fas fa-bolt"></i></span>
+                                                    <span class="btn-text">Save &amp; Activate</span>
+                                                </button>
+                                                <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                        id="scraperTestBtn" onclick="testScraperProvider()">
+                                                    <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                    <span class="btn-text">Test</span>
+                                                </button>
+                                                <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                        onclick="loadScraperPanel()" title="Re-read from the server">
+                                                    <span class="btn-icon"><i class="fas fa-sync-alt"></i></span>
+                                                </button>
+                                            </div>
 
-                                        <div class="scraper-actions">
-                                            <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
-                                                    id="scraperSaveBtn" onclick="saveScraperKey()">
+                                            <div class="scraper-status" id="scraperStatusLine">
+                                                <i class="fas fa-circle-info scraper-status-icon"></i>
+                                                <span class="scraper-status-text">Loading configuration…</span>
+                                            </div>
+
+                                            <div class="scraper-foot">
+                                                <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
+                                            </div>
+
+                                            <details class="scraper-advanced">
+                                                <summary>
+                                                    <i class="fas fa-chevron-right scraper-chevron"></i>
+                                                    veriphone JSON API key
+                                                </summary>
+                                                <div class="scraper-advanced-body">
+                                                    <div class="form-group scraper-field">
+                                                        <label class="form-label" for="veriphoneApiKey">veriphone key</label>
+                                                        <input type="password" id="veriphoneApiKey" class="form-control scraper-input"
+                                                               autocomplete="off" placeholder="Bypasses scraping entirely">
+                                                    </div>
+                                                    <div class="scraper-actions">
+                                                        <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                                onclick="saveVeriphoneKey()">
+                                                            <span class="btn-icon"><i class="fas fa-key"></i></span>
+                                                            <span class="btn-text">Save</span>
+                                                        </button>
+                                                        <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                                onclick="testVeriphoneKey()">
+                                                            <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                            <span class="btn-text">Test</span>
+                                                        </button>
+                                                    </div>
+                                                    <div class="scraper-advanced-note">
+                                                        Queries the JSON API directly, so no scraping credits are spent.
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        </div>
+                                    </div>
+
+                                    <div class="launch-col launch-col-run">
+                                        <div class="launch-section-label">Run</div>
+                                        <div class="phone-control-stack">
+                                            <button class="montserrat-btn montserrat-btn-primary launch-btn"
+                                                    id="startPhoneValidationBtn" disabled>
                                                 <span class="btn-icon"><i class="fas fa-bolt"></i></span>
-                                                <span class="btn-text">Save &amp; Activate</span>
+                                                <span class="btn-text">Launch Validation</span>
                                             </button>
-                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                    id="scraperTestBtn" onclick="testScraperProvider()">
-                                                <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                <span class="btn-text">Test</span>
-                                            </button>
-                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                    onclick="loadScraperPanel()" title="Re-read from the server">
-                                                <span class="btn-icon"><i class="fas fa-sync-alt"></i></span>
-                                            </button>
+                                            <div class="phone-control-row">
+                                                <button class="montserrat-btn montserrat-btn-warning montserrat-btn-sm" id="pausePhoneValidationBtn" disabled style="display: none;">
+                                                    <span class="btn-icon"><i class="fas fa-pause"></i></span>
+                                                    <span class="btn-text">Pause</span>
+                                                </button>
+                                                <button class="montserrat-btn montserrat-btn-success montserrat-btn-sm" id="resumePhoneValidationBtn" disabled style="display: none;">
+                                                    <span class="btn-icon"><i class="fas fa-play"></i></span>
+                                                    <span class="btn-text">Resume</span>
+                                                </button>
+                                                <button class="montserrat-btn montserrat-btn-danger montserrat-btn-sm" id="stopPhoneValidationBtn" disabled style="display: none;">
+                                                    <span class="btn-icon"><i class="fas fa-stop"></i></span>
+                                                    <span class="btn-text">Stop</span>
+                                                </button>
+                                            </div>
                                         </div>
 
-                                        <div class="scraper-status" id="scraperStatusLine">
-                                            <i class="fas fa-circle-info scraper-status-icon"></i>
-                                            <span class="scraper-status-text">Loading configuration…</span>
-                                        </div>
-
-                                        <div class="scraper-foot">
-                                            <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
-                                        </div>
-
-                                        <details class="scraper-advanced">
-                                            <summary>
-                                                <i class="fas fa-chevron-right scraper-chevron"></i>
-                                                veriphone JSON API key
-                                            </summary>
-                                            <div class="scraper-advanced-body">
-                                                <div class="form-group scraper-field">
-                                                    <label class="form-label" for="veriphoneApiKey">veriphone key</label>
-                                                    <input type="password" id="veriphoneApiKey" class="form-control scraper-input"
-                                                           autocomplete="off" placeholder="Bypasses scraping entirely">
+                                        <div class="validator-progress-container" id="phoneProgressSection" style="display: none; margin-top: 20px;">
+                                            <div class="validator-progress-header">
+                                                <div class="progress-info">
+                                                    <span class="progress-label" id="phoneProgressLabel">Processing...</span>
+                                                    <span class="progress-percentage" id="phoneProgressPercent">0%</span>
                                                 </div>
-                                                <div class="scraper-actions">
-                                                    <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                            onclick="saveVeriphoneKey()">
-                                                        <span class="btn-icon"><i class="fas fa-key"></i></span>
-                                                        <span class="btn-text">Save</span>
-                                                    </button>
-                                                    <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                            onclick="testVeriphoneKey()">
-                                                        <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                        <span class="btn-text">Test</span>
-                                                    </button>
-                                                </div>
-                                                <div class="scraper-advanced-note">
-                                                    Queries the JSON API directly, so no scraping credits are spent.
+                                                <div class="progress-count">
+                                                    <span id="phoneProgressCount">0/0</span>
                                                 </div>
                                             </div>
-                                        </details>
-                                    </div>
-
-                                    <div class="phone-control-stack">
-                                        <button class="montserrat-btn montserrat-btn-primary launch-btn"
-                                                id="startPhoneValidationBtn" disabled>
-                                            <span class="btn-icon"><i class="fas fa-bolt"></i></span>
-                                            <span class="btn-text">Launch Validation</span>
-                                        </button>
-                                        <div class="phone-control-row">
-                                            <button class="montserrat-btn montserrat-btn-warning montserrat-btn-sm" id="pausePhoneValidationBtn" disabled style="display: none;">
-                                                <span class="btn-icon"><i class="fas fa-pause"></i></span>
-                                                <span class="btn-text">Pause</span>
-                                            </button>
-                                            <button class="montserrat-btn montserrat-btn-success montserrat-btn-sm" id="resumePhoneValidationBtn" disabled style="display: none;">
-                                                <span class="btn-icon"><i class="fas fa-play"></i></span>
-                                                <span class="btn-text">Resume</span>
-                                            </button>
-                                            <button class="montserrat-btn montserrat-btn-danger montserrat-btn-sm" id="stopPhoneValidationBtn" disabled style="display: none;">
-                                                <span class="btn-icon"><i class="fas fa-stop"></i></span>
-                                                <span class="btn-text">Stop</span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div class="validator-progress-container" id="phoneProgressSection" style="display: none; margin-top: 20px;">
-                                        <div class="validator-progress-header">
-                                            <div class="progress-info">
-                                                <span class="progress-label" id="phoneProgressLabel">Processing...</span>
-                                                <span class="progress-percentage" id="phoneProgressPercent">0%</span>
+                                            <div class="validator-progress-bar-wrapper">
+                                                <div class="validator-progress-bar-track">
+                                                    <div class="validator-progress-bar-fill" id="phoneProgressBar" style="width: 0%; background: linear-gradient(90deg, #8a2be2, #00e5ff);"></div>
+                                                </div>
                                             </div>
-                                            <div class="progress-count">
-                                                <span id="phoneProgressCount">0/0</span>
-                                            </div>
-                                        </div>
-                                        <div class="validator-progress-bar-wrapper">
-                                            <div class="validator-progress-bar-track">
-                                                <div class="validator-progress-bar-fill" id="phoneProgressBar" style="width: 0%; background: linear-gradient(90deg, #8a2be2, #00e5ff);"></div>
-                                            </div>
-                                        </div>
-                                        <div class="validator-progress-stats">
-                                            <div class="progress-stat">
-                                                <span class="progress-stat-icon success"><i class="fas fa-check"></i></span>
-                                                <span class="progress-stat-label">Passed:</span>
-                                                <span class="progress-stat-value" id="phonePassedCount">0</span>
-                                            </div>
-                                            <div class="progress-stat">
-                                                <span class="progress-stat-icon danger"><i class="fas fa-times"></i></span>
-                                                <span class="progress-stat-label">Failed:</span>
-                                                <span class="progress-stat-value" id="phoneFailedCount">0</span>
-                                            </div>
-                                            <div class="progress-stat">
-                                                <span class="progress-stat-icon"><i class="fas fa-tachometer-alt"></i></span>
-                                                <span class="progress-stat-label">Rate:</span>
-                                                <span class="progress-stat-value" id="phoneRate">0</span>
-                                                <span class="progress-stat-unit">/min</span>
+                                            <div class="validator-progress-stats">
+                                                <div class="progress-stat">
+                                                    <span class="progress-stat-icon success"><i class="fas fa-check"></i></span>
+                                                    <span class="progress-stat-label">Passed:</span>
+                                                    <span class="progress-stat-value" id="phonePassedCount">0</span>
+                                                </div>
+                                                <div class="progress-stat">
+                                                    <span class="progress-stat-icon danger"><i class="fas fa-times"></i></span>
+                                                    <span class="progress-stat-label">Failed:</span>
+                                                    <span class="progress-stat-value" id="phoneFailedCount">0</span>
+                                                </div>
+                                                <div class="progress-stat">
+                                                    <span class="progress-stat-icon"><i class="fas fa-tachometer-alt"></i></span>
+                                                    <span class="progress-stat-label">Rate:</span>
+                                                    <span class="progress-stat-value" id="phoneRate">0</span>
+                                                    <span class="progress-stat-unit">/min</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -23449,7 +23564,6 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                             </div>
                         </div>
                     </div>
-
                     <!-- Phone Live HUD Monitor Panel -->
                     <div class="validator-inner-content" id="phoneMonitorPanel" style="display: none;">
                         <div class="phone-command-center">
