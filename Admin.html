@@ -37563,8 +37563,16 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         }
 
         function phoneLineType(n) {
-            const t = phoneCleanToken(String(n.line_type || '').replace(/_/g, ' '), 20);
-            return t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : '—';
+            // Line types are enum-ish ("fixed_line_or_mobile"), not prose, so
+            // they are cleaned before display: underscores gone, words
+            // title-cased, "or" left alone.
+            const raw = String(n.line_type || '').trim().toLowerCase();
+            if (!raw || /[<>{};]/.test(raw)) return '—';
+            const words = raw.replace(/_/g, ' ').split(/\s+/).filter(Boolean).slice(0, 4);
+            const label = words.map(w => (w === 'or' || w === 'and')
+                ? w
+                : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            return label || '—';
         }
 
         function phoneCarrier(n) {

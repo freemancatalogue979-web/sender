@@ -2629,6 +2629,17 @@ def scrub_phone_result(result: Dict[str, Any]) -> Dict[str, Any]:
     if not cleaned["country"]:
         code = usable_token(cleaned.get("country_code"), 2)
         cleaned["country_code"] = code
+        # An ISO code alone is not much use in a row: fill in the name when we
+        # know it, keeping the "(XX)" form the page already understands.
+        if code:
+            try:
+                from functions import country_name
+
+                name = country_name(code)
+                if name:
+                    cleaned["country"] = f"{name} ({code})"
+            except Exception:
+                pass
 
     # No readable number means there is no verdict worth trusting.
     if not number and not cleaned.get("error"):

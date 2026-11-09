@@ -11582,6 +11582,39 @@ _DIAL_CODE_TABLE = {
     "974": "QA", "965": "KW",
 }
 
+# Country names for the codes this app handles, so a row can show "Nigeria"
+# and not a bare ISO code. Deliberately the display name only -- the ISO code
+# stays the source of truth for the flag and for matching.
+COUNTRY_NAMES = {
+    "US": "United States", "RU": "Russia", "EG": "Egypt", "ZA": "South Africa",
+    "GR": "Greece", "NL": "Netherlands", "BE": "Belgium", "FR": "France",
+    "ES": "Spain", "HU": "Hungary", "IT": "Italy", "RO": "Romania",
+    "CH": "Switzerland", "AT": "Austria", "GB": "United Kingdom",
+    "DK": "Denmark", "SE": "Sweden", "NO": "Norway", "PL": "Poland",
+    "DE": "Germany", "PE": "Peru", "MX": "Mexico", "CU": "Cuba",
+    "AR": "Argentina", "BR": "Brazil", "CL": "Chile", "CO": "Colombia",
+    "VE": "Venezuela", "MY": "Malaysia", "AU": "Australia",
+    "ID": "Indonesia", "PH": "Philippines", "NZ": "New Zealand",
+    "SG": "Singapore", "TH": "Thailand", "JP": "Japan", "KR": "South Korea",
+    "VN": "Vietnam", "CN": "China", "TR": "Turkey", "IN": "India",
+    "PK": "Pakistan", "AF": "Afghanistan", "LK": "Sri Lanka",
+    "MM": "Myanmar", "IR": "Iran", "MA": "Morocco", "DZ": "Algeria",
+    "TN": "Tunisia", "LY": "Libya", "GM": "Gambia", "SN": "Senegal",
+    "CI": "Ivory Coast", "GH": "Ghana", "NG": "Nigeria", "CM": "Cameroon",
+    "RW": "Rwanda", "KE": "Kenya", "TZ": "Tanzania", "UG": "Uganda",
+    "ZM": "Zambia", "ZW": "Zimbabwe", "PT": "Portugal", "IE": "Ireland",
+    "FI": "Finland", "UA": "Ukraine", "CZ": "Czechia",
+    "BD": "Bangladesh", "SA": "Saudi Arabia", "OM": "Oman",
+    "AE": "United Arab Emirates", "IL": "Israel", "BH": "Bahrain",
+    "QA": "Qatar", "KW": "Kuwait", "CA": "Canada", "GG": "Guernsey",
+}
+
+
+def country_name(country_code: str) -> str:
+    """Display name for an ISO-3166 alpha-2 code; '' when unknown."""
+    return COUNTRY_NAMES.get((country_code or "").strip().upper(), "")
+
+
 # Countries that write a trunk "0" before the national number when dialled
 # domestically: Nigeria 0706…, UK 07911…, Germany 0151…, etc.
 _TRUNK_ZERO_COUNTRIES = {
