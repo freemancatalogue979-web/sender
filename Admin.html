@@ -15258,6 +15258,320 @@
         }
 
         /* =================================================
+         * Number rows (list preview + live HUD)
+         *
+         * A number is a row of facts, not a coloured block:
+         * index, number, country + flag, carrier, type, status.
+         * ================================================= */
+        .panel-title-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .panel-title-row h4 { margin: 0; }
+
+        .panel-title-meta {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: var(--text-gray);
+        }
+
+        .num-table {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.18);
+        }
+
+        .num-row {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1.5fr) minmax(0, 1.15fr) minmax(0, 1fr) 72px 76px;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            font-size: 11.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+        }
+
+        .num-row:last-child { border-bottom: none; }
+        .num-row:not(.num-row-head):hover { background: rgba(255, 255, 255, 0.03); }
+
+        .num-row-head {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+            color: var(--text-gray);
+        }
+
+        .num-rows { overflow-y: auto; max-height: 340px; }
+
+        .num-col-index { color: rgba(255, 255, 255, 0.28); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+        .num-col-number {
+            font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+            font-size: 11.5px;
+            color: var(--text-white);
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .num-col-country, .hud-country {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-gray);
+            min-width: 0;
+        }
+
+        .num-country-name, .hud-country span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .num-flag { font-size: 13px; line-height: 1; }
+        .num-flag-none { color: rgba(255, 255, 255, 0.2); }
+
+        .num-col-carrier { color: rgba(255, 255, 255, 0.78); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .num-col-type { color: var(--text-gray); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .num-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 34px 16px;
+            color: var(--text-gray);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .num-empty i { font-size: 20px; color: rgba(255, 255, 255, 0.2); }
+
+        .num-more {
+            padding: 10px 12px;
+            font-size: 10.5px;
+            color: var(--text-gray);
+            background: rgba(255, 255, 255, 0.02);
+            text-align: center;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .status-badge.valid { color: #4ade80; background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74, 222, 128, 0.3); }
+        .status-badge.invalid { color: #f87171; background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.3); }
+        .status-badge.unknown { color: #fbbf24; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.3); }
+        .status-badge.failed { color: #a78bfa; background: rgba(167, 139, 250, 0.12); border: 1px solid rgba(167, 139, 250, 0.3); }
+
+        /* ---------- live HUD ---------- */
+        .hud-panel {
+            border-radius: 18px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 24px;
+        }
+
+        .hud-head { margin-bottom: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border-color); }
+        .hud-head-actions { flex: 0 0 auto; }
+
+        .hud-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 48px 20px;
+            text-align: center;
+        }
+
+        .hud-empty[style*="display: none"] { display: none !important; }
+
+        .hud-empty-icon {
+            width: 54px;
+            height: 54px;
+            display: grid;
+            place-items: center;
+            border-radius: 16px;
+            font-size: 22px;
+            color: #00e5ff;
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.25), rgba(0, 229, 255, 0.12));
+        }
+
+        .hud-empty h4 { margin: 0; font-size: 15px; font-weight: 600; }
+        .hud-empty p { margin: 0; font-size: 12px; color: var(--text-gray); max-width: 380px; line-height: 1.55; }
+
+        .hud-stats {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .hud-stat {
+            padding: 13px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .hud-stat-value {
+            display: block;
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.1;
+            color: var(--text-white);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hud-stat-status { font-size: 13px; text-transform: capitalize; color: #00e5ff; }
+        .hud-stat-valid .hud-stat-value { color: #4ade80; }
+        .hud-stat-invalid .hud-stat-value { color: #f87171; }
+
+        .hud-stat-label {
+            display: block;
+            margin-top: 5px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+            color: var(--text-gray);
+        }
+
+        .hud-list-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .hud-list-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+        .hud-list-title > span:first-child { font-size: 14px; font-weight: 600; color: var(--text-white); }
+        .hud-list-sub { font-size: 11px; color: var(--text-gray); }
+
+        .hud-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        .hud-filter {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 11px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-gray);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .hud-filter span { font-size: 9px; font-weight: 700; color: rgba(255, 255, 255, 0.4); font-variant-numeric: tabular-nums; }
+        .hud-filter:hover { border-color: rgba(255, 255, 255, 0.2); color: var(--text-white); }
+        .hud-filter.active { color: #fff; border-color: rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); }
+        .hud-filter.active span { color: #00e5ff; }
+
+        .hud-table-wrap {
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.18);
+        }
+
+        .hud-table { display: flex; flex-direction: column; }
+
+        .hud-row {
+            display: grid;
+            grid-template-columns: 10px minmax(0, 1.35fr) minmax(0, 1.1fr) minmax(0, 1fr) 78px 84px 82px;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            font-size: 11.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+        }
+
+        .hud-row:last-child { border-bottom: none; }
+
+        .hud-row-head {
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.9px;
+            text-transform: uppercase;
+            color: var(--text-gray);
+        }
+
+        .hud-row-data:hover { background: rgba(255, 255, 255, 0.03); }
+
+        .hud-rows { overflow-y: auto; max-height: 440px; }
+
+        .hud-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.25); }
+        .hud-dot.valid { background: #4ade80; box-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
+        .hud-dot.invalid { background: #f87171; }
+        .hud-dot.unknown { background: #fbbf24; }
+        .hud-dot.failed { background: #a78bfa; }
+
+        .hud-number {
+            font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+            color: var(--text-white);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .hud-carrier { color: rgba(255, 255, 255, 0.8); display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+        .hud-conf { font-size: 9px; color: rgba(255, 255, 255, 0.3); }
+        .hud-type { color: var(--text-gray); text-transform: capitalize; }
+        .hud-time { color: rgba(255, 255, 255, 0.35); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+        .hud-empty-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 34px 16px;
+            font-size: 12px;
+            color: var(--text-gray);
+        }
+
+        @media (max-width: 1100px) {
+            .hud-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .hud-row { grid-template-columns: 10px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr) 70px 76px; }
+            .hud-row .hud-time, .hud-row-head span:last-child { display: none; }
+        }
+
+        @media (max-width: 700px) {
+            .num-row { grid-template-columns: 26px minmax(0, 1.4fr) 84px 70px; }
+            .num-row .num-col-carrier, .num-row .num-col-type { display: none; }
+            .hud-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        /* =================================================
          * Launch Controls sub-tab
          *
          * Two jobs, two rows: decide what runs (target list +
@@ -23544,12 +23858,25 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                     </div>
                                 </div>
 
-                                <div class="phone-command-panel">
-                                    <h4><i class="fas fa-th"></i> Number Matrix</h4>
-                                    <div class="phone-matrix-grid" id="phoneMatrixGrid">
-                                        <div style="grid-column: 1/-1; text-align: center; color: var(--text-gray); font-size: 12px; padding: 40px 20px;">
-                                            <i class="fas fa-microchip" style="font-size: 28px; margin-bottom: 10px; display: block; color: #8a2be2;"></i>
-                                            Select a list to preview numbers
+                                <div class="phone-command-panel phone-list-panel">
+                                    <div class="panel-title-row">
+                                        <h4><i class="fas fa-list-ol"></i> Numbers</h4>
+                                        <span class="panel-title-meta" id="phoneMatrixMeta">—</span>
+                                    </div>
+                                    <div class="num-table">
+                                        <div class="num-row num-row-head">
+                                            <span class="num-col-index">#</span>
+                                            <span class="num-col-number">Number</span>
+                                            <span class="num-col-country">Country</span>
+                                            <span class="num-col-carrier">Carrier</span>
+                                            <span class="num-col-type">Type</span>
+                                            <span class="num-col-status">Status</span>
+                                        </div>
+                                        <div class="num-rows" id="phoneMatrixRows">
+                                            <div class="num-empty">
+                                                <i class="fas fa-microchip"></i>
+                                                <span>Select a list to preview its numbers</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -23817,62 +24144,93 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     <!-- Phone Live HUD Monitor Panel -->
                     <div class="validator-inner-content" id="phoneMonitorPanel" style="display: none;">
                         <div class="phone-command-center">
-                            <div class="phone-hero-banner">
-                                <div class="phone-hero-content">
-                                    <div>
-                                        <div class="phone-hero-badge"><i class="fas fa-satellite-dish"></i> LIVE HUD</div>
-                                        <h2 class="phone-hero-title">Validation Monitor</h2>
-                                        <p class="phone-hero-subtitle">Real-time carrier intelligence stream</p>
-                                    </div>
-                                    <button class="montserrat-btn montserrat-btn-secondary" id="phoneLiveViewBtn">
-                                        <span class="btn-icon"><i class="fas fa-eye"></i></span>
-                                        <span class="btn-text">Focus View</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div id="phoneNoSessionMessage" class="validator-empty-state">
-                                <div class="empty-state-icon" style="background: linear-gradient(135deg, rgba(138, 43, 226, 0.2), rgba(0, 229, 255, 0.1));">
-                                    <i class="fas fa-satellite"></i>
-                                </div>
-                                <h4 class="empty-state-title">Systems Standby</h4>
-                                <p class="empty-state-description">Launch validation from Command Center to activate live monitoring</p>
-                            </div>
-
-                            <div id="phoneSessionActive" style="display: none;">
-                                <div class="phone-monitor-hud">
-                                    <div class="phone-hud-card">
-                                        <div class="hud-value" id="phoneMonitorPercent">0%</div>
-                                        <div class="hud-label">Completion</div>
-                                    </div>
-                                    <div class="phone-hud-card">
-                                        <div class="hud-value" id="phoneMonitorProgress">0/0</div>
-                                        <div class="hud-label">Processed</div>
-                                    </div>
-                                    <div class="phone-hud-card">
-                                        <div class="hud-value" id="phoneMonitorStatus" style="font-size: 16px;">-</div>
-                                        <div class="hud-label">Status</div>
-                                    </div>
-                                </div>
-                                <div style="text-align: center; margin-bottom: 16px;">
-                                    <span style="color: var(--text-gray); font-size: 12px;">List: </span>
-                                    <span style="color: #00e5ff; font-weight: 600;" id="phoneMonitorListName">-</span>
-                                </div>
-                                <div class="validator-live-log-wrapper">
-                                    <div class="live-log-header-bar">
-                                        <div class="live-log-title">
-                                            <i class="fas fa-stream"></i>
-                                            <span>Intelligence Stream</span>
+                            <div class="hud-panel">
+                                <div class="launch-head hud-head">
+                                    <div class="panel-header-left">
+                                        <div class="panel-header-icon phone-icon">
+                                            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+                                                <path d="M12 3a9 9 0 108.94 10.06l-1.96-.28A7 7 0 1112 5v3l4-4-4-4v3z"/>
+                                            </svg>
                                         </div>
-                                        <div class="live-log-count">
-                                            <span id="phoneLogCount">0</span>
-                                            <span class="log-count-label">entries</span>
+                                        <div class="panel-header-info">
+                                            <h3>Validation Monitor</h3>
+                                            <p id="phoneMonitorHint">Live and completed checks for the current run</p>
                                         </div>
                                     </div>
-                                    <div class="live-log-content" id="phoneLiveLog">
-                                        <div class="live-log-empty">
-                                            <i class="fas fa-comment-dots"></i>
-                                            <span>Waiting for activity...</span>
+                                    <div class="hud-head-actions">
+                                        <button class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                id="phoneExportCsvBtn" onclick="exportPhoneResultsCsv()">
+                                            <span class="btn-icon"><i class="fas fa-download"></i></span>
+                                            <span class="btn-text">Export CSV</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="phoneNoSessionMessage" class="hud-empty">
+                                    <div class="hud-empty-icon"><i class="fas fa-satellite-dish"></i></div>
+                                    <h4>No run yet</h4>
+                                    <p>Launch a validation to see every number, its carrier and country appear here.</p>
+                                </div>
+
+                                <div id="phoneSessionActive" style="display: none;">
+                                    <div class="hud-stats">
+                                        <div class="hud-stat">
+                                            <span class="hud-stat-value" id="phoneMonitorPercent">0%</span>
+                                            <span class="hud-stat-label">Complete</span>
+                                        </div>
+                                        <div class="hud-stat">
+                                            <span class="hud-stat-value" id="phoneMonitorProgress">0/0</span>
+                                            <span class="hud-stat-label">Processed</span>
+                                        </div>
+                                        <div class="hud-stat hud-stat-valid">
+                                            <span class="hud-stat-value" id="phoneMonitorValid">0</span>
+                                            <span class="hud-stat-label">Valid</span>
+                                        </div>
+                                        <div class="hud-stat hud-stat-invalid">
+                                            <span class="hud-stat-value" id="phoneMonitorInvalid">0</span>
+                                            <span class="hud-stat-label">Invalid</span>
+                                        </div>
+                                        <div class="hud-stat">
+                                            <span class="hud-stat-value" id="phoneMonitorRate">0</span>
+                                            <span class="hud-stat-label">Per min</span>
+                                        </div>
+                                        <div class="hud-stat">
+                                            <span class="hud-stat-value hud-stat-status" id="phoneMonitorStatus">idle</span>
+                                            <span class="hud-stat-label">Status</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="hud-list-head">
+                                        <div class="hud-list-title">
+                                            <span id="phoneMonitorListName">—</span>
+                                            <span class="hud-list-sub" id="phoneMonitorListSub">—</span>
+                                        </div>
+                                        <div class="hud-filters" id="phoneHudFilters">
+                                            <button type="button" class="hud-filter active" data-hud-filter="all">All <span>0</span></button>
+                                            <button type="button" class="hud-filter" data-hud-filter="valid">Valid <span>0</span></button>
+                                            <button type="button" class="hud-filter" data-hud-filter="invalid">Invalid <span>0</span></button>
+                                            <button type="button" class="hud-filter" data-hud-filter="unknown">Unknown <span>0</span></button>
+                                            <button type="button" class="hud-filter" data-hud-filter="failed">Failed <span>0</span></button>
+                                        </div>
+                                    </div>
+
+                                    <div class="hud-table-wrap">
+                                        <div class="hud-table">
+                                            <div class="hud-row hud-row-head">
+                                                <span></span>
+                                                <span>Number</span>
+                                                <span>Country</span>
+                                                <span>Carrier</span>
+                                                <span>Type</span>
+                                                <span>Status</span>
+                                                <span>Checked</span>
+                                            </div>
+                                            <div class="hud-rows" id="phoneHudRows">
+                                                <div class="hud-empty-row">
+                                                    <i class="fas fa-circle-notch"></i>
+                                                    Waiting for the first result…
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -37116,15 +37474,74 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             }
         }
 
+        // ---------------------------------------------------------------- phone rows
+        // One helper decides how a number reads: its international form, a flag,
+        // carrier, line type and a status word. The list preview and the live HUD
+        // share these, so a number never reads differently in two places.
+        function phoneRowNumber(n) {
+            return n.formatted_number || n.e164 || n.number || '—';
+        }
+
+        function phoneRowStatus(n) {
+            if (n.error) return { key: 'failed', label: 'Failed', title: n.error };
+            const status = (n.status || '').toLowerCase();
+            if (status === 'unknown' || (!n.status && n.valid !== true && n.valid !== false)) {
+                return { key: 'unknown', label: 'Unknown', title: n.reason || '' };
+            }
+            if (n.valid === true || status === 'valid') {
+                return { key: 'valid', label: 'Valid', title: n.reason || '' };
+            }
+            return { key: 'invalid', label: 'Invalid', title: n.reason || '' };
+        }
+
+        function phoneCountryLabel(n) {
+            let iso = (n.country_code || '').trim().toUpperCase();
+            if (iso.length !== 2) {
+                const m = /\(([A-Za-z]{2})\)/.exec(n.country || '');
+                if (m) iso = m[1].toUpperCase();
+            }
+            const name = (n.country || '').replace(/\s*\([A-Za-z]{2}\)\s*$/, '').trim();
+            return { name: name || iso || '—', iso: iso };
+        }
+
+        function phoneFlag(countryCode, countryName) {
+            const c = phoneCountryLabel({ country_code: countryCode, country: countryName });
+            if (!/^[A-Z]{2}$/.test(c.iso)) return '<span class="num-flag-none">—</span>';
+            const base = 0x1F1E6;
+            const flag = String.fromCodePoint(...[...c.iso].map(ch => base + ch.charCodeAt(0) - 65));
+            return '<span class="num-flag" title="' + c.iso + '">' + flag + '</span>';
+        }
+
+        function phoneLineType(n) {
+            const t = (n.line_type || '').replace(/_/g, ' ').trim();
+            return t ? t.charAt(0).toUpperCase() + t.slice(1) : '—';
+        }
+
+        function renderNumRow(n, index) {
+            const status = phoneRowStatus(n);
+            const country = phoneCountryLabel(n);
+            return `
+                <div class="num-row" data-status="${status.key}">
+                    <span class="num-col-index">${index}</span>
+                    <span class="num-col-number">${escapeHtml(phoneRowNumber(n))}</span>
+                    <span class="num-col-country">${phoneFlag(n.country_code, n.country)}<span class="num-country-name">${escapeHtml(country.name)}</span></span>
+                    <span class="num-col-carrier">${escapeHtml(n.carrier || '—')}</span>
+                    <span class="num-col-type">${escapeHtml(phoneLineType(n))}</span>
+                    <span class="num-col-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
+                </div>`;
+        }
+
         async function renderPhoneMatrix(listId) {
-            const matrix = document.getElementById('phoneMatrixGrid');
-            if (!matrix) return;
+            const rows = document.getElementById('phoneMatrixRows');
+            const meta = document.getElementById('phoneMatrixMeta');
+            if (!rows) return;
 
             if (!listId) {
-                matrix.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-gray); font-size: 12px; padding: 40px 20px;">
-                    <i class="fas fa-microchip" style="font-size: 28px; margin-bottom: 10px; display: block; color: #8a2be2;"></i>
-                    Select a list to preview numbers
+                rows.innerHTML = `<div class="num-empty">
+                    <i class="fas fa-microchip"></i>
+                    <span>Select a list to preview its numbers</span>
                 </div>`;
+                if (meta) meta.textContent = '—';
                 return;
             }
 
@@ -37134,26 +37551,26 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 const listData = await response.json();
                 const numbers = listData.numbers || [];
 
+                if (meta) meta.textContent = numbers.length + ' number' + (numbers.length === 1 ? '' : 's');
+
                 if (numbers.length === 0) {
-                    matrix.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-gray); font-size: 12px; padding: 20px;">No numbers in this list</div>`;
+                    rows.innerHTML = `<div class="num-empty">
+                        <i class="fas fa-inbox"></i>
+                        <span>No numbers in this list yet</span>
+                    </div>`;
                     return;
                 }
 
-                matrix.innerHTML = numbers.slice(0, 120).map(n => {
-                    const num = n.number || n.formatted_number || n.phone || '?';
-                    const cls = n.valid === true ? 'valid' : (n.valid === false ? 'invalid' : '');
-                    const display = num.length > 12 ? num.slice(-10) : num;
-                    return `<div class="phone-matrix-cell ${cls}" title="${num}">${display}</div>`;
-                }).join('');
-
-                if (numbers.length > 120) {
-                    matrix.innerHTML += `<div class="phone-matrix-cell" style="grid-column: 1/-1;">+${numbers.length - 120} more</div>`;
+                const shown = numbers.slice(0, 500);
+                rows.innerHTML = shown.map((n, idx) => renderNumRow(n, idx + 1)).join('');
+                if (numbers.length > shown.length) {
+                    rows.innerHTML += `<div class="num-more">+${(numbers.length - shown.length).toLocaleString()} more not shown</div>`;
                 }
             } catch (e) {
-                matrix.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #ff5252; font-size: 12px;">Failed to load numbers</div>`;
+                rows.innerHTML = `<div class="num-empty"><i class="fas fa-triangle-exclamation"></i><span>Failed to load numbers</span></div>`;
             }
         }
-        
+
         // Fill the Launch Controls summary: which list, how many numbers, what
         // it will cost, and what the launch button will actually do.
         function refreshLaunchSummary(providerHint) {
@@ -37930,13 +38347,29 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             const monitorProgress = document.getElementById('phoneMonitorProgress');
             const monitorPercent = document.getElementById('phoneMonitorPercent');
             
-            if (monitorListName) monitorListName.textContent = data.list_name || '-';
-            if (monitorStatus) monitorStatus.textContent = data.status || '-';
+            if (monitorListName) {
+                monitorListName.textContent = data.list_name || '—';
+                const sub = document.getElementById('phoneMonitorListSub');
+                if (sub) sub.textContent = (data.transport ? data.transport + ' · ' : '') + total + ' numbers';
+            }
+            if (monitorStatus) monitorStatus.textContent = data.status || 'idle';
             if (monitorProgress) monitorProgress.textContent = `${processed}/${total}`;
             if (monitorPercent) monitorPercent.textContent = `${percent}%`;
-            
-            // Add log entry
-            addPhoneLogEntry(valid, invalid + failed, data.status);
+
+            const monValid = document.getElementById('phoneMonitorValid');
+            if (monValid) monValid.textContent = valid;
+            const monInvalid = document.getElementById('phoneMonitorInvalid');
+            if (monInvalid) monInvalid.textContent = invalid + failed;
+            const monRate = document.getElementById('phoneMonitorRate');
+            if (monRate) monRate.textContent = rate;
+
+            // A run is worth watching: reveal the HUD body and keep its table live.
+            const activeWrap = document.getElementById('phoneSessionActive');
+            if (activeWrap) activeWrap.style.display = 'block';
+            const idle = document.getElementById('phoneNoSessionMessage');
+            if (idle && processed > 0) idle.style.display = 'none';
+            setupHudFilters();
+            renderHudRows();
         }
         
         // Add email log entry with enhanced detailed logging
@@ -38952,38 +39385,99 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
         }
 
         // One log row per validated number, mirroring the email live log.
-        function addPhoneNumberLogEntry(result) {
-            const log = document.getElementById('phoneLiveLog');
-            const countEl = document.getElementById('phoneLogCount');
-            if (!log || !result) return;
+        // ---------------------------------------------------------------- live HUD
+        // Every result seen is kept, keyed by number, so re-polling never
+        // duplicates a row and the filter counts stay truthful.
+        const phoneHudState = { rows: new Map(), filter: 'all' };
 
-            const emptyState = log.querySelector('.log-empty');
-            if (emptyState) emptyState.remove();
+        function renderHudRows() {
+            const rows = document.getElementById('phoneHudRows');
+            if (!rows) return;
 
-            const isUnknown = result.status === 'unknown' && !result.error;
-            const state = result.error ? 'failed' : (isUnknown ? 'warning' : (result.valid ? 'success' : 'invalid'));
-            const label = result.error ? 'Failed'
-                : (isUnknown ? 'Unknown'
-                : (result.valid
-                    ? (result.line_type ? result.line_type.charAt(0).toUpperCase() + result.line_type.slice(1) : 'Valid')
-                    : 'Invalid'));
-            const detail = [result.carrier, result.country].filter(Boolean).join(' · ');
-            const number = result.formatted_number || result.number || '-';
+            const all = Array.from(phoneHudState.rows.values());
+            const filtered = phoneHudState.filter === 'all'
+                ? all
+                : all.filter(r => phoneRowStatus(r).key === phoneHudState.filter);
 
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${state}`;
-            entry.innerHTML = `
-                <span><i class="fas fa-phone"></i> ${escapeHtml(number)}</span>
-                <span><span class="status-badge ${result.valid ? 'valid' : 'invalid'}">${escapeHtml(label)}</span></span>
-                <span>${escapeHtml(detail || result.error || result.reason || '-')}</span>
-                <span>${new Date().toLocaleTimeString()}</span>
-            `;
-            log.appendChild(entry);
-
-            if (countEl) {
-                countEl.textContent = `${log.querySelectorAll('.log-entry').length} entries`;
+            if (all.length === 0) {
+                rows.innerHTML = `<div class="hud-empty-row"><i class="fas fa-circle-notch"></i> Waiting for the first result…</div>`;
+            } else if (filtered.length === 0) {
+                rows.innerHTML = `<div class="hud-empty-row"><i class="fas fa-filter"></i> No ${phoneHudState.filter} numbers in this run</div>`;
+            } else {
+                rows.innerHTML = filtered.map(n => {
+                    const status = phoneRowStatus(n);
+                    const country = phoneCountryLabel(n);
+                    const checked = n.validated_at ? new Date(n.validated_at).toLocaleTimeString() : '—';
+                    const conf = n.confidence ? `<span class="hud-conf">${n.confidence}%</span>` : '';
+                    return `
+                        <div class="hud-row hud-row-data" data-status="${status.key}">
+                            <span class="hud-dot ${status.key}"></span>
+                            <span class="hud-number">${escapeHtml(phoneRowNumber(n))}</span>
+                            <span class="hud-country">${phoneFlag(n.country_code, n.country)}<span>${escapeHtml(country.name)}</span></span>
+                            <span class="hud-carrier">${escapeHtml(n.carrier || '—')}${conf}</span>
+                            <span class="hud-type">${escapeHtml(phoneLineType(n))}</span>
+                            <span class="hud-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
+                            <span class="hud-time">${escapeHtml(checked)}</span>
+                        </div>`;
+                }).join('');
             }
-            log.scrollTop = log.scrollHeight;
+
+            const counts = { all: all.length, valid: 0, invalid: 0, unknown: 0, failed: 0 };
+            all.forEach(r => {
+                const k = phoneRowStatus(r).key;
+                counts[k] = (counts[k] || 0) + 1;
+            });
+            document.querySelectorAll('#phoneHudFilters .hud-filter').forEach(btn => {
+                const key = btn.dataset.hudFilter;
+                const badge = btn.querySelector('span');
+                if (badge) badge.textContent = counts[key] || 0;
+                btn.classList.toggle('active', key === phoneHudState.filter);
+            });
+        }
+
+        function addPhoneNumberLogEntry(result) {
+            if (!result) return;
+            phoneHudState.rows.set(phoneRowNumber(result), result);
+            renderHudRows();
+        }
+
+        function setupHudFilters() {
+            const wrap = document.getElementById('phoneHudFilters');
+            if (!wrap || wrap.dataset.bound === '1') return;
+            wrap.dataset.bound = '1';
+            wrap.addEventListener('click', (event) => {
+                const btn = event.target.closest('.hud-filter');
+                if (!btn) return;
+                phoneHudState.filter = btn.dataset.hudFilter || 'all';
+                renderHudRows();
+            });
+        }
+
+        function exportPhoneResultsCsv() {
+            const all = Array.from(phoneHudState.rows.values());
+            if (all.length === 0) {
+                showToast('No results to export yet', 'warning');
+                return;
+            }
+            const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            const lines = [['number', 'e164', 'country', 'country_code', 'carrier',
+                            'line_type', 'status', 'valid', 'confidence', 'reason', 'checked_at'].join(',')];
+            all.forEach(n => {
+                const c = phoneCountryLabel(n);
+                lines.push([n.number, n.e164, c.name, c.iso, n.carrier, n.line_type,
+                            phoneRowStatus(n).label, n.valid, n.confidence,
+                            n.reason || n.error, n.validated_at].map(esc).join(','));
+            });
+            const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'phone-validation-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Exported ' + all.length + ' results', 'success');
         }
 
         function resetPhoneValidationUI() {
