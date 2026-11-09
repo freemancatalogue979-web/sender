@@ -39,7 +39,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from html import unescape as _html_unescape
@@ -609,6 +611,26 @@ _PHONE_GRID_LABELS = {
 _PHONE_LABEL_IGNORE = {"", ":", "-", "—"}
 
 
+def _trace(event: str, **fields: Any) -> None:
+    """
+    Say what the scraper actually saw, on stderr and to the app's log.
+
+    Off by default (set FV_S_PHONE_TRACE=0 to silence it) because a batch of
+    100k would be 100k lines, but on for anyone diagnosing a run. Every value is
+    truncated: these are page fragments, and one bad field is what the HUD
+    started showing in the first place.
+    """
+    if os.getenv("FV_S_PHONE_TRACE", "1").strip().lower() in ("0", "false", "no"):
+        return
+    parts = []
+    for key, value in fields.items():
+        text = str(value if value is not None else "—").replace("\n", " ")
+        if len(text) > 120:
+            text = text[:117] + "…"
+        parts.append(f"{key}={text}")
+    logger.info("[phone] %s | %s", event, " ".join(parts))
+
+
 def _spans_with_text(html: str) -> List[str]:
     """
     Text of every leaf element, in document order.
@@ -710,7 +732,11 @@ def parse_veriphone_phone_page(html: str) -> Dict[str, Any]:
     if "<" not in body:
         # Already text (the Decodo path extracts it first). The grid then reads
         # as one "label value" pair per line, with empty values kept as blanks.
-        return _parse_phone_text_grid(body)
+        fields = _parse_phone_text_grid(body)
+        _trace("parsed text grid", number=fields.get("number"),
+               type=fields.get("line_type"), carrier=fields.get("carrier"),
+               country=fields.get("country"))
+        return fields
 
     spans = _spans_with_text(body)
     for index, text in enumerate(spans):
@@ -729,8 +755,13 @@ def parse_veriphone_phone_page(html: str) -> Dict[str, Any]:
 
     # A value that is obviously page chrome means the grid was not rendered.
     if fields.get("number") and not re.search(r"\d{3}", fields["number"]):
+        _trace("rejected non-numeric number field", value=fields["number"])
         for key in list(fields):
             fields[key] = None
+
+    _trace("parsed html grid", number=fields.get("number"),
+           type=fields.get("line_type"), carrier=fields.get("carrier"),
+           country=fields.get("country"))
     return fields
 
 
@@ -2385,14 +2416,20 @@ def validate_phone_via_scrapingbee(
     e164 = to_e164(phone_number, country_code)
     result["e164"] = e164
 
+    _trace("scrapingbee request", number=e164,
+           premium_proxy=bool(settings.get("premium_proxy")),
+           country=settings.get("country_code") or "any")
     try:
         html = _call_scrapingbee(adapter, e164, settings)
     except DecodoError as exc:
+        _trace("scrapingbee failed", number=e164, error=exc)
         result["error"] = str(exc)
         return result
     except Exception as exc:
+        _trace("scrapingbee crashed", number=e164, error=exc)
         result["error"] = f"ScrapingBee failed: {exc}"
         return result
+    _trace("scrapingbee returned", number=e164, bytes=len(html))
 
     raw = adapter.parse(html)
     status, reason, confidence = classify_phone(raw)
@@ -2412,7 +2449,31 @@ def validate_phone_via_scrapingbee(
     result["country"] = raw.get("country")
     result["region"] = raw.get("region")
     result["city"] = raw.get("city")
+
+    _trace("verdict", number=result["formatted_number"], type=result["line_type"],
+           carrier=result["carrier"], country=result["country"],
+           status=status, confidence=confidence, reason=reason)
+    _debug_dump_page(html, e164)
     return result
+
+
+def _debug_dump_page(html: str, e164: str) -> None:
+    """
+    Write the rendered page to disk so a bad parse can be inspected.
+
+    One file per number, overwritten on each attempt, and only when tracing is
+    on: the page is the only way to tell "the grid was not there" from "the
+    grid was there and we read it wrong".
+    """
+    if os.getenv("FV_S_PHONE_TRACE", "1").strip().lower() in ("0", "false", "no"):
+        return
+    try:
+        safe = re.sub(r"[^0-9+]", "", e164) or "page"
+        path = Path(tempfile.gettempdir()) / f"veriphone-{safe}.html"
+        path.write_text(html or "", encoding="utf-8", errors="replace")
+        _trace("page dumped", path=str(path))
+    except Exception as exc:  # tracing must never break a lookup
+        _trace("page dump failed", error=exc)
 
 
 def validate_phone_via_browser_use(

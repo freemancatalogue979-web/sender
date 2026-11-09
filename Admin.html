@@ -2430,8 +2430,9 @@
             }
 
             .scraper-actions .montserrat-btn {
-                padding: 9px 11px;
-                font-size: 11px;
+                padding: 10px 14px;
+                min-height: 38px;
+                font-size: 11.5px;
                 border-radius: 10px;
                 gap: 6px;
                 justify-content: center;
@@ -2444,8 +2445,9 @@
             .scraper-status {
                 display: flex;
                 align-items: flex-start;
-                gap: 7px;
-                padding: 8px 10px;
+                gap: 8px;
+                padding: 10px 12px;
+                margin-top: 12px;
                 border-radius: 9px;
                 background: rgba(0, 0, 0, 0.2);
                 border-left: 2px solid rgba(255, 255, 255, 0.14);
@@ -2517,7 +2519,111 @@
             .scraper-advanced-body { padding-top: 12px; }
             .scraper-advanced-note { margin-top: 2px; font-size: 9px; line-height: 1.5; color: var(--text-gray); }
 
-            /* The offline engine reads no key. */
+            /* ---- groups: one idea per block, not one long wall ---- */
+            .scraper-group {
+                padding-bottom: 16px;
+                margin-bottom: 16px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+            }
+
+            .scraper-group:last-of-type { border-bottom: none; padding-bottom: 0; }
+
+            .scraper-group-label {
+                display: block;
+                margin-bottom: 9px;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.34);
+            }
+
+            /* The key field and its reveal button read as one control. */
+            .scraper-input-group {
+                position: relative;
+                display: flex;
+                align-items: center;
+            }
+
+            .scraper-input-group .scraper-input { padding-right: 38px; }
+
+            .scraper-input-reveal {
+                position: absolute;
+                right: 4px;
+                display: grid;
+                place-items: center;
+                width: 30px;
+                height: 30px;
+                border: none;
+                border-radius: 8px;
+                background: transparent;
+                color: rgba(255, 255, 255, 0.35);
+                font-size: 11px;
+                cursor: pointer;
+                transition: color 0.2s ease, background 0.2s ease;
+            }
+
+            .scraper-input-reveal:hover { color: var(--text-white); background: rgba(255, 255, 255, 0.06); }
+
+            /* A labelled inline field, smaller than a full group. */
+            .scraper-field-inline {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-top: 12px;
+                margin-bottom: 0;
+            }
+
+            .scraper-inline-label {
+                font-size: 11px;
+                color: var(--text-gray);
+                white-space: nowrap;
+            }
+
+            .scraper-input-short {
+                width: 74px;
+                flex: 0 0 auto;
+                padding: 7px 9px;
+                text-align: center;
+                text-transform: uppercase;
+                font-size: 11px;
+            }
+
+            /* Icon-only action, same height as the buttons beside it. */
+            .scraper-icon-btn {
+                display: grid;
+                place-items: center;
+                width: 38px;
+                min-height: 38px;
+                height: auto;
+                border-radius: 10px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--text-gray);
+                font-size: 11px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .scraper-icon-btn:hover { color: var(--text-white); border-color: rgba(255, 255, 255, 0.22); }
+
+            .scraper-advanced-tag {
+                margin-left: auto;
+                padding: 2px 7px;
+                border-radius: 999px;
+                font-size: 8.5px;
+                font-weight: 600;
+                letter-spacing: 0.3px;
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                text-transform: none;
+            }
+
+            .scraper-advanced summary { justify-content: flex-start; width: 100%; }
+
+                        /* The offline engine reads no key. */
             .scraper-card.is-local #scraperKeyFields,
             .scraper-card.is-local #scraperSaveBtn { display: none; }
 
@@ -15633,7 +15739,9 @@
         /* ---------- two blocks ---------- */
         .launch-grid {
             display: grid;
-            grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr);
+            /* The left block is a summary; the right one is the actual setup,
+               so it gets the room. */
+            grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.42fr);
             gap: 28px;
             align-items: start;
         }
@@ -15811,7 +15919,8 @@
         .launch-block-transport .scraper-form-row { grid-template-columns: minmax(0, 1fr) 92px; gap: 12px; }
 
         .launch-block-transport .scraper-actions { gap: 8px; margin-bottom: 16px; }
-        .launch-block-transport .scraper-actions .montserrat-btn { padding: 11px 15px; font-size: 12px; }
+        .launch-block-transport .scraper-actions .montserrat-btn { padding: 11px 15px; min-height: 40px; font-size: 12px; }
+        .launch-block-transport .scraper-icon-btn { width: 40px; min-height: 40px; }
         .launch-block-transport .scraper-status { padding: 11px 13px; font-size: 11.5px; line-height: 1.55; }
 
         /* Spacious option row: the switch finally has room to be a switch. */
@@ -23975,30 +24084,28 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                         <div class="launch-section-label">Service &amp; credentials</div>
 
                                         <div class="scraper-card">
-                                            <div class="form-group scraper-field">
-                                                <label class="form-label" for="scraperProviderSelect">
-                                                    Service
-                                                    <span class="scraper-field-hint">what actually performs the lookup</span>
-                                                </label>
-                                                <div class="select-wrapper">
-                                                    <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select"
-                                                            onchange="switchScraperProvider(this.value)">
-                                                        <option value="scrapingbee">ScrapingBee</option>
-                                                        <option value="decodo">Decodo</option>
-                                                        <option value="browser-use">Browser Use</option>
-                                                        <option value="local">Offline — free, no network</option>
-                                                    </select>
-                                                    <i class="fas fa-chevron-down select-arrow"></i>
+                                                <!-- which service runs the lookup -->
+                                                <div class="scraper-group">
+                                                    <span class="scraper-group-label">Service</span>
+                                                    <div class="select-wrapper">
+                                                        <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select" onchange="switchScraperProvider(this.value)">
+                                                            <option value="scrapingbee">ScrapingBee</option>
+                                                            <option value="decodo">Decodo</option>
+                                                            <option value="browser-use">Browser Use</option>
+                                                            <option value="local">Offline — free, no network</option>
+                                                        </select>
+                                                        <i class="fas fa-chevron-down select-arrow"></i>
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <div id="scraperKeyFields">
-                                                <div class="scraper-form-row">
-                                                    <div class="form-group scraper-field">
-                                                        <label class="form-label" for="scraperApiKey">API key</label>
+                                                <!-- the credential for that service -->
+                                                <div class="scraper-group" id="scraperKeyFields">
+                                                    <span class="scraper-group-label">Credentials</span>
+
+                                                    <div class="scraper-field">
                                                         <div class="scraper-input-group">
                                                             <input type="password" id="scraperApiKey" class="form-control scraper-input"
-                                                                   autocomplete="off" spellcheck="false" placeholder="Paste key"
+                                                                   autocomplete="off" spellcheck="false" placeholder="Paste your API key"
                                                                    onkeydown="if (event.key === 'Enter') { saveScraperKey(); }">
                                                             <button type="button" class="scraper-input-reveal"
                                                                     onclick="toggleKeyVisibility()" title="Show or hide the key">
@@ -24006,81 +24113,82 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div class="form-group scraper-field scraper-field-compact">
-                                                        <label class="form-label" for="scraperProxyCountry">Country</label>
-                                                        <input type="text" id="scraperProxyCountry" class="form-control scraper-input"
-                                                               autocomplete="off" maxlength="2" placeholder="any">
+
+                                                    <div class="scraper-option-row">
+                                                        <span class="proxy-toggle-switch">
+                                                            <input type="checkbox" id="scraperPremiumProxy"
+                                                                   onchange="if (typeof refreshLaunchSummary === 'function') refreshLaunchSummary();">
+                                                            <span class="proxy-toggle-slider"></span>
+                                                        </span>
+                                                        <span class="scraper-option-text">
+                                                            <span class="scraper-option-title">Rotate IP every check</span>
+                                                            <span class="scraper-option-note">Premium residential proxy. 25 credits per lookup instead of 5.</span>
+                                                        </span>
                                                     </div>
+
+                                                    <div class="scraper-field scraper-field-inline">
+                                                        <span class="scraper-inline-label">Proxy country</span>
+                                                        <input type="text" id="scraperProxyCountry" class="form-control scraper-input scraper-input-short"
+                                                               autocomplete="off" maxlength="2" placeholder="auto">
+                                                    </div>
+                                                    </div>
+
+                                                <!-- actions -->
+                                                <div class="scraper-actions">
+                                                    <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
+                                                            id="scraperSaveBtn" onclick="saveScraperKey()">
+                                                        <span class="btn-icon"><i class="fas fa-bolt"></i></span>
+                                                        <span class="btn-text">Save &amp; Activate</span>
+                                                    </button>
+                                                    <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
+                                                            id="scraperTestBtn" onclick="testScraperProvider()">
+                                                        <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                        <span class="btn-text">Test</span>
+                                                    </button>
+                                                    <button type="button" class="scraper-icon-btn"
+                                                            onclick="loadScraperPanel()" title="Re-read from the server">
+                                                        <i class="fas fa-sync-alt"></i>
+                                                    </button>
                                                 </div>
 
-                                                <label class="scraper-option-row">
-                                                    <span class="proxy-toggle-switch">
-                                                        <input type="checkbox" id="scraperPremiumProxy"
-                                                               onchange="if (typeof refreshLaunchSummary === 'function') refreshLaunchSummary();">
-                                                        <span class="proxy-toggle-slider"></span>
-                                                    </span>
-                                                    <span class="scraper-option-text">
-                                                        <span class="scraper-option-title">Premium proxy</span>
-                                                        <span class="scraper-option-note">A fresh residential IP per check, so one number can't rate-limit the next. Costs 25 credits, not 5.</span>
-                                                    </span>
-                                                </label>
-                                            </div>
-
-                                            <div class="scraper-actions">
-                                                <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm"
-                                                        id="scraperSaveBtn" onclick="saveScraperKey()">
-                                                    <span class="btn-icon"><i class="fas fa-bolt"></i></span>
-                                                    <span class="btn-text">Save &amp; Activate</span>
-                                                </button>
-                                                <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                        id="scraperTestBtn" onclick="testScraperProvider()">
-                                                    <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                    <span class="btn-text">Test</span>
-                                                </button>
-                                                <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                        onclick="loadScraperPanel()" title="Re-read from the server">
-                                                    <span class="btn-icon"><i class="fas fa-sync-alt"></i></span>
-                                                </button>
-                                            </div>
-
-                                            <div class="scraper-status" id="scraperStatusLine">
-                                                <i class="fas fa-circle-info scraper-status-icon"></i>
-                                                <span class="scraper-status-text">Loading configuration…</span>
-                                            </div>
-
-                                            <div class="scraper-foot">
-                                                <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
-                                            </div>
-
-                                            <details class="scraper-advanced">
-                                                <summary>
-                                                    <i class="fas fa-chevron-right scraper-chevron"></i>
-                                                    veriphone JSON API key
-                                                </summary>
-                                                <div class="scraper-advanced-body">
-                                                    <div class="form-group scraper-field">
-                                                        <label class="form-label" for="veriphoneApiKey">veriphone key</label>
-                                                        <input type="password" id="veriphoneApiKey" class="form-control scraper-input"
-                                                               autocomplete="off" placeholder="Bypasses scraping entirely">
-                                                    </div>
-                                                    <div class="scraper-actions">
-                                                        <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                                onclick="saveVeriphoneKey()">
-                                                            <span class="btn-icon"><i class="fas fa-key"></i></span>
-                                                            <span class="btn-text">Save</span>
-                                                        </button>
-                                                        <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm"
-                                                                onclick="testVeriphoneKey()">
-                                                            <span class="btn-icon"><i class="fas fa-vial"></i></span>
-                                                            <span class="btn-text">Test</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="scraper-advanced-note">
-                                                        Queries the JSON API directly, so no scraping credits are spent.
-                                                    </div>
+                                                <!-- what the server says right now -->
+                                                <div class="scraper-status" id="scraperStatusLine">
+                                                    <i class="fas fa-circle-info scraper-status-icon"></i>
+                                                    <span class="scraper-status-text">Loading configuration…</span>
                                                 </div>
-                                            </details>
-                                        </div>
+
+                                                <div class="scraper-foot">
+                                                    <span id="scraperCredits" class="scraper-credits" style="display: none;"></span>
+                                                </div>
+
+                                                <!-- the JSON API path, kept out of the way -->
+                                                <details class="scraper-advanced">
+                                                    <summary>
+                                                        <i class="fas fa-chevron-right scraper-chevron"></i>
+                                                        <span>veriphone JSON API key</span>
+                                                        <span class="scraper-advanced-tag">skips scraping</span>
+                                                    </summary>
+                                                    <div class="scraper-advanced-body">
+                                                        <div class="scraper-field">
+                                                            <input type="password" id="veriphoneApiKey" class="form-control scraper-input"
+                                                                   autocomplete="off" placeholder="Paste a veriphone key">
+                                                        </div>
+                                                        <div class="scraper-actions">
+                                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm" onclick="saveVeriphoneKey()">
+                                                                <span class="btn-icon"><i class="fas fa-key"></i></span>
+                                                                <span class="btn-text">Save</span>
+                                                            </button>
+                                                            <button type="button" class="montserrat-btn montserrat-btn-secondary montserrat-btn-sm" onclick="testVeriphoneKey()">
+                                                                <span class="btn-icon"><i class="fas fa-vial"></i></span>
+                                                                <span class="btn-text">Test</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="scraper-advanced-note">
+                                                            Queries the JSON API directly, so no scraping credits are spent.
+                                                        </div>
+                                                    </div>
+                                                </details>
+                                            </div>
                                     </section>
                                 </div>
                             </div>
@@ -37486,11 +37594,38 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             }
         }
 
+        // ------------------------------------------------------------------ console
+        // Every phone lookup prints one line per number, so a bad run can be read
+        // straight out of the browser console instead of guessed at from the UI.
+        // Silence it with:  fvPhoneDebug = false
+        window.fvPhoneDebug = window.fvPhoneDebug !== false;
+
+        function phoneLog(stage, payload) {
+            if (!window.fvPhoneDebug) return;
+            console.log('%c[phone]%c ' + stage,
+                        'color:#00e5ff;font-weight:700', 'color:inherit',
+                        payload === undefined ? '' : payload);
+        }
+
+        function phoneLogResult(result) {
+            if (!window.fvPhoneDebug || !result) return;
+            const status = phoneRowStatus(result);
+            const country = phoneCountryLabel(result);
+            const flag = phoneFlag(result.country_code, result.country).replace(/<[^>]+>/g, '');
+            console.log('%c[phone]%c ' +
+                        String(phoneRowNumber(result)).padEnd(20) + ' ' +
+                        flag + ' ' + String(country.name).padEnd(16) + ' ' +
+                        String(phoneCarrier(result)).padEnd(10) + ' ' +
+                        String(phoneLineType(result)).padEnd(20) + ' ' + status.label,
+                        'color:#00e5ff;font-weight:700', 'color:inherit',
+                        result.reason || result.error || '');
+        }
+
         // ---------------------------------------------------------------- phone rows
         // One helper decides how a number reads: its international form, a flag,
         // carrier, line type and a status word. The list preview and the live HUD
         // share these, so a number never reads differently in two places.
-        // ---------------------------------------------------------------- phone rows
+        //
         // A value is only a fact if it looks like one. Scraped pages used to hand
         // back fragments of their own HTML as a carrier or a country, which then
         // rendered as "Carrier: Lookup — Veriphone</title>". Anything that does
@@ -38229,7 +38364,15 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
 
                     // Per-number detail for the live log (Decodo/veriphone verdict)
                     if (data.last_batch_results && data.last_batch_results.length > 0) {
+                        phoneLog('batch received', {
+                            session: validatorState.phone.sessionId,
+                            numbers: data.last_batch_results.length,
+                            transport: data.transport || data.site,
+                            processed: data.progress && data.progress.processed,
+                            total: data.progress && data.progress.total,
+                        });
                         data.last_batch_results.forEach(result => {
+                            phoneLogResult(result);
                             addPhoneNumberLogEntry(result);
                         });
                     }
@@ -38245,7 +38388,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                 { method: 'POST' }
                             );
                         } catch (batchError) {
-                            console.error('Phone batch error:', batchError);
+                            phoneLog('batch failed', { session: validatorState.phone.sessionId, error: String(batchError) });
                         }
                         setTimeout(pollPhoneValidationProgress, 2000);
                     } else if (status === 'paused') {
@@ -38930,36 +39073,6 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             updateEmailLogSummary();
         }
         
-        // Add phone log entry
-        function addPhoneLogEntry(passed, failed, status) {
-            const log = document.getElementById('phoneLiveLog');
-            const countEl = document.getElementById('phoneLogCount');
-            if (!log) return;
-            
-            // Remove empty state if exists
-            const emptyState = log.querySelector('.log-empty');
-            if (emptyState) emptyState.remove();
-            
-            // Add new entry
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${status === 'completed' ? 'success' : status === 'paused' ? 'warning' : ''}`;
-            entry.innerHTML = `
-                <span><i class="fas fa-check"></i> ${passed} passed</span>
-                <span><i class="fas fa-times"></i> ${failed} failed</span>
-                <span>${new Date().toLocaleTimeString()}</span>
-            `;
-            
-            log.appendChild(entry);
-            
-            // Update count
-            if (countEl) {
-                const entries = log.querySelectorAll('.log-entry').length;
-                countEl.textContent = `${entries} entries`;
-            }
-            
-            // Scroll to bottom
-            log.scrollTop = log.scrollHeight;
-        }
         
         // Pause email validation
         async function pauseEmailValidation() {
@@ -39167,9 +39280,6 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             const select = document.getElementById('scraperProviderSelect');
             if (select && select.value !== provider) select.value = provider;
 
-            const note = document.getElementById('scraperProviderNote');
-            if (note) note.textContent = SCRAPER_COSTS[provider] || '';
-
             const card = document.querySelector('.scraper-card');
             if (card) card.classList.toggle('is-local', provider === 'local');
 
@@ -39200,6 +39310,13 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     return;
                 }
                 const data = await response.json();
+                phoneLog('scraper config', {
+                    provider: data.provider,
+                    label: data.label,
+                    configured: data.configured,
+                    veriphone_api_key: !!data.veriphone_api_key,
+                    sources: data.sources,
+                });
                 scraperApplyProvider(data.provider);
 
                 const label = data.label || scraperProviderLabel(data.provider);
@@ -39246,6 +39363,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                  numbers.toLocaleString() + ' numbers left';
                 el.className = 'scraper-credits' + (Number(remaining) < 500 ? ' is-low' : '');
                 el.style.display = 'inline-block';
+                phoneLog('scrapingbee credits', { remaining: Number(remaining), numbers_left: numbers });
             } catch (error) {
                 el.style.display = 'none';
             }
@@ -39362,6 +39480,8 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     : '/validator/' + provider + '/test';
                 const response = await fetchWithAuth(endpoint, { method: 'POST' });
                 const data = await response.json().catch(() => ({}));
+
+                phoneLog('scraper test result', { provider: provider, ok: response.ok, reply: data });
 
                 if (response.ok && data.success !== false && !data.error) {
                     const bits = [data.carrier, data.country, data.status]
