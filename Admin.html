@@ -23732,16 +23732,28 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
     </div>
 
     <script>
-        // Server Configuration - Set this to your server URL
-        // Hardcoded server URL for production use
-        // Same origin, always. The panel is served by the app it talks to, so
-        // http://localhost:8000 works and so does any host it is deployed on.
-        // localStorage.fvs_server_url can point it somewhere else if ever needed
-        // (e.g. opening the file straight from disk, which has no origin).
+        // ---------------------------------------------------------------------
+        // Server URL
+        //
+        // Served by the app (http://localhost:8000, or any deployed host) the
+        // page talks to its own origin. That is the normal case.
+        //
+        // Opened straight from disk the page has NO origin: window.location.origin
+        // is the string "null" for file:// URLs, and every relative fetch would
+        // become file:///users/login and be blocked by CORS with ERR_FAILED.
+        // So a file:// page falls back to the local API host, and
+        // localStorage.fvs_server_url overrides everything when a panel has to
+        // point at a remote server.
+        // ---------------------------------------------------------------------
         const SERVER_URL = (() => {
             const override = localStorage.getItem('fvs_server_url');
-            if (override) return override.replace(/\/$/, '');
-            return window.location.origin;
+            if (override) return override.trim().replace(/\/+$/, '');
+
+            const { protocol, host, origin } = window.location;
+            if (protocol === 'file:' || !host || !origin || origin === 'null') {
+                return 'http://localhost:8000';
+            }
+            return origin;
         })();
         
         // Auth State

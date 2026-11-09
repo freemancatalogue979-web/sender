@@ -1165,8 +1165,17 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        // Same origin: this page is served by the same app as the API.
-        const SERVER_URL = window.location.origin;
+        // Served by the app => talk to our own origin. Opened from disk there is
+        // no usable origin ("null"), so fall back to the local API host.
+        const SERVER_URL = (() => {
+            const override = localStorage.getItem('fvs_server_url');
+            if (override) return override.trim().replace(/\/+$/, '');
+            const { protocol, host, origin } = window.location;
+            if (protocol === 'file:' || !host || !origin || origin === 'null') {
+                return 'http://localhost:8000';
+            }
+            return origin;
+        })();
         let users = [];
         let deletedUsers = [];
         let currentTab = 'active';

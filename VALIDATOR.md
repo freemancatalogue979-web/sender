@@ -1117,3 +1117,44 @@ The dropdown replaced the four tiles because the app already uses
 fighting its container.
 
 **171 tests passing.**
+
+### Opening the panel from disk (the `file://` trap)
+
+Removing the hardcoded host introduced a regression: a page opened as
+`file:///…/Admin.html` has **no origin** — `window.location.origin` is the
+string `"null"` — so same-origin resolution produced
+`file:///users/login`, and the browser blocked it:
+
+```
+Access to fetch at 'file:///users/login' from origin 'null'
+has been blocked by CORS policy
+```
+
+Three checks were wrong for the disk case, so the resolution now handles all of
+them explicitly:
+
+```js
+const { protocol, host, origin } = window.location;
+if (protocol === 'file:' || !host || !origin || origin === 'null') {
+    return 'http://localhost:8000';   // no usable origin: talk to the local API
+}
+return origin;
+```
+
+`localStorage.fvs_server_url` still overrides everything (trailing slashes are
+trimmed), which is how a panel opened from disk points at a remote server.
+
+Verified by evaluating the real block under each environment:
+
+| Page loaded as | SERVER_URL |
+|---|---|
+| `file:///…/Admin.html` | `http://localhost:8000` |
+| `http://localhost:8000` | `http://localhost:8000` |
+| `https://8000-….e2b.app` | `https://8000-….e2b.app` |
+| override `http://192.168.1.50:8000/` | `http://192.168.1.50:8000` |
+
+And the cross-origin path against the live server, with `Origin: null` as a
+`file://` page sends: preflight `200` with `access-control-allow-origin: *`,
+then `/users/login`, `/inbox-state`, `/stats/detailed` and `/validator/scraper`
+all return `200`. The API is happy with a null origin; the page just has to know
+where to point.
