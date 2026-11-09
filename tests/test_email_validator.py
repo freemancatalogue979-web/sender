@@ -1968,7 +1968,181 @@ def test_saved_list_keeps_the_api_fields(tmp_path):
 def test_save_veriphone_config_route_does_not_crash():
     """This raised NameError: phone_transport_label was never imported."""
     import api
-    import inspect
+    import inspect as _inspect
 
-    source = inspect.getsource(api.save_veriphone_config)
+    source = _inspect.getsource(api.save_veriphone_config)
     assert "from functions import phone_transport_label" in source
+
+
+# =============================================================================
+# Phone lists: one card per list, one row per number
+#
+# The index was appended to on every import and every finished run, and the
+# importer and validator each minted their own id format, so the same list could
+# appear several times. These lock down the merge instead.
+# =============================================================================
+
+
+def test_importing_the_same_list_twice_yields_one_card(tmp_path):
+    numbers = [
+        {"number": "+12012014514", "country_code": "US"},
+        {"number": "+2347069977249", "country_code": "NG"},
+    ]
+    first = functions.create_phone_list("u", tmp_path, "my numbers", numbers, "US")
+    second = functions.create_phone_list("u", tmp_path, "my numbers", numbers, "US")
+
+    assert first["id"] == second["id"]
+    assert second["total_numbers"] == 2
+    assert second["added"] == 0
+    assert len(functions.get_phone_lists("u", tmp_path)) == 1
+
+
+def test_two_runs_do_not_add_a_second_card(tmp_path):
+    meta = functions.create_phone_list(
+        "u", tmp_path, "numbers", [{"number": "+12012014514"}], "US"
+    )
+    session = {
+        "list_id": meta["id"],
+        "list_name": "numbers",
+        "country_code": "US",
+        "results": [{"number": "+12012014514", "e164": "+12012014514",
+                     "status": "valid", "valid": True, "carrier": "Bandwidth.com"}],
+    }
+    for _ in range(3):
+        functions.save_phone_results_to_list("u", tmp_path, session)
+
+    lists = functions.get_phone_lists("u", tmp_path)
+    stored = functions.get_phone_list_numbers("u", tmp_path, meta["id"])
+    assert len(lists) == 1
+    assert len(stored["numbers"]) == 1
+    assert stored["numbers"][0]["status"] == "valid"
+
+
+def test_results_do_not_create_a_list_of_the_same_name(tmp_path):
+    """A session that names a list folds into it rather than duplicating it."""
+    meta = functions.create_phone_list(
+        "u", tmp_path, "numbers", [{"number": "+12012014514"}], "US"
+    )
+    functions.save_phone_results_to_list("u", tmp_path, {
+        "list_name": "numbers", "country_code": "US",
+        "results": [{"number": "+12012014514", "status": "valid", "valid": True}],
+    })
+
+    lists = functions.get_phone_lists("u", tmp_path)
+    assert len(lists) == 1
+    assert lists[0]["id"] == meta["id"]
+
+
+def test_unverified_import_cannot_erase_a_verdict(tmp_path):
+    meta = functions.create_phone_list(
+        "u", tmp_path, "t", [{"number": "+12012014514", "valid": None}], "US"
+    )
+    functions.save_phone_results_to_list("u", tmp_path, {
+        "list_id": meta["id"], "list_name": "t", "country_code": "US",
+        "results": [{"number": "+12012014514", "status": "valid", "valid": True,
+                     "carrier": "Bandwidth.com"}],
+    })
+    functions.create_phone_list(
+        "u", tmp_path, "t", [{"number": "+12012014514", "valid": None}], "US"
+    )
+
+    row = functions.get_phone_list_numbers("u", tmp_path, meta["id"])["numbers"][0]
+    assert row["status"] == "valid"
+    assert row["valid"] is True
+    assert row["carrier"] == "Bandwidth.com"
+
+
+def test_prune_removes_invalid_and_keeps_errors(tmp_path):
+    meta = functions.create_phone_list("u", tmp_path, "p", [], "US")
+    functions.save_phone_results_to_list("u", tmp_path, {
+        "list_id": meta["id"], "list_name": "p", "country_code": "US",
+        "results": [
+            {"number": "+12012014514", "status": "valid", "valid": True},
+            {"number": "+2347069977000", "status": "invalid", "valid": False},
+            {"number": "+447911123456", "status": "unknown", "valid": False,
+             "error": "timeout"},
+        ],
+    })
+
+    report = functions.prune_phone_list("u", tmp_path, meta["id"])
+    kept = functions.get_phone_list_numbers("u", tmp_path, meta["id"])["numbers"]
+
+    assert report["removed"] == 1
+    assert sorted(n["number"] for n in kept) == ["+12012014514", "+447911123456"]
+    assert any(n.get("error") for n in kept), "the failed number must survive for a retry"
+
+
+def test_consolidate_merges_same_name_lists(tmp_path):
+    directory = tmp_path / "fv-s-u" / "phone-lists"
+    directory.mkdir(parents=True)
+    index = []
+    for list_id, name in [
+        ("phone_list_d20fa270", "untitled (2)"),
+        ("plist_1bbf1353e4cc", "untitled (2)"),
+        ("plist_859ab2652ffd", "untitled (2)"),
+    ]:
+        (directory / f"{list_id}.json").write_text(json.dumps({
+            "id": list_id, "name": name, "created_at": "2026-01-01T00:00:00",
+            "country_code": "US",
+            "numbers": [{"number": "+12012014514", "status": "valid", "valid": True}],
+        }))
+        index.append({"id": list_id, "name": name, "total_numbers": 1})
+    (directory / "lists.json").write_text(json.dumps(index))
+
+    report = functions.consolidate_phone_lists("u", tmp_path)
+    lists = functions.get_phone_lists("u", tmp_path)
+
+    assert report["merged"] == 1
+    assert len(lists) == 1
+    stored = functions.get_phone_list_numbers("u", tmp_path, lists[0]["id"])
+    assert len(stored["numbers"]) == 1
+
+
+def test_delete_removes_the_card_and_the_file(tmp_path):
+    meta = functions.create_phone_list("u", tmp_path, "gone", [{"number": "+12012014514"}])
+    assert functions.delete_phone_list("u", tmp_path, meta["id"]) is True
+    assert functions.get_phone_lists("u", tmp_path) == []
+    assert functions.get_phone_list_numbers("u", tmp_path, meta["id"]) is None
+
+
+def test_list_id_is_stable_for_a_name(tmp_path):
+    first = functions.phone_list_id_for("u", tmp_path, "Numbers")
+    second = functions.phone_list_id_for("u", tmp_path, "numbers")
+    assert first == second
+    assert first.startswith("plist_")
+
+
+def test_no_route_handler_shadows_its_own_library_function():
+    """
+    A handler that shares a name with an imported function calls *itself*.
+
+    ``delete_phone_list`` and ``rename_phone_list`` were both defined as routes
+    and imported from functions.py. The route called itself, got a coroutine,
+    and every delete returned 500. Found by walking the module, not by reading.
+    """
+    import ast
+    import inspect as _inspect
+
+    import api
+
+    tree = ast.parse(_inspect.getsource(api))
+    imported = {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module in ("functions", "email_validator")
+        for alias in node.names
+    }
+
+    offenders = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if node.name not in imported:
+            continue
+        for call in ast.walk(node):
+            if (isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Name)
+                    and call.func.id == node.name):
+                offenders.append(node.name)
+
+    assert not offenders, f"handler calls itself instead of the library: {offenders}"

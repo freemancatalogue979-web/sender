@@ -15327,6 +15327,48 @@
             color: var(--text-gray);
         }
 
+        /* A card states what is in the list before you click it: how many are
+           valid, how many still need a look, how many errored. */
+        .phone-list-card .list-card-breakdown {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 6px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .list-card-breakdown .b-valid { color: #26d97f; }
+        .list-card-breakdown .b-unchecked { color: rgba(255, 255, 255, 0.42); }
+        .list-card-breakdown .b-failed { color: #ffab40; }
+
+        .phone-list-card { position: relative; }
+
+        .phone-list-card .list-card-remove {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 18px;
+            height: 18px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.28);
+            font-size: 10px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.15s ease;
+        }
+
+        .phone-list-card:hover .list-card-remove { opacity: 1; }
+
+        .phone-list-card .list-card-remove:hover {
+            background: rgba(255, 71, 87, 0.18);
+            color: #ff4757;
+        }
+
         .phone-matrix-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -15491,6 +15533,38 @@
         }
 
         .num-empty i { font-size: 20px; color: rgba(255, 255, 255, 0.2); }
+
+        .num-toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 0 0 10px;
+        }
+
+        .num-tool-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.03);
+            color: rgba(255, 255, 255, 0.72);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10.5px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .num-tool-btn:hover:not(:disabled) {
+            border-color: rgba(0, 229, 255, 0.45);
+            background: rgba(0, 229, 255, 0.08);
+            color: #fff;
+        }
+
+        .num-tool-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
         .num-more {
             padding: 10px 12px;
@@ -23900,8 +23974,16 @@
 
                                 <div class="phone-command-panel phone-list-panel">
                                     <div class="panel-title-row">
-                                        <h4><i class="fas fa-list-ol"></i> Numbers</h4>
+                                        <h4><i class="fas fa-list-ol"></i> <span id="phoneMatrixName">Numbers</span></h4>
                                         <span class="panel-title-meta" id="phoneMatrixMeta">—</span>
+                                    </div>
+                                    <div class="num-toolbar">
+                                        <button type="button" class="num-tool-btn" id="phonePruneBtn" onclick="pruneSelectedPhoneList()">
+                                            <i class="fas fa-broom"></i> Remove invalid
+                                        </button>
+                                        <button type="button" class="num-tool-btn" id="phoneExportListBtn" onclick="exportPhoneResultsCsv()">
+                                            <i class="fas fa-file-csv"></i> Export list
+                                        </button>
                                     </div>
                                     <div class="num-table">
                                         <div class="num-row num-row-head">
@@ -37182,17 +37264,81 @@
         }
         
         // Load phone lists from API
-        async function loadPhoneLists() {
+        async function loadPhoneLists(options) {
             try {
+                // Repair lists written before they were keyed by number: the
+                // index used to be appended to, so one import plus one run left
+                // two cards with the same name. Cheap, idempotent, once per load.
+                if (!window.fvPhoneListsConsolidated || (options && options.consolidate)) {
+                    window.fvPhoneListsConsolidated = true;
+                    try {
+                        const fix = await fetchWithAuth('/validator/phone/lists/consolidate', { method: 'POST' });
+                        if (fix.ok) {
+                            const report = await fix.json();
+                            if (report.merged || report.removed) {
+                                console.log('[phone] merged duplicate lists', report);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('list consolidation skipped', e);
+                    }
+                }
+
                 const response = await fetchWithAuth('/validator/phone/lists');
                 if (response.ok) {
                     const data = await response.json();
                     validatorState.phone.lists = data.lists || [];
+                    const chosen = validatorState.phone.selectedList;
+                    if (chosen && !validatorState.phone.lists.some(l => l.id === chosen.id)) {
+                        validatorState.phone.selectedList = null;
+                    }
                     updatePhoneListsUI();
+                    if (validatorState.phone.selectedList) {
+                        renderPhoneMatrix(validatorState.phone.selectedList.id);
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load phone lists:', error);
                 updatePhoneListsUI();
+            }
+        }
+
+        async function deletePhoneList(listId) {
+            const list = (validatorState.phone.lists || []).find(l => l.id === listId);
+            const name = list ? list.name : 'this list';
+            if (!confirm(`Delete "${name}" and its numbers? This cannot be undone.`)) return;
+
+            try {
+                const response = await fetchWithAuth(`/validator/phone/lists/${listId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('delete failed');
+                if (validatorState.phone.selectedList?.id === listId) {
+                    validatorState.phone.selectedList = null;
+                    renderPhoneMatrix(null);
+                    refreshLaunchSummary();
+                }
+                showToast('List deleted', 'success');
+                await loadPhoneLists();
+            } catch (e) {
+                showToast('Could not delete the list', 'error');
+            }
+        }
+
+        // A finished run leaves invalid numbers in the list. Drop them; keep the
+        // ones that errored so the next launch retries them.
+        async function pruneSelectedPhoneList() {
+            const list = validatorState.phone.selectedList;
+            if (!list) return null;
+            try {
+                const response = await fetchWithAuth(`/validator/phone/lists/${list.id}/prune`, { method: 'POST' });
+                if (!response.ok) return null;
+                const result = await response.json();
+                if (result.removed) {
+                    showToast(`Removed ${result.removed} invalid number${result.removed === 1 ? '' : 's'}`, 'info');
+                }
+                await loadPhoneLists();
+                return result;
+            } catch (e) {
+                return null;
             }
         }
         
@@ -37503,12 +37649,29 @@
                     </div>`;
                 } else {
                     grid.innerHTML = lists.map(list => {
-                        const total = list.total_numbers || list.total || 0;
+                        const total = Number(list.total_numbers || list.total || 0);
+                        const valid = Number(list.valid_count || 0);
+                        const invalid = Number(list.invalid_count || 0);
+                        const failed = Number(list.failed_count || 0);
+                        const unchecked = Number(
+                            list.unchecked_count != null
+                                ? list.unchecked_count
+                                : Math.max(0, total - valid - invalid - failed)
+                        );
                         const selected = validatorState.phone.selectedList?.id === list.id;
+                        const bits = [];
+                        if (valid) bits.push(`<span class="b-valid">${valid} valid</span>`);
+                        if (unchecked) bits.push(`<span class="b-unchecked">${unchecked} unchecked</span>`);
+                        if (failed) bits.push(`<span class="b-failed">${failed} retry</span>`);
                         return `
                             <div class="phone-list-card ${selected ? 'selected' : ''}" onclick="selectPhoneList('${list.id}')" data-list-id="${list.id}">
-                                <div class="list-card-name" title="${list.name}">${list.name}</div>
-                                <div class="list-card-count">${total} numbers</div>
+                                <button type="button" class="list-card-remove" title="Delete this list"
+                                        onclick="event.stopPropagation(); deletePhoneList('${list.id}')">
+                                    <i class="fas fa-xmark"></i>
+                                </button>
+                                <div class="list-card-name" title="${escapeHtml(list.name)}">${escapeHtml(list.name)}</div>
+                                <div class="list-card-count">${total} number${total === 1 ? '' : 's'}</div>
+                                ${bits.length ? `<div class="list-card-breakdown">${bits.join('')}</div>` : ''}
                             </div>
                         `;
                     }).join('');
@@ -37710,7 +37873,22 @@
                 const listData = await response.json();
                 const numbers = listData.numbers || [];
 
-                if (meta) meta.textContent = numbers.length + ' number' + (numbers.length === 1 ? '' : 's');
+                // Header reads like the cards: what is in here, and how much of
+                // it still needs work.
+                if (meta) {
+                    const counts = { valid: 0, unchecked: 0, failed: 0 };
+                    numbers.forEach(n => {
+                        const s = phoneRowStatus(n);
+                        if (s.key === 'valid') counts.valid++;
+                        else if (s.key === 'failed') counts.failed++;
+                        else if (s.key === 'unknown') counts.unchecked++;
+                    });
+                    const parts = [`${numbers.length} number${numbers.length === 1 ? '' : 's'}`];
+                    if (counts.valid) parts.push(`${counts.valid} valid`);
+                    if (counts.unchecked) parts.push(`${counts.unchecked} unchecked`);
+                    if (counts.failed) parts.push(`${counts.failed} retry`);
+                    meta.textContent = parts.join(' · ');
+                }
 
                 if (numbers.length === 0) {
                     rows.innerHTML = `<div class="num-empty">
@@ -37719,6 +37897,9 @@
                     </div>`;
                     return;
                 }
+
+                const listName = document.getElementById('phoneMatrixName');
+                if (listName) listName.textContent = listData.name || 'Numbers';
 
                 const shown = numbers.slice(0, 500);
                 rows.innerHTML = shown.map((n, idx) => renderNumRow(n, idx + 1)).join('');
@@ -38051,18 +38232,22 @@
             }
             
             try {
-                const response = await fetchWithAuth('/validator/phone/start', {
+                // Importing is an import, not a validation run: this used to
+                // create a validation session, which spent a lookup per number.
+                const response = await fetchWithAuth('/validator/phone/import', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        phone_numbers: phones,
-                        list_name: `Import ${new Date().toLocaleString()}`
+                        content: phones.join('\n'),
+                        name: `Import ${new Date().toLocaleString()}`
                     })
                 });
                 
                 if (response.ok) {
-                    showToast(`Imported ${phones.length} phone numbers`, 'success');
-                    loadPhoneLists();
+                    const data = await response.json();
+                    showToast(`Imported ${data.total_numbers || phones.length} numbers`, 'success');
+                    await loadPhoneLists();
+                    if (data.list?.id) selectPhoneList(data.list.id);
                 } else {
                     showToast('Failed to import phone numbers', 'error');
                 }
@@ -38160,9 +38345,34 @@
                 
                 if (response.ok) {
                     const data = await response.json();
+
+                    // Nothing left to check: the list is already answered. Say so
+                    // and touch nothing -- without this the panel flipped to
+                    // "Validation running" and polled a session that is null.
+                    if (data.nothing_to_check || !data.session_id) {
+                        const skipped = data.skipped_verified || 0;
+                        showToast(
+                            data.message || (skipped
+                                ? `All ${skipped} numbers in this list are already checked`
+                                : 'Nothing to validate in this list'),
+                            'info'
+                        );
+                        const runTitle = document.getElementById('launchRunTitle');
+                        if (runTitle) runTitle.textContent = 'Already checked';
+                        const runSub = document.getElementById('launchRunSub');
+                        if (runSub) runSub.textContent = `${skipped} number${skipped === 1 ? '' : 's'} already validated — nothing was sent`;
+                        await loadPhoneLists();
+                        return;
+                    }
+
                     validatorState.phone.sessionId = data.session_id;
                     validatorState.phone.isValidating = true;
                     validatorState.phone.isPaused = false;
+
+                    // Say what was skipped, when part of the list was already done.
+                    if (data.skipped_verified) {
+                        showToast(`Skipped ${data.skipped_verified} already-validated number${data.skipped_verified === 1 ? '' : 's'}`, 'info');
+                    }
 
                     const launchHint = document.getElementById('phoneLaunchHint');
                     if (launchHint) {
@@ -38360,6 +38570,10 @@
                         stopPhoneTimer();
                         resetPhoneValidationUI();
                         showToast(`Phone validation ${status}`, status === 'completed' ? 'success' : 'info');
+                        // The run has landed its results; drop the numbers it
+                        // proved invalid and keep the errors for the next try.
+                        await pruneSelectedPhoneList();
+                        await loadPhoneLists();
                     }
                 } else {
                     console.error('Failed to poll phone progress:', response.status);

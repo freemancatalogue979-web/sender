@@ -10842,6 +10842,7 @@ def create_phone_validation_session(
     list_name: str = None,
     country_code: str = None,
     batch_size: int = DEFAULT_VALIDATION_BATCH_SIZE,
+    list_id: str = None,
 ) -> dict:
     """Create a new phone validation session"""
     
@@ -10870,6 +10871,9 @@ def create_phone_validation_session(
         "queue": phone_numbers,
         "current_number": None,
         "list_name": list_name or f"Phone Validation {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        # Which list to fold the results into. Without it a finished session
+        # created a new list instead of updating the one it was launched from.
+        "list_id": list_id,
         "country_code": country_code,
         "transport": phone_transport_label(
             load_veriphone_settings(user_id, base_path), user_id, base_path
@@ -11157,38 +11161,341 @@ async def process_phone_validation(
     }
 
 
+PHONE_LIST_ID_PREFIX = "plist_"
+
+
+def phone_list_id_for(user_id: str, base_path: Path, name: str) -> str:
+    """
+    Stable id for a list name.
+
+    Two code paths created lists and each minted its own id: the importer made
+    ``phone_list_abcd1234`` and the validator made ``plist_0123456789ab``. A
+    name hashed to one id now, so the same list can never appear twice and a
+    second run *adds to* the list the first run created.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", (name or "list").strip().lower()).strip("-")
+    slug = slug[:24] or "list"
+    digest = hashlib.sha1(
+        f"{user_id}:{(name or '').strip().lower()}".encode("utf-8")
+    ).hexdigest()[:8]
+    return f"{PHONE_LIST_ID_PREFIX}{slug}-{digest}"
+
+
+def phone_number_key(number: str) -> str:
+    """Digits-only identity for a number, so formatting cannot split a list."""
+    digits = re.sub(r"\D", "", str(number or ""))
+    return digits[-15:] if len(digits) > 15 else digits
+
+
+def read_phone_list_index(user_id: str, base_path: Path) -> list:
+    """The list index, tolerating a missing or corrupt file."""
+    path = base_path / f"fv-s-{user_id}" / "phone-lists" / "lists.json"
+    if not path.exists():
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def write_phone_list_index(user_id: str, base_path: Path, lists: list) -> None:
+    directory = base_path / f"fv-s-{user_id}" / "phone-lists"
+    directory.mkdir(parents=True, exist_ok=True)
+    with open(directory / "lists.json", "w", encoding="utf-8") as f:
+        json.dump(lists, f, indent=2, ensure_ascii=False)
+
+
+def phone_list_stats(numbers: List[dict]) -> dict:
+    """Counts a list card needs, derived from the numbers themselves."""
+    valid = invalid = failed = unchecked = 0
+    for n in numbers or []:
+        if n.get("error"):
+            failed += 1
+            continue
+        status = (n.get("status") or "").strip().lower()
+        if status == "invalid" or (n.get("valid") is False and status):
+            invalid += 1
+        elif n.get("valid") is True or status == "valid":
+            valid += 1
+        else:
+            unchecked += 1
+    return {
+        "total_numbers": len(numbers or []),
+        "valid_count": valid,
+        "invalid_count": invalid,
+        "failed_count": failed,
+        "unchecked_count": unchecked,
+    }
+
+
+def upsert_phone_list(
+    user_id: str,
+    base_path: Path,
+    name: str,
+    numbers: List[dict],
+    country_code: str = None,
+    list_id: str = None,
+) -> dict:
+    """
+    Add numbers to the list called ``name``, merging by number.
+
+    Re-running the same list used to append a whole second copy, and because
+    the importer and the validator generated different id formats the UI showed
+    both. Now: one entry per name, one row per number, newest result wins and a
+    check that has not happened yet never overwrites one that has.
+    """
+    list_id = list_id or phone_list_id_for(user_id, base_path, name)
+    directory = base_path / f"fv-s-{user_id}" / "phone-lists"
+    directory.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().isoformat()
+
+    path = directory / f"{list_id}.json"
+    existing = {}
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                previous = json.load(f)
+            for entry in previous.get("numbers", []) or []:
+                key = phone_number_key(entry.get("number") or entry.get("e164"))
+                if key:
+                    existing[key] = entry
+        except Exception:
+            existing = {}
+
+    added = updated = 0
+    for entry in numbers or []:
+        key = phone_number_key(entry.get("number") or entry.get("e164"))
+        if not key:
+            continue
+        prior = existing.get(key)
+        if prior is None:
+            existing[key] = dict(entry, added_at=entry.get("added_at") or now)
+            added += 1
+            continue
+
+        # An imported row carries no verdict -- the importer writes
+        # valid=False, status=None -- so merging it over a checked row would
+        # either erase the verdict or leave "status: valid, valid: false".
+        # Verdict fields are only ever replaced by another verdict.
+        fresh_has_verdict = bool(entry.get("status")) or bool(entry.get("error"))
+        prior_has_verdict = bool(prior.get("status")) or bool(prior.get("error"))
+        merged = dict(prior)
+        if fresh_has_verdict or not prior_has_verdict:
+            merged.update({k: v for k, v in entry.items() if v is not None})
+        else:
+            # Keep the verdict, refresh only the identity/display fields.
+            merged.update({
+                k: v for k, v in entry.items()
+                if v is not None and k in ("country_code", "formatted_number",
+                                           "international_number", "local_number",
+                                           "dial_code", "country_prefix", "number")
+            })
+        merged["added_at"] = prior.get("added_at") or entry.get("added_at") or now
+        merged["updated_at"] = now
+        existing[key] = merged
+        updated += 1
+
+    merged_numbers = list(existing.values())
+    stats = phone_list_stats(merged_numbers)
+    country_codes = sorted({
+        str(n.get("country_code")).upper()
+        for n in merged_numbers
+        if n.get("country_code") and re.fullmatch(r"[A-Za-z]{2}", str(n.get("country_code")))
+    })
+
+    metadata = {
+        "id": list_id,
+        "name": name,
+        "created_at": now,
+        "updated_at": now,
+        "country_code": country_code or (country_codes[0] if country_codes else None),
+        "country_codes": country_codes,
+        **stats,
+        "site": next((n.get("site") for n in merged_numbers if n.get("site")), None),
+    }
+
+    list_data = {**metadata, "numbers": merged_numbers}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(list_data, f, indent=2, ensure_ascii=False)
+
+    # Index entry: replace by id, never append a second copy.
+    lists = read_phone_list_index(user_id, base_path)
+    kept = [l for l in lists if l.get("id") != list_id]
+    if kept:
+        metadata["created_at"] = next(
+            (l.get("created_at") for l in lists if l.get("id") == list_id),
+            metadata["created_at"],
+        )
+        list_data["created_at"] = metadata["created_at"]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(list_data, f, indent=2, ensure_ascii=False)
+    kept.append(metadata)
+    kept.sort(key=lambda l: l.get("created_at") or "", reverse=True)
+    write_phone_list_index(user_id, base_path, kept)
+
+    return {**metadata, "added": added, "updated": updated}
+
+
+def prune_phone_list(user_id: str, base_path: Path, list_id: str) -> dict:
+    """
+    Drop invalid numbers from a list, keeping failures for a retry.
+
+    A list should be the numbers still worth having: a number veriphone says is
+    invalid is removed for good, a transport error is kept because it says
+    nothing about the number and will be retried on the next run.
+    """
+    data = get_phone_list_numbers(user_id, base_path, list_id)
+    if not data:
+        return {"removed": 0, "kept": 0, "not_found": True}
+
+    kept, removed = [], 0
+    for entry in data.get("numbers", []) or []:
+        status = (entry.get("status") or "").strip().lower()
+        if entry.get("error"):
+            kept.append(entry)          # transport failed, retry next time
+        elif status == "invalid":
+            removed += 1                # a real verdict: the number is dead
+        else:
+            kept.append(entry)          # valid, or not yet answered
+
+    if removed:
+        path = base_path / f"fv-s-{user_id}" / "phone-lists" / f"{list_id}.json"
+        data["numbers"] = kept
+        data.update(phone_list_stats(kept))
+        data["updated_at"] = datetime.now().isoformat()
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        lists = read_phone_list_index(user_id, base_path)
+        for entry in lists:
+            if entry.get("id") == list_id:
+                entry.update(phone_list_stats(kept))
+                entry["updated_at"] = data["updated_at"]
+        write_phone_list_index(user_id, base_path, lists)
+
+    return {"removed": removed, "kept": len(kept), "not_found": False}
+
+
+def consolidate_phone_lists(user_id: str, base_path: Path) -> dict:
+    """
+    Repair the lists that were already written the broken way.
+
+    Every list file is re-keyed by number and merged into the list of the same
+    name, so the seven "untitled (2)" cards become one. Returns a small report
+    so the endpoint and the tests can assert on it.
+    """
+    directory = base_path / f"fv-s-{user_id}" / "phone-lists"
+    if not directory.exists():
+        return {"merged": 0, "removed": 0, "lists": 0}
+
+    groups: Dict[str, List[dict]] = {}
+    for path in sorted(directory.glob("*.json")):
+        if path.name == "lists.json":
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        name = (data.get("name") or "untitled").strip() or "untitled"
+        groups.setdefault(name.lower(), []).append((data, path))
+
+    merged_names = 0
+    removed = 0
+    for name_key, group in groups.items():
+        if len(group) < 2:
+            continue
+        merged_names += 1
+        display = (group[0][0].get("name") or "untitled").strip()
+        target_id = phone_list_id_for(user_id, base_path, display)
+        merged: Dict[str, dict] = {}
+        for data, _path in group:
+            for entry in data.get("numbers", []) or []:
+                key = phone_number_key(entry.get("number") or entry.get("e164"))
+                if not key:
+                    continue
+                prior = merged.get(key)
+                if prior is None or (entry.get("status") and not prior.get("status")):
+                    merged[key] = entry
+        numbers = list(merged.values())
+        stats = phone_list_stats(numbers)
+        country_codes = sorted({
+            str(n.get("country_code")).upper()
+            for n in numbers
+            if n.get("country_code") and re.fullmatch(r"[A-Za-z]{2}", str(n.get("country_code")))
+        })
+        payload = {
+            "id": target_id,
+            "name": display,
+            "created_at": min(d.get("created_at") or "" for d, _ in group) or datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "country_code": country_codes[0] if country_codes else None,
+            "country_codes": country_codes,
+            **stats,
+            "site": next((n.get("site") for n in numbers if n.get("site")), None),
+            "numbers": numbers,
+        }
+        with open(directory / f"{target_id}.json", "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        for _data, path in group:
+            if path.name != f"{target_id}.json":
+                try:
+                    path.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+
+    # Rebuild the index from the files that now exist, so a stale entry for a
+    # deleted file cannot leave a card that 404s when clicked.
+    index = []
+    for path in sorted(directory.glob("*.json")):
+        if path.name == "lists.json":
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        stats = phone_list_stats(data.get("numbers", []))
+        index.append({
+            "id": data.get("id") or path.stem,
+            "name": data.get("name") or path.stem,
+            "created_at": data.get("created_at"),
+            "updated_at": data.get("updated_at"),
+            "country_code": data.get("country_code"),
+            "country_codes": data.get("country_codes", []),
+            **stats,
+            "site": data.get("site"),
+        })
+    index.sort(key=lambda l: l.get("created_at") or "", reverse=True)
+    write_phone_list_index(user_id, base_path, index)
+    return {"merged": merged_names, "removed": removed, "lists": len(index)}
+
+
 def save_phone_results_to_list(
     user_id: str,
     base_path: Path,
     session: dict
 ) -> str:
     """
-    Save phone validation results to phone list file
+    Fold a finished session's results into the list it came from.
+
+    This used to mint a brand new ``plist_`` and append it to the index, so
+    every run left another card behind -- five runs of the same list gave five
+    "numbers" cards. Results are now merged into the list of that name, keyed by
+    the number, so a card shows each number once with its latest verdict.
     """
-    # Create phone lists directory
-    user_folder = base_path / f"fv-s-{user_id}"
-    phone_lists_dir = user_folder / "phone-lists"
-    phone_lists_dir.mkdir(parents=True, exist_ok=True)
-    
-    list_id = f"plist_{uuid.uuid4().hex[:12]}"
-    list_name = session.get('list_name', f"Phone Validation {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    list_name = session.get('list_name') or (
+        f"Phone Validation {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    )
     country_code = session.get('country_code')
-    
     results = session.get('results', [])
 
-    # Count valid/invalid. A transport failure is not an invalid number, so it
-    # is tracked separately rather than folded into the negative bucket.
-    valid_count = sum(
-        1 for r in results
-        if r.get('valid') and not r.get('error') and r.get('status') in VALID_STATUSES
-    )
-    failed_count = sum(1 for r in results if r.get('error'))
-    invalid_count = len(results) - valid_count - failed_count
-
-    # Create phone entries
-    numbers = []
+    entries = []
     for result in results:
-        entry = {
+        entries.append({
             "number": result.get('number'),
             "e164": result.get('e164'),
             "country_code": result.get('country_code') or country_code,
@@ -11207,69 +11514,23 @@ def save_phone_results_to_list(
             "error": result.get('error'),
             "is_prepaid": result.get('is_prepaid'),
             "is_leaked": result.get('is_leaked'),
-            # The rest of the veriphone answer: the number in its local form,
-            # the dialling prefix, the timezone. Kept so a saved list can show
-            # everything a lookup cost, not just valid/not.
             "international_number": result.get('international_number'),
             "local_number": result.get('local_number'),
             "country_prefix": result.get('country_prefix'),
             "dial_code": result.get('dial_code'),
             "timezone": result.get('timezone'),
             "geographical": result.get('geographical'),
-            "added_at": datetime.now().isoformat()
-        }
-        numbers.append(entry)
-    
-    # Create phone list data
-    phone_list_data = {
-        "id": list_id,
-        "name": list_name,
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-        "country_code": country_code,
-        "total_numbers": len(numbers),
-        "valid_count": valid_count,
-        "invalid_count": invalid_count,
-        "failed_count": failed_count,
-        "site": session.get('site', 'veriphone'),
-        "numbers": numbers
-    }
-    
-    # Write the list itself. Only the index used to be written, so every
-    # result list was unreachable: get_phone_lists() found an entry whose id
-    # resolved to a file that never existed, and GET /phone/lists/{id} 404'd.
-    list_file = phone_lists_dir / f"{list_id}.json"
-    with open(list_file, 'w', encoding='utf-8') as f:
-        json.dump(phone_list_data, f, indent=2, ensure_ascii=False)
+            "validated_at": result.get('validated_at') or datetime.now().isoformat(),
+            "added_at": datetime.now().isoformat(),
+        })
 
-    # Save to phone lists index (summary only -- numbers live in the file).
-    phone_lists_index = phone_lists_dir / "lists.json"
-    try:
-        if phone_lists_index.exists():
-            with open(phone_lists_index, 'r', encoding='utf-8') as f:
-                lists = json.load(f)
-        else:
-            lists = []
-    except Exception:
-        lists = []
-
-    lists.append({
-        "id": list_id,
-        "name": list_name,
-        "created_at": phone_list_data["created_at"],
-        "updated_at": phone_list_data["updated_at"],
-        "country_code": country_code,
-        "total_numbers": phone_list_data["total_numbers"],
-        "valid_count": valid_count,
-        "invalid_count": invalid_count,
-        "failed_count": failed_count,
-        "site": phone_list_data["site"],
-    })
-
-    with open(phone_lists_index, 'w', encoding='utf-8') as f:
-        json.dump(lists, f, indent=2, ensure_ascii=False)
-
-    return list_id
+    # The session remembers which list it was launched from, so results land
+    # there rather than in a new list that happens to share the name.
+    list_id = session.get('list_id') or phone_list_id_for(user_id, base_path, list_name)
+    saved = upsert_phone_list(
+        user_id, base_path, list_name, entries, country_code, list_id=list_id
+    )
+    return saved["id"]
 
 
 # =============================================================================
@@ -11306,44 +11567,58 @@ def get_phone_list_by_id(user_id: str, base_path: Path, list_id: str) -> Optiona
 
 
 def delete_phone_list(user_id: str, base_path: Path, list_id: str) -> bool:
-    """Delete a phone list"""
+    """Delete a phone list, its file, and its index entry."""
     lists = get_phone_lists(user_id, base_path)
-    original_count = len(lists)
-    
-    lists = [l for l in lists if l.get('id') != list_id]
-    
-    if len(lists) < original_count:
-        user_folder = base_path / f"fv-s-{user_id}"
-        phone_lists_dir = user_folder / "phone-lists"
-        phone_lists_index = phone_lists_dir / "lists.json"
-        
-        with open(phone_lists_index, 'w', encoding='utf-8') as f:
-            json.dump(lists, f, indent=2, ensure_ascii=False)
-        
-        return True
-    
-    return False
+    kept = [l for l in lists if l.get('id') != list_id]
+    if len(kept) == len(lists):
+        return False
+
+    directory = base_path / f"fv-s-{user_id}" / "phone-lists"
+    write_phone_list_index(user_id, base_path, kept)
+    # The file used to survive its card, so exporting or re-creating a list
+    # with the same id could resurrect numbers the user had deleted.
+    try:
+        (directory / f"{list_id}.json").unlink()
+    except OSError:
+        pass
+    return True
 
 
 def rename_phone_list(user_id: str, base_path: Path, list_id: str, new_name: str) -> bool:
-    """Rename a phone list"""
+    """Rename a phone list, in the index and in the list file itself."""
+    new_name = (new_name or "").strip()
+    if not new_name:
+        return False
+
     lists = get_phone_lists(user_id, base_path)
-    
-    for i, phone_list in enumerate(lists):
-        if phone_list.get('id') == list_id:
-            lists[i]['name'] = new_name
-            lists[i]['updated_at'] = datetime.now().isoformat()
-            
-            user_folder = base_path / f"fv-s-{user_id}"
-            phone_lists_dir = user_folder / "phone-lists"
-            phone_lists_index = phone_lists_dir / "lists.json"
-            
-            with open(phone_lists_index, 'w', encoding='utf-8') as f:
-                json.dump(lists, f, indent=2, ensure_ascii=False)
-            
-            return True
-    
-    return False
+    directory = base_path / f"fv-s-{user_id}" / "phone-lists"
+    now = datetime.now().isoformat()
+
+    found = False
+    for entry in lists:
+        if entry.get('id') != list_id:
+            continue
+        entry['name'] = new_name
+        entry['updated_at'] = now
+        found = True
+
+        # The file carries the name too, and the UI reads the file when a card
+        # is opened -- rename only the index and the header went stale.
+        path = directory / f"{list_id}.json"
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                data["name"] = new_name
+                data["updated_at"] = now
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+    if found:
+        write_phone_list_index(user_id, base_path, lists)
+    return found
 
 
 def create_phone_list(
@@ -11354,67 +11629,16 @@ def create_phone_list(
     country_code: str = None
 ) -> dict:
     """
-    Create a new phone list with validated numbers
-    Returns the created list metadata
-    """
-    user_folder = base_path / f"fv-s-{user_id}"
-    phone_lists_dir = user_folder / "phone-lists"
-    phone_lists_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Generate list ID
-    list_id = f"phone_list_{uuid.uuid4().hex[:8]}"
-    now = datetime.now().isoformat()
-    
-    # Count valid/invalid
-    valid_count = sum(1 for n in numbers if n.get('valid', False))
-    invalid_count = len(numbers) - valid_count
-    
-    # Extract unique country codes
-    country_codes = list(set(n.get('country_code', 'US') for n in numbers if n.get('country_code')))
-    if country_code and country_code not in country_codes:
-        country_codes.append(country_code)
-    
-    # Create list metadata
-    list_metadata = {
-        "id": list_id,
-        "name": name,
-        "created_at": now,
-        "updated_at": now,
-        "country_code": country_code,
-        "total_numbers": len(numbers),
-        "valid_count": valid_count,
-        "invalid_count": invalid_count,
-        "country_codes": country_codes
-    }
-    
-    # Save list metadata to lists.json
-    phone_lists_index = phone_lists_dir / "lists.json"
-    existing_lists = []
-    if phone_lists_index.exists():
-        try:
-            with open(phone_lists_index, 'r', encoding='utf-8') as f:
-                existing_lists = json.load(f)
-        except Exception:
-            pass
+    Add numbers to the list called ``name`` (created if it is new).
 
-            existing_lists = []
-    
-    existing_lists.append(list_metadata)
-    
-    with open(phone_lists_index, 'w', encoding='utf-8') as f:
-        json.dump(existing_lists, f, indent=2, ensure_ascii=False)
-    
-    # Save full list data to separate file
-    list_file = phone_lists_dir / f"{list_id}.json"
-    list_data = {
-        **list_metadata,
-        "numbers": numbers
-    }
-    
-    with open(list_file, 'w', encoding='utf-8') as f:
-        json.dump(list_data, f, indent=2, ensure_ascii=False)
-    
-    return list_metadata
+    Importing the same file twice used to leave two cards pointing at the same
+    name. This now merges by number into a stable id, so an import of a file
+    that is already in the list updates it instead of duplicating it.
+    """
+    saved = upsert_phone_list(
+        user_id, base_path, name or "untitled", numbers, country_code
+    )
+    return saved
 
 
 def get_phone_list_numbers(user_id: str, base_path: Path, list_id: str) -> Optional[dict]:
@@ -11441,56 +11665,18 @@ def add_numbers_to_phone_list(
     list_id: str,
     numbers: List[dict]
 ) -> bool:
-    """Add validated numbers to an existing phone list"""
+    """Merge numbers into an existing list, keyed by number."""
     list_data = get_phone_list_numbers(user_id, base_path, list_id)
-    
     if not list_data:
         return False
-    
-    existing_numbers = list_data.get('numbers', [])
-    existing_numbers.extend(numbers)
-    
-    # Update counts
-    list_data['numbers'] = existing_numbers
-    list_data['total_numbers'] = len(existing_numbers)
-    list_data['valid_count'] = sum(1 for n in existing_numbers if n.get('valid', False))
-    list_data['invalid_count'] = list_data['total_numbers'] - list_data['valid_count']
-    list_data['updated_at'] = datetime.now().isoformat()
-    
-    # Update country codes
-    new_codes = list(set(n.get('country_code', 'US') for n in existing_numbers if n.get('country_code')))
-    list_data['country_codes'] = new_codes
-    
-    # Save updated list
-    user_folder = base_path / f"fv-s-{user_id}"
-    phone_lists_dir = user_folder / "phone-lists"
-    list_file = phone_lists_dir / f"{list_id}.json"
-    
-    with open(list_file, 'w', encoding='utf-8') as f:
-        json.dump(list_data, f, indent=2, ensure_ascii=False)
-    
-    # Update lists.json index
-    phone_lists_index = phone_lists_dir / "lists.json"
-    lists = get_phone_lists(user_id, base_path)
-    
-    for i, phone_list in enumerate(lists):
-        if phone_list.get('id') == list_id:
-            lists[i] = {
-                "id": list_data['id'],
-                "name": list_data['name'],
-                "created_at": list_data['created_at'],
-                "updated_at": list_data['updated_at'],
-                "country_code": list_data.get('country_code'),
-                "total_numbers": list_data['total_numbers'],
-                "valid_count": list_data['valid_count'],
-                "invalid_count": list_data['invalid_count'],
-                "country_codes": list_data['country_codes']
-            }
-            break
-    
-    with open(phone_lists_index, 'w', encoding='utf-8') as f:
-        json.dump(lists, f, indent=2, ensure_ascii=False)
-    
+    upsert_phone_list(
+        user_id,
+        base_path,
+        list_data.get("name") or "untitled",
+        numbers,
+        list_data.get("country_code"),
+        list_id=list_id,
+    )
     return True
 
 

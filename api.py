@@ -2182,7 +2182,10 @@ async def delete_google_mailbox(current_user: dict = Depends(get_current_user)):
     """Delete Google mailbox configuration"""
     user_id = current_user["user_id"]
     
-    success = delete_google_mailbox(user_id, USERS_BASE_PATH)
+    # Call the library function explicitly: this route has the same name, so
+    # a bare call recurses into itself and returns a coroutine instead.
+    from functions import delete_google_mailbox as remove_google_mailbox
+    success = remove_google_mailbox(user_id, USERS_BASE_PATH)
     
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete Google mailbox configuration")
@@ -2240,7 +2243,8 @@ async def delete_outlook_mailbox(current_user: dict = Depends(get_current_user))
     """Delete Outlook mailbox configuration"""
     user_id = current_user["user_id"]
     
-    success = delete_outlook_mailbox(user_id, USERS_BASE_PATH)
+    from functions import delete_outlook_mailbox as remove_outlook_mailbox
+    success = remove_outlook_mailbox(user_id, USERS_BASE_PATH)
     
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete Outlook mailbox configuration")
@@ -7053,6 +7057,39 @@ async def get_phone_list_details(
     return phone_list
 
 
+@validator_router.post("/phone/lists/consolidate")
+async def consolidate_phone_lists_route(current_user: dict = Depends(get_current_user)):
+    """
+    Merge lists that share a name and re-key their numbers.
+
+    Lists used to be appended, and the importer and validator each minted their
+    own id format, so one import plus one run could leave two cards with the
+    same name. This repairs what is already on disk.
+    """
+    user_id = current_user["user_id"]
+
+    from functions import consolidate_phone_lists
+
+    report = consolidate_phone_lists(user_id, USERS_BASE_PATH)
+    return {"success": True, **report}
+
+
+@validator_router.post("/phone/lists/{list_id}/prune")
+async def prune_phone_list_route(
+    list_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove invalid numbers from a list. Errors are kept for the next run."""
+    user_id = current_user["user_id"]
+
+    from functions import prune_phone_list
+
+    report = prune_phone_list(user_id, USERS_BASE_PATH, list_id)
+    if report.get("not_found"):
+        raise HTTPException(status_code=404, detail="Phone list not found")
+    return {"success": True, **report}
+
+
 @validator_router.delete("/phone/lists/{list_id}")
 async def delete_phone_list(
     list_id: str,
@@ -7061,7 +7098,8 @@ async def delete_phone_list(
     """Delete a phone list"""
     user_id = current_user["user_id"]
     
-    success = delete_phone_list(user_id, USERS_BASE_PATH, list_id)
+    from functions import delete_phone_list as remove_phone_list
+    success = remove_phone_list(user_id, USERS_BASE_PATH, list_id)
     
     if success:
         return {"success": True, "message": "Phone list deleted"}
@@ -7104,7 +7142,10 @@ async def import_phone_list(
             "number": entry.get("cleaned") or entry.get("original"),
             "country_code": entry.get("country_code"),
             "formatted_number": entry.get("cleaned") or entry.get("original"),
-            "valid": False,
+            # Not "false": unchecked is not invalid, and writing False here let
+            # an import overwrite a real verdict on a re-import.
+            "valid": None,
+            "status": None,
             "added_at": datetime.now().isoformat()
         })
 
@@ -7138,7 +7179,8 @@ async def rename_phone_list(
     if not new_name:
         raise HTTPException(status_code=400, detail="Name is required")
     
-    success = rename_phone_list(user_id, USERS_BASE_PATH, list_id, new_name)
+    from functions import rename_phone_list as apply_phone_list_rename
+    success = apply_phone_list_rename(user_id, USERS_BASE_PATH, list_id, new_name)
     
     if success:
         return {"success": True, "message": "Phone list renamed"}
@@ -7169,16 +7211,53 @@ async def start_phone_validation(
     batch_size = request_data.get("batch_size", DEFAULT_VALIDATION_BATCH_SIZE)
 
     list_data = None
+    skipped_verified = 0
+    retried_failed = 0
     if list_id and not phone_numbers:
         list_data = get_phone_list_numbers(user_id, USERS_BASE_PATH, list_id)
         if not list_data:
             raise HTTPException(status_code=404, detail="Phone list not found")
         list_name = list_name or list_data.get("name")
         country_code = country_code or list_data.get("country_code")
+        retry_failed = bool(request_data.get("retry_failed", True))
         for entry in list_data.get("numbers", []):
             num = entry.get("number") or entry.get("formatted_number") or entry.get("phone")
-            if num:
-                phone_numbers.append(str(num))
+            if not num:
+                continue
+
+            # A launch checks what has not been answered yet. A number that
+            # already came back valid is not paid for again; invalid numbers are
+            # final; only an errored or unanswered one is retried. That is what
+            # stops a list from costing the same money twice.
+            status = (entry.get("status") or "").strip().lower()
+            errored = bool(entry.get("error"))
+            answered = status in ("valid", "invalid") or entry.get("valid") is True
+            if answered:
+                skipped_verified += 1
+                continue
+            if errored:
+                if not retry_failed:
+                    skipped_verified += 1
+                    continue
+                retried_failed += 1
+            phone_numbers.append(str(num))
+
+    if not phone_numbers and list_id:
+        # Every number in the list already has a verdict. Say so instead of
+        # failing with "phone_numbers or list_id is required", which reads like
+        # the request was malformed rather than the work already done.
+        return {
+            "success": True,
+            "session_id": None,
+            "total_numbers": 0,
+            "skipped_verified": skipped_verified,
+            "retried_failed": retried_failed,
+            "nothing_to_check": True,
+            "message": (
+                f"All {skipped_verified} numbers in this list are already checked. "
+                "Nothing left to validate."
+            ),
+        }
 
     if not phone_numbers:
         raise HTTPException(status_code=400, detail="phone_numbers or list_id is required")
@@ -7212,7 +7291,8 @@ async def start_phone_validation(
         phone_numbers=formatted_numbers,
         list_name=list_name,
         country_code=country_code,
-        batch_size=batch_size
+        batch_size=batch_size,
+        list_id=list_id,
     )
     
     if not result.get("success"):
@@ -7223,10 +7303,15 @@ async def start_phone_validation(
         "session_id": result.get("session_id"),
         "total_numbers": len(formatted_numbers),
         "list_name": list_name,
+        "list_id": list_id,
         "country_code": country_code,
         "batch_size": batch_size,
         "site": "veriphone",
         "transport": result.get("session", {}).get("transport"),
+        # Shown in the launch summary: "1,240 already checked, 12 retried".
+        "skipped_verified": skipped_verified,
+        "retried_failed": retried_failed,
+        "nothing_to_check": not formatted_numbers,
     }
 
 
