@@ -2413,28 +2413,6 @@
 
             .scraper-input-reveal:hover { color: #00e5ff; background: rgba(0, 229, 255, 0.1); }
 
-            .scraper-switch-row {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                padding: 9px 10px;
-                margin-bottom: 12px;
-                border-radius: 10px;
-                border: 1px solid rgba(255, 255, 255, 0.06);
-                background: rgba(0, 0, 0, 0.2);
-                cursor: pointer;
-            }
-
-            .scraper-switch-row .proxy-toggle-switch { width: 36px; height: 20px; flex: 0 0 36px; }
-            .scraper-switch-row .proxy-toggle-slider { border-width: 1px; }
-            .scraper-switch-row .proxy-toggle-slider::before { width: 14px; height: 14px; left: 2px; bottom: 2px; }
-            .scraper-switch-row .proxy-toggle-switch input:checked + .proxy-toggle-slider::before { transform: translateX(16px); }
-
-            .scraper-switch-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-            .scraper-switch-title { font-size: 10px; font-weight: 700; color: var(--text-white); line-height: 1.3; }
-            .scraper-switch-note { font-size: 9px; line-height: 1.35; color: var(--text-gray); }
-
-            /* Buttons are .montserrat-btn; only their fit in this column is new. */
             .scraper-actions {
                 display: flex;
                 align-items: stretch;
@@ -15281,68 +15259,75 @@
 
         /* =================================================
          * Launch Controls sub-tab
-         * Full width instead of a 1fr column: two columns of
-         * workable size, transport on the left, the run on the
-         * right with its progress report underneath.
+         *
+         * Two jobs, two rows: decide what runs (target list +
+         * transport), then run it. Generous spacing because the
+         * page finally has the width for it.
          * ================================================= */
         .launch-panel {
             border-radius: 18px;
             border: 1px solid var(--border-color);
             background: rgba(255, 255, 255, 0.02);
-            padding: 24px;
+            padding: 28px;
         }
 
-        .launch-panel-head { margin-bottom: 22px; }
-
-        .launch-panel .launch-head {
+        /* ---------- header ---------- */
+        .launch-head {
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding-bottom: 18px;
-            margin-bottom: 0;
+            justify-content: space-between;
+            gap: 16px;
+            padding-bottom: 22px;
+            margin-bottom: 26px;
             border-bottom: 1px solid var(--border-color);
         }
 
-        .launch-panel .launch-head .panel-header-icon {
-            width: 46px;
-            height: 46px;
-            border-radius: 13px;
-            flex: 0 0 46px;
+        .launch-head .panel-header-left { gap: 16px; }
+
+        .launch-head .panel-header-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            flex: 0 0 48px;
         }
 
-        .launch-panel .launch-head .panel-header-info h3 {
-            font-size: 17px;
+        .launch-head .panel-header-info h3 {
+            font-size: 18px;
             font-weight: 600;
-            letter-spacing: 0.3px;
-            margin: 0 0 4px 0;
+            letter-spacing: 0.2px;
+            margin: 0 0 5px 0;
         }
 
-        .launch-panel .launch-head .panel-header-info p {
-            font-size: 12px;
-            line-height: 1.45;
+        .launch-head .panel-header-info p {
+            font-size: 12.5px;
+            line-height: 1.5;
             color: var(--text-gray);
             margin: 0;
         }
 
+        .launch-badge { flex: 0 0 auto; padding: 6px 11px; font-size: 9.5px; }
+
+        /* ---------- two blocks ---------- */
         .launch-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-            gap: 24px;
+            grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr);
+            gap: 28px;
             align-items: start;
         }
 
-        .launch-col { min-width: 0; }
+        .launch-block { min-width: 0; }
+        .launch-block + .launch-block { margin-top: 26px; }
 
         .launch-section-label {
             display: flex;
             align-items: center;
-            gap: 7px;
+            gap: 10px;
             font-size: 10px;
             font-weight: 700;
-            letter-spacing: 1px;
+            letter-spacing: 1.2px;
             text-transform: uppercase;
             color: var(--text-gray);
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
 
         .launch-section-label::after {
@@ -15352,63 +15337,286 @@
             background: rgba(255, 255, 255, 0.07);
         }
 
-        /* Transport card gets real width: the key field is readable again. */
-        .launch-panel .scraper-card {
-            margin-bottom: 0;
-            padding: 18px;
+        /* ---------- target list card ---------- */
+        .launch-list-card {
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.22);
+            padding: 16px;
+            margin-bottom: 14px;
         }
 
-        .launch-panel .scraper-select {
-            padding: 12px 36px 12px 14px;
+        .launch-list-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 0;
+            text-align: center;
+            color: var(--text-gray);
+            font-size: 12px;
+        }
+
+        .launch-list-empty svg { color: rgba(255, 255, 255, 0.25); }
+
+        .scraper-inline-link {
+            padding: 0;
+            border: none;
+            background: none;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #00e5ff;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            text-decoration-color: rgba(0, 229, 255, 0.35);
+        }
+
+        .scraper-inline-link:hover { text-decoration-color: #00e5ff; }
+
+        .launch-list-filled {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .launch-list-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .launch-list-icon {
+            width: 34px;
+            height: 34px;
+            flex: 0 0 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #00e5ff;
+            background: rgba(0, 229, 255, 0.1);
+        }
+
+        .launch-list-info { min-width: 0; }
+
+        .launch-list-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-white);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .launch-list-meta {
+            font-size: 11px;
+            color: var(--text-gray);
+            margin-top: 2px;
+        }
+
+        .launch-list-change {
+            flex: 0 0 auto;
+            padding: 7px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-white);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .launch-list-change:hover { background: rgba(255, 255, 255, 0.12); }
+
+        /* ---------- readout ---------- */
+        .launch-readout {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .launch-readout-item {
+            padding: 11px 12px;
+            border-radius: 11px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(0, 0, 0, 0.18);
+        }
+
+        .launch-readout-label {
+            display: block;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+            color: var(--text-gray);
+            margin-bottom: 5px;
+        }
+
+        .launch-readout-value {
+            display: block;
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-white);
+            line-height: 1.1;
+            word-break: break-word;
+        }
+
+        /* ---------- transport card ---------- */
+        .launch-block-transport .scraper-card {
+            margin-bottom: 0;
+            padding: 20px;
+        }
+
+        .launch-block-transport .scraper-select {
+            padding: 12px 38px 12px 14px;
             font-size: 13px;
         }
 
-        .launch-panel .scraper-input {
+        .launch-block-transport .scraper-input {
             padding: 12px 32px 12px 14px;
             font-size: 13px;
         }
 
-        .launch-panel .scraper-field .form-label { font-size: 10.5px; }
-        .launch-panel .scraper-form-row { grid-template-columns: minmax(0, 1fr) 84px; gap: 10px; }
+        .launch-block-transport .scraper-field { margin-bottom: 16px; }
+        .launch-block-transport .scraper-field .form-label { font-size: 10.5px; margin-bottom: 8px; }
+        .launch-block-transport .scraper-form-row { grid-template-columns: minmax(0, 1fr) 92px; gap: 12px; }
 
-        .launch-panel .scraper-actions .montserrat-btn {
-            padding: 11px 14px;
-            font-size: 12px;
+        .launch-block-transport .scraper-actions { gap: 8px; margin-bottom: 16px; }
+        .launch-block-transport .scraper-actions .montserrat-btn { padding: 11px 15px; font-size: 12px; }
+        .launch-block-transport .scraper-status { padding: 11px 13px; font-size: 11.5px; line-height: 1.55; }
+
+        /* Spacious option row: the switch finally has room to be a switch. */
+        .scraper-option-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
         }
 
-        .launch-panel .scraper-status { font-size: 11px; padding: 10px 12px; }
+        .scraper-option-row:hover {
+            border-color: rgba(0, 229, 255, 0.25);
+            background: rgba(0, 229, 255, 0.04);
+        }
 
-        /* Run column: the action, then the progress it reports. */
-        .launch-col-run {
+        .scraper-option-row .proxy-toggle-switch {
+            width: 44px;
+            height: 24px;
+            flex: 0 0 44px;
+            margin-top: 1px;
+        }
+
+        .scraper-option-row .proxy-toggle-slider { border-width: 1.5px; }
+
+        .scraper-option-row .proxy-toggle-slider::before {
+            width: 17px;
+            height: 17px;
+            left: 2px;
+            bottom: 2px;
+        }
+
+        .scraper-option-row .proxy-toggle-switch input:checked + .proxy-toggle-slider::before {
+            transform: translateX(20px);
+        }
+
+        .scraper-option-text {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 3px;
+            min-width: 0;
         }
 
-        .launch-col-run .phone-control-stack { margin-top: 0; gap: 10px; }
-
-        .launch-col-run .montserrat-btn.launch-btn {
-            padding: 15px 18px;
-            font-size: 14px;
-            border-radius: 13px;
+        .scraper-option-title {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-white);
+            line-height: 1.3;
         }
 
-        .launch-col-run .phone-control-row button { padding: 11px 12px; font-size: 12px; }
+        .scraper-option-note {
+            font-size: 11px;
+            line-height: 1.45;
+            color: var(--text-gray);
+        }
 
-        .launch-col-run .validator-progress-container {
-            margin-top: 0 !important;
-            padding: 16px;
+        /* ---------- run bar ---------- */
+        .launch-run {
+            margin-top: 28px;
+            padding-top: 26px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .launch-run-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+        }
+
+        .launch-run-summary { min-width: 0; }
+
+        .launch-run-title {
+            display: block;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-white);
+            line-height: 1.3;
+        }
+
+        .launch-run-sub {
+            display: block;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-gray);
+            margin-top: 4px;
+        }
+
+        .launch-run .phone-control-stack {
+            flex: 0 0 auto;
+            min-width: 232px;
+            gap: 9px;
+            margin-top: 0;
+        }
+
+        .launch-run .montserrat-btn.launch-btn {
+            padding: 15px 22px;
+            font-size: 13.5px;
+            border-radius: 12px;
+        }
+
+        .launch-run .phone-control-row button { padding: 11px 12px; font-size: 12px; }
+
+        .launch-run .validator-progress-container {
+            margin-top: 22px !important;
+            padding: 20px;
             border-radius: 14px;
             border: 1px solid var(--border-color);
             background: rgba(0, 0, 0, 0.22);
         }
 
-        @media (max-width: 900px) {
-            .launch-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+        @media (max-width: 1000px) {
+            .launch-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+            .launch-panel { padding: 20px; }
         }
 
-        /* Launch Controls column: same header furniture as the Email panel,
-           same button system as everywhere else. No bespoke gradients. */
+        @media (max-width: 720px) {
+            .launch-run-bar { flex-direction: column; align-items: stretch; gap: 16px; }
+            .launch-run .phone-control-stack { min-width: 0; }
+            .launch-readout { grid-template-columns: minmax(0, 1fr); }
+            .launch-head { flex-wrap: wrap; }
+        }
+
         .phone-control-stack {
             display: flex;
             flex-direction: column;
@@ -23353,51 +23561,86 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
 
 
                     <!-- Phone Launch Controls Panel
-                         Own sub-tab rather than a squeezed 1fr column: the
-                         transport form needs a readable key field, and this
-                         keeps launch, progress and the run controls together. -->
+                     Own sub-tab: how numbers get checked on the left, what is
+                     about to run on the right. Every label appears once. -->
                     <div class="validator-inner-content" id="phoneLaunchPanel" style="display: none;">
                         <div class="phone-command-center">
+
                             <div class="launch-panel">
-                                <div class="launch-panel-head">
-                                    <div class="launch-head">
-                                        <div class="panel-header-left">
-                                            <div class="panel-header-icon phone-icon">
-                                                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-                                                    <path d="M12 2c3.5 3.5 5 7.5 5 12l2.5 2.5-3.5 1.5-2.5 2.5-1.5-3.5L9.5 14 6 12.5 8.5 9 9.5 5.5 12 2zm0 5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/>
-                                                </svg>
-                                            </div>
-                                            <div class="panel-header-info">
-                                                <h3>Launch Controls</h3>
-                                                <p id="phoneLaunchHint">Choose a transport, then launch</p>
-                                            </div>
+                                <div class="launch-head">
+                                    <div class="panel-header-left">
+                                        <div class="panel-header-icon phone-icon">
+                                            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+                                                <path d="M12 2c3.5 3.5 5 7.5 5 12l2.5 2.5-3.5 1.5-2.5 2.5-1.5-3.5L9.5 14 6 12.5 8.5 9 9.5 5.5 12 2zm0 5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/>
+                                            </svg>
+                                        </div>
+                                        <div class="panel-header-info">
+                                            <h3>Launch Controls</h3>
+                                            <p id="phoneLaunchHint">Choose a transport, then launch</p>
                                         </div>
                                     </div>
+                                    <span id="phoneTransportBadge" class="scraper-badge launch-badge">
+                                        <span class="scraper-badge-dot"></span>
+                                        <span class="scraper-badge-text">Checking…</span>
+                                    </span>
                                 </div>
 
                                 <div class="launch-grid">
-                                    <div class="launch-col">
-                                        <div class="launch-section-label">Transport</div>
-                                        <div class="scraper-card">
-                                            <div class="scraper-card-head">
-                                                <div class="scraper-card-heading">
-                                                    <span class="scraper-card-icon">
-                                                        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
-                                                            <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
-                                                        </svg>
-                                                    </span>
-                                                    <span class="scraper-card-title">Scraper</span>
-                                                </div>
-                                                <span id="phoneTransportBadge" class="scraper-badge">
-                                                    <span class="scraper-badge-dot"></span>
-                                                    <span class="scraper-badge-text">Checking…</span>
-                                                </span>
-                                            </div>
 
+                                    <!-- ============ what will run ============ -->
+                                    <section class="launch-block">
+                                        <div class="launch-section-label">Target list</div>
+                                        <div class="launch-list-card" id="launchListCard">
+                                            <div class="launch-list-empty" id="launchListEmpty">
+                                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+                                                    <path d="M3 5h18v3H3V5zm0 5.5h18v3H3v-3zM3 16h12v3H3v-3z"/>
+                                                </svg>
+                                                <span>No list selected</span>
+                                                <button type="button" class="scraper-inline-link"
+                                                        onclick="document.querySelector('[data-phone-inner-tab=\'phoneLists\']').click()">
+                                                    Pick one in Command Center
+                                                </button>
+                                            </div>
+                                            <div class="launch-list-filled" id="launchListFilled" style="display: none;">
+                                                <div class="launch-list-main">
+                                                    <div class="launch-list-icon">
+                                                        <i class="fas fa-layer-group"></i>
+                                                    </div>
+                                                    <div class="launch-list-info">
+                                                        <div class="launch-list-name" id="launchListName">—</div>
+                                                        <div class="launch-list-meta" id="launchListMeta">—</div>
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="launch-list-change"
+                                                        onclick="document.querySelector('[data-phone-inner-tab=\'phoneLists\']').click()">
+                                                    Change
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="launch-readout">
+                                            <div class="launch-readout-item">
+                                                <span class="launch-readout-label">Numbers</span>
+                                                <span class="launch-readout-value" id="launchNumberCount">0</span>
+                                            </div>
+                                            <div class="launch-readout-item">
+                                                <span class="launch-readout-label">Est. cost</span>
+                                                <span class="launch-readout-value" id="launchEstimatedCost">—</span>
+                                            </div>
+                                            <div class="launch-readout-item">
+                                                <span class="launch-readout-label">Country</span>
+                                                <span class="launch-readout-value" id="launchCountry">—</span>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <!-- ============ how it runs ============ -->
+                                    <section class="launch-block launch-block-transport">
+                                        <div class="launch-section-label">Transport</div>
+
+                                        <div class="scraper-card">
                                             <div class="form-group scraper-field">
-                                                <label class="form-label" for="scraperProviderSelect">
-                                                    Transport
-                                                </label>
+                                                <label class="form-label" for="scraperProviderSelect">Service</label>
                                                 <div class="select-wrapper">
                                                     <select id="scraperProviderSelect" class="form-control montserrat-select scraper-select"
                                                             onchange="switchScraperProvider(this.value)">
@@ -23408,7 +23651,6 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                     </select>
                                                     <i class="fas fa-chevron-down select-arrow"></i>
                                                 </div>
-                                                <div class="scraper-field-note" id="scraperProviderNote">5 credits per number</div>
                                             </div>
 
                                             <div id="scraperKeyFields">
@@ -23432,14 +23674,15 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                     </div>
                                                 </div>
 
-                                                <label class="scraper-switch-row">
+                                                <label class="scraper-option-row">
                                                     <span class="proxy-toggle-switch">
-                                                        <input type="checkbox" id="scraperPremiumProxy">
+                                                        <input type="checkbox" id="scraperPremiumProxy"
+                                                               onchange="if (typeof refreshLaunchSummary === 'function') refreshLaunchSummary();">
                                                         <span class="proxy-toggle-slider"></span>
                                                     </span>
-                                                    <span class="scraper-switch-text">
-                                                        <span class="scraper-switch-title">Premium proxy</span>
-                                                        <span class="scraper-switch-note">25 credits per number instead of 5</span>
+                                                    <span class="scraper-option-text">
+                                                        <span class="scraper-option-title">Premium proxy</span>
+                                                        <span class="scraper-option-note">A fresh residential IP per check. 25 credits, not 5.</span>
                                                     </span>
                                                 </label>
                                             </div>
@@ -23499,71 +23742,78 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                                                 </div>
                                             </details>
                                         </div>
+                                    </section>
+                                </div>
+                            </div>
+
+                            <!-- ============ the run ============ -->
+                            <div class="launch-run">
+                                <div class="launch-run-bar">
+                                    <div class="launch-run-summary">
+                                        <span class="launch-run-title" id="launchRunTitle">Ready to launch</span>
+                                        <span class="launch-run-sub" id="launchRunSub">Pick a list to enable the launch button</span>
                                     </div>
-
-                                    <div class="launch-col launch-col-run">
-                                        <div class="launch-section-label">Run</div>
-                                        <div class="phone-control-stack">
-                                            <button class="montserrat-btn montserrat-btn-primary launch-btn"
-                                                    id="startPhoneValidationBtn" disabled>
-                                                <span class="btn-icon"><i class="fas fa-bolt"></i></span>
-                                                <span class="btn-text">Launch Validation</span>
+                                    <div class="phone-control-stack">
+                                        <button class="montserrat-btn montserrat-btn-primary launch-btn"
+                                                id="startPhoneValidationBtn" disabled>
+                                            <span class="btn-icon"><i class="fas fa-bolt"></i></span>
+                                            <span class="btn-text">Launch Validation</span>
+                                        </button>
+                                        <div class="phone-control-row">
+                                            <button class="montserrat-btn montserrat-btn-warning montserrat-btn-sm" id="pausePhoneValidationBtn" disabled style="display: none;">
+                                                <span class="btn-icon"><i class="fas fa-pause"></i></span>
+                                                <span class="btn-text">Pause</span>
                                             </button>
-                                            <div class="phone-control-row">
-                                                <button class="montserrat-btn montserrat-btn-warning montserrat-btn-sm" id="pausePhoneValidationBtn" disabled style="display: none;">
-                                                    <span class="btn-icon"><i class="fas fa-pause"></i></span>
-                                                    <span class="btn-text">Pause</span>
-                                                </button>
-                                                <button class="montserrat-btn montserrat-btn-success montserrat-btn-sm" id="resumePhoneValidationBtn" disabled style="display: none;">
-                                                    <span class="btn-icon"><i class="fas fa-play"></i></span>
-                                                    <span class="btn-text">Resume</span>
-                                                </button>
-                                                <button class="montserrat-btn montserrat-btn-danger montserrat-btn-sm" id="stopPhoneValidationBtn" disabled style="display: none;">
-                                                    <span class="btn-icon"><i class="fas fa-stop"></i></span>
-                                                    <span class="btn-text">Stop</span>
-                                                </button>
-                                            </div>
+                                            <button class="montserrat-btn montserrat-btn-success montserrat-btn-sm" id="resumePhoneValidationBtn" disabled style="display: none;">
+                                                <span class="btn-icon"><i class="fas fa-play"></i></span>
+                                                <span class="btn-text">Resume</span>
+                                            </button>
+                                            <button class="montserrat-btn montserrat-btn-danger montserrat-btn-sm" id="stopPhoneValidationBtn" disabled style="display: none;">
+                                                <span class="btn-icon"><i class="fas fa-stop"></i></span>
+                                                <span class="btn-text">Stop</span>
+                                            </button>
                                         </div>
+                                    </div>
+                                </div>
 
-                                        <div class="validator-progress-container" id="phoneProgressSection" style="display: none; margin-top: 20px;">
-                                            <div class="validator-progress-header">
-                                                <div class="progress-info">
-                                                    <span class="progress-label" id="phoneProgressLabel">Processing...</span>
-                                                    <span class="progress-percentage" id="phoneProgressPercent">0%</span>
-                                                </div>
-                                                <div class="progress-count">
-                                                    <span id="phoneProgressCount">0/0</span>
-                                                </div>
-                                            </div>
-                                            <div class="validator-progress-bar-wrapper">
-                                                <div class="validator-progress-bar-track">
-                                                    <div class="validator-progress-bar-fill" id="phoneProgressBar" style="width: 0%; background: linear-gradient(90deg, #8a2be2, #00e5ff);"></div>
-                                                </div>
-                                            </div>
-                                            <div class="validator-progress-stats">
-                                                <div class="progress-stat">
-                                                    <span class="progress-stat-icon success"><i class="fas fa-check"></i></span>
-                                                    <span class="progress-stat-label">Passed:</span>
-                                                    <span class="progress-stat-value" id="phonePassedCount">0</span>
-                                                </div>
-                                                <div class="progress-stat">
-                                                    <span class="progress-stat-icon danger"><i class="fas fa-times"></i></span>
-                                                    <span class="progress-stat-label">Failed:</span>
-                                                    <span class="progress-stat-value" id="phoneFailedCount">0</span>
-                                                </div>
-                                                <div class="progress-stat">
-                                                    <span class="progress-stat-icon"><i class="fas fa-tachometer-alt"></i></span>
-                                                    <span class="progress-stat-label">Rate:</span>
-                                                    <span class="progress-stat-value" id="phoneRate">0</span>
-                                                    <span class="progress-stat-unit">/min</span>
-                                                </div>
-                                            </div>
+                                <div class="validator-progress-container" id="phoneProgressSection" style="display: none;">
+                                    <div class="validator-progress-header">
+                                        <div class="progress-info">
+                                            <span class="progress-label" id="phoneProgressLabel">Processing...</span>
+                                            <span class="progress-percentage" id="phoneProgressPercent">0%</span>
+                                        </div>
+                                        <div class="progress-count">
+                                            <span id="phoneProgressCount">0/0</span>
+                                        </div>
+                                    </div>
+                                    <div class="validator-progress-bar-wrapper">
+                                        <div class="validator-progress-bar-track">
+                                            <div class="validator-progress-bar-fill" id="phoneProgressBar" style="width: 0%; background: linear-gradient(90deg, #8a2be2, #00e5ff);"></div>
+                                        </div>
+                                    </div>
+                                    <div class="validator-progress-stats">
+                                        <div class="progress-stat">
+                                            <span class="progress-stat-icon success"><i class="fas fa-check"></i></span>
+                                            <span class="progress-stat-label">Passed</span>
+                                            <span class="progress-stat-value" id="phonePassedCount">0</span>
+                                        </div>
+                                        <div class="progress-stat">
+                                            <span class="progress-stat-icon danger"><i class="fas fa-times"></i></span>
+                                            <span class="progress-stat-label">Failed</span>
+                                            <span class="progress-stat-value" id="phoneFailedCount">0</span>
+                                        </div>
+                                        <div class="progress-stat">
+                                            <span class="progress-stat-icon"><i class="fas fa-tachometer-alt"></i></span>
+                                            <span class="progress-stat-label">Rate</span>
+                                            <span class="progress-stat-value" id="phoneRate">0</span>
+                                            <span class="progress-stat-unit">/min</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
                     <!-- Phone Live HUD Monitor Panel -->
                     <div class="validator-inner-content" id="phoneMonitorPanel" style="display: none;">
                         <div class="phone-command-center">
@@ -36904,6 +37154,82 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
             }
         }
         
+        // Fill the Launch Controls summary: which list, how many numbers, what
+        // it will cost, and what the launch button will actually do.
+        function refreshLaunchSummary(providerHint) {
+            const list = validatorState.phone.selectedList;
+            const empty = document.getElementById('launchListEmpty');
+            const filled = document.getElementById('launchListFilled');
+            const title = document.getElementById('launchRunTitle');
+            const sub = document.getElementById('launchRunSub');
+
+            const provider = providerHint
+                || (document.getElementById('scraperProviderSelect') || {}).value
+                || 'scrapingbee';
+
+            if (!list) {
+                if (empty) empty.style.display = 'flex';
+                if (filled) filled.style.display = 'none';
+                const n = document.getElementById('launchNumberCount');
+                if (n) n.textContent = '0';
+                const c = document.getElementById('launchEstimatedCost');
+                if (c) c.textContent = '—';
+                const cc = document.getElementById('launchCountry');
+                if (cc) cc.textContent = '—';
+                if (title) title.textContent = 'No list selected';
+                if (sub) sub.textContent = 'Pick a list in Command Center to enable launch';
+                return;
+            }
+
+            const total = Number(list.total_numbers || list.total || 0);
+            const valid = Number(list.valid_count || list.valid || 0);
+            const invalid = Number(list.invalid_count || list.invalid || 0);
+            const pending = Math.max(0, total - valid - invalid);
+
+            if (empty) empty.style.display = 'none';
+            if (filled) filled.style.display = 'flex';
+
+            const nameEl = document.getElementById('launchListName');
+            if (nameEl) nameEl.textContent = list.name || 'Untitled list';
+
+            const metaEl = document.getElementById('launchListMeta');
+            if (metaEl) {
+                metaEl.textContent = pending + ' pending · ' + total + ' total';
+            }
+
+            const countEl = document.getElementById('launchNumberCount');
+            if (countEl) countEl.textContent = pending.toLocaleString();
+
+            const countryEl = document.getElementById('launchCountry');
+            if (countryEl) {
+                countryEl.textContent = list.country_code
+                    || (list.country_codes && list.country_codes[0])
+                    || 'auto';
+            }
+
+            // Cost is only meaningful when the transport meters per number.
+            const costEl = document.getElementById('launchEstimatedCost');
+            if (costEl) {
+                if (provider === 'local') {
+                    costEl.textContent = 'Free';
+                } else if (provider === 'scrapingbee') {
+                    const premiumEl = document.getElementById('scraperPremiumProxy');
+                    const per = (premiumEl && premiumEl.checked) ? 25 : 5;
+                    costEl.textContent = (pending * per).toLocaleString() + ' cr';
+                } else if (provider === 'decodo') {
+                    costEl.textContent = 'Plan';
+                } else {
+                    costEl.textContent = '~$' + (pending * 0.005).toFixed(0);
+                }
+            }
+
+            if (title) title.textContent = pending.toLocaleString() + ' numbers ready';
+            if (sub) {
+                sub.textContent = 'Through ' + scraperProviderLabel(provider === 'veriphone-api' ? 'scrapingbee' : provider) +
+                                  ' — ' + (list.name || 'selected list');
+            }
+        }
+
         // Select phone list
         function selectPhoneList(listId) {
             const list = validatorState.phone.lists.find(l => l.id === listId);
@@ -36921,6 +37247,7 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                 if (select) select.value = listId;
                 updatePhoneListsUI();
                 renderPhoneMatrix(listId);
+                refreshLaunchSummary();
             }
         }
 
@@ -37267,6 +37594,10 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                             scraperProviderLabel(data.transport === 'veriphone-api'
                                 ? 'veriphone' : (data.transport || 'scrapingbee'));
                     }
+                    const runTitle = document.getElementById('launchRunTitle');
+                    if (runTitle) runTitle.textContent = 'Validation running';
+                    const runSub = document.getElementById('launchRunSub');
+                    if (runSub) runSub.textContent = 'Progress reports below';
                     
                     // Update UI
                     document.getElementById('phoneProgressSection').style.display = 'block';
@@ -38353,6 +38684,8 @@ user2@example.com:password456" rows="12" oninput="detectImportFormat()" onpaste=
                     ? 'Free offline engine — no key, no credits'
                     : 'Every number is checked through ' + scraperProviderLabel(provider);
             }
+
+            if (typeof refreshLaunchSummary === 'function') refreshLaunchSummary(provider);
         }
 
         function toggleKeyVisibility() {
