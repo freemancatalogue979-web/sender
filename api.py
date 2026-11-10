@@ -7550,6 +7550,142 @@ async def save_veriphone_config(
     }
 
 
+@validator_router.get("/veriphone/keys")
+async def get_veriphone_keys(current_user: dict = Depends(get_current_user)):
+    """The veriphone key pool and what it can still do this month."""
+    user_id = current_user["user_id"]
+
+    from email_validator import list_veriphone_keys
+
+    return list_veriphone_keys(user_id, USERS_BASE_PATH)
+
+
+@validator_router.post("/veriphone/keys")
+async def import_veriphone_keys(config_data: dict, current_user: dict = Depends(get_current_user)):
+    """
+    Add keys from pasted text or an uploaded file's contents.
+
+    Accepts ``{"keys": "KEY\nKEY2 1000"}`` or an array, with an optional
+    ``monthly_limit`` applied to every key that does not state its own.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import import_veriphone_keys as add_veriphone_keys
+
+    raw = config_data.get("keys") or config_data.get("content") or ""
+    if isinstance(raw, list):
+        raw_text, key_list = "", [str(k) for k in raw]
+    else:
+        raw_text, key_list = str(raw), []
+
+    if not raw_text.strip() and not key_list:
+        raise HTTPException(status_code=400, detail="Paste at least one key")
+
+    limit = config_data.get("monthly_limit")
+    try:
+        limit = int(limit) if limit not in (None, "") else None
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="monthly_limit must be a number")
+
+    report = add_veriphone_keys(
+        user_id, USERS_BASE_PATH, raw_text=raw_text, keys=key_list, monthly_limit=limit
+    )
+    return {"success": True, **report}
+
+
+@validator_router.patch("/veriphone/keys/{key_id}")
+async def edit_veriphone_key(
+    key_id: str,
+    config_data: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """Change a key's monthly limit, label, or on/off state."""
+    user_id = current_user["user_id"]
+
+    from email_validator import list_veriphone_keys, update_veriphone_key
+
+    limit = config_data.get("monthly_limit")
+    if limit is not None:
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="monthly_limit must be a number")
+        if limit < 1:
+            raise HTTPException(status_code=400, detail="monthly_limit must be at least 1")
+
+    updated = update_veriphone_key(
+        user_id,
+        USERS_BASE_PATH,
+        key_id,
+        monthly_limit=limit,
+        disabled=config_data.get("disabled"),
+        label=config_data.get("label"),
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Key not found")
+    return {"success": True, **list_veriphone_keys(user_id, USERS_BASE_PATH)}
+
+
+@validator_router.delete("/veriphone/keys/{key_id}")
+async def delete_veriphone_key(key_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove one key from the pool."""
+    user_id = current_user["user_id"]
+
+    from email_validator import list_veriphone_keys, remove_veriphone_key
+
+    if not remove_veriphone_key(user_id, USERS_BASE_PATH, key_id):
+        raise HTTPException(status_code=404, detail="Key not found")
+    return {"success": True, **list_veriphone_keys(user_id, USERS_BASE_PATH)}
+
+
+@validator_router.post("/veriphone/keys/{key_id}/test")
+async def test_veriphone_pool_key(key_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Spend one real lookup on a single key, so a bad key is found here rather
+    than halfway through a list.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import (
+        _call_veriphone_api,
+        _read_veriphone_pool,
+        VERIPHONE_API_URL,
+    )
+    from email_validator import DecodoError
+
+    keys = _read_veriphone_pool(user_id, USERS_BASE_PATH)
+    entry = next((k for k in keys if k.get("id") == key_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Key not found")
+
+    settings = {"api_key": entry["key"], "api_url": VERIPHONE_API_URL}
+
+    try:
+        payload = await asyncio.to_thread(
+            _call_veriphone_api, "+14155552671", settings
+        )
+    except DecodoError as exc:
+        return {
+            "success": False,
+            "key_id": key_id,
+            "masked": entry.get("masked"),
+            "error": str(exc),
+        }
+
+    return {
+        "success": True,
+        "key_id": key_id,
+        "masked": entry.get("masked"),
+        "sample": {
+            "valid": payload.get("phone_valid"),
+            "type": payload.get("phone_type"),
+            "carrier": payload.get("carrier"),
+            "country": payload.get("country"),
+        },
+        **list_veriphone_keys(user_id, USERS_BASE_PATH),
+    }
+
+
 @validator_router.post("/veriphone/test")
 async def test_veriphone_config(current_user: dict = Depends(get_current_user)):
     """Run one real API lookup to prove the key works."""

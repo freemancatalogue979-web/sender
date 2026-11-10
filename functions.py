@@ -11062,6 +11062,13 @@ async def process_phone_validation(
     if session.get('transport'):
         decodo_settings['transport'] = session['transport']
 
+    # The veriphone key pool needs to know whose keys to spend and where they
+    # live. Without this every batch used the single resolved key and the pool's
+    # per-key monthly counters never moved.
+    veriphone_settings = dict(veriphone_settings or {})
+    veriphone_settings['user_id'] = user_id
+    veriphone_settings['base_path'] = base_path
+
     validation_results = await validate_phones_async(
         list(current_batch), country_code, decodo_settings, veriphone_settings,
         browser_use_settings, scrapingbee_settings,

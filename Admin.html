@@ -106,6 +106,78 @@
             100% { transform: translate(50px, 50px); }
         }
 
+        /* Where the API lives, editable from the login screen so a panel
+           hosted anywhere can point at the server. */
+        .login-server-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 14px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px dashed rgba(255, 255, 255, 0.14);
+            background: transparent;
+            color: rgba(255, 255, 255, 0.45);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10.5px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .login-server-toggle:hover {
+            border-color: rgba(0, 229, 255, 0.4);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .login-server-toggle span { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .login-server-editor {
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 229, 255, 0.22);
+            background: rgba(0, 229, 255, 0.04);
+            text-align: left;
+        }
+
+        .login-server-editor label {
+            display: block;
+            font-size: 9.5px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.42);
+            margin-bottom: 6px;
+        }
+
+        .login-server-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .login-server-save,
+        .login-server-reset {
+            flex: 1;
+            padding: 7px 10px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+
+        .login-server-save { background: rgba(0, 229, 255, 0.16); color: #8ff3ff; border-color: rgba(0, 229, 255, 0.3); }
+        .login-server-reset { background: transparent; color: rgba(255, 255, 255, 0.5); border-color: rgba(255, 255, 255, 0.15); }
+        .login-server-save:hover { background: rgba(0, 229, 255, 0.26); color: #fff; }
+        .login-server-reset:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+
         /* Login Page */
         .login-container {
             display: none;
@@ -1427,46 +1499,6 @@
             .scraper-field-compact .form-label { margin-bottom: 0; }
         }
 
-        .validator-hero-header {
-            flex-direction: column;
-            align-items: flex-start;
-            padding: 18px;
-            gap: 14px;
-        }
-
-        .validator-hero-content {
-            gap: 12px;
-        }
-
-        .validator-hero-icon {
-            width: 48px;
-            height: 48px;
-            font-size: 20px;
-        }
-
-        .validator-hero-title {
-            font-size: 22px;
-        }
-
-        .validator-hero-subtitle {
-            font-size: 12px;
-        }
-
-        .validator-hero-stats {
-            width: 100%;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .hero-stat-item {
-            flex: 1 1 calc(50% - 6px);
-            align-items: flex-start;
-        }
-
-        .hero-stat-value {
-            font-size: 22px;
-        }
-
         .validator-tabs-wrapper {
             flex-wrap: wrap;
             gap: 8px;
@@ -1579,6 +1611,229 @@
             justify-content: center;
         }
 
+
+        /* ---- veriphone key pool -------------------------------------- */
+        .keycap-pill {
+            float: right;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #00e5ff;
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid rgba(0, 229, 255, 0.25);
+            border-radius: 999px;
+            padding: 2px 9px;
+        }
+
+        .keycap-note {
+            font-size: 11px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.42);
+            margin: 2px 0 12px;
+        }
+
+        .keycap-textarea {
+            width: 100%;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 64px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: rgba(0, 0, 0, 0.25);
+            color: var(--text-white);
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 11.5px;
+            line-height: 1.6;
+        }
+
+        .keycap-textarea:focus {
+            outline: none;
+            border-color: rgba(0, 229, 255, 0.45);
+            background: rgba(0, 229, 255, 0.04);
+        }
+
+        .keycap-input-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .keycap-field { display: flex; flex-direction: column; gap: 4px; }
+
+        .keycap-field-label {
+            font-size: 9.5px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .keycap-limit {
+            width: 120px;
+            padding: 7px 10px;
+            font-size: 12px;
+        }
+
+        .keycap-file-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 11px;
+            border-radius: 8px;
+            border: 1px dashed rgba(255, 255, 255, 0.18);
+            background: transparent;
+            color: rgba(255, 255, 255, 0.62);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .keycap-file-btn:hover {
+            border-color: rgba(0, 229, 255, 0.45);
+            color: #fff;
+            background: rgba(0, 229, 255, 0.06);
+        }
+
+        .keycap-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .keycap-empty {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.32);
+            font-size: 11.5px;
+        }
+
+        /* One row per key: the credential, how much of its month is gone, and
+           the three things you can do to it. */
+        .keycap-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(120px, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 11px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .keycap-row.is-exhausted { border-color: rgba(255, 171, 64, 0.35); }
+        .keycap-row.is-bad { border-color: rgba(255, 71, 87, 0.4); }
+        .keycap-row.is-disabled { opacity: 0.5; }
+
+        .keycap-row-id {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .keycap-key {
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-white);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .keycap-meta {
+            font-size: 9.5px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .keycap-meter {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .keycap-meter-bar {
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .keycap-meter-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #00e5ff, #8a2be2);
+            transition: width 0.3s ease;
+        }
+
+        .keycap-meter-fill.is-low { background: linear-gradient(90deg, #ffab40, #ff7043); }
+        .keycap-meter-fill.is-dead { background: #ff4757; }
+
+        .keycap-meter-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9.5px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .keycap-meter-text .keycap-remaining { color: rgba(255, 255, 255, 0.7); }
+
+        .keycap-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .keycap-icon-btn {
+            width: 26px;
+            height: 26px;
+            display: grid;
+            place-items: center;
+            border-radius: 7px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .keycap-icon-btn:hover {
+            background: rgba(255, 255, 255, 0.07);
+            color: #fff;
+        }
+
+        .keycap-icon-btn.danger:hover {
+            background: rgba(255, 71, 87, 0.15);
+            color: #ff4757;
+        }
+
+        .keycap-icon-btn.is-busy { opacity: 0.4; pointer-events: none; }
+
+        .keycap-limit-input {
+            width: 68px;
+            padding: 4px 6px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--text-white);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10.5px;
+            text-align: center;
+        }
 
         /* Responsive */
         @media (max-width: 768px) {
@@ -3361,61 +3616,6 @@
             }
 
             /* ---- Validator hero header ---- */
-            .validator-hero-header {
-                flex-direction: column;
-                align-items: stretch;
-                padding: 14px;
-                gap: 12px;
-                margin-bottom: 12px;
-            }
-
-            .validator-hero-content {
-                flex-direction: row;
-                align-items: center;
-                gap: 10px;
-            }
-
-            .validator-hero-icon {
-                width: 38px;
-                height: 38px;
-                font-size: 16px;
-                border-radius: 10px;
-                flex-shrink: 0;
-            }
-
-            .validator-hero-title {
-                font-size: 17px;
-                line-height: 1.2;
-            }
-
-            .validator-hero-subtitle {
-                font-size: 11px;
-                line-height: 1.3;
-            }
-
-            .validator-hero-stats {
-                flex-direction: row;
-                gap: 8px;
-                padding-top: 8px;
-                border-top: 1px solid var(--border-color);
-            }
-
-            .hero-stat-item {
-                flex: 1;
-                align-items: flex-start;
-                gap: 2px;
-            }
-
-            .hero-stat-value {
-                font-size: 18px;
-                line-height: 1.1;
-            }
-
-            .hero-stat-label {
-                font-size: 9px;
-                letter-spacing: 0.5px;
-            }
-
             /* ---- Validator panel header ---- */
             .validator-panel-header {
                 padding: 12px;
@@ -4375,11 +4575,6 @@
             .security-card-icon,
             .monitor-stat-icon,
             .panel-header-icon,
-            .validator-hero-icon,
-            .trigger-icon {
-                font-size: 13px !important;
-            }
-
             /* ---- Inline SVGs scale to container ---- */
             svg {
                 max-width: 100%;
@@ -4477,11 +4672,6 @@
             .validator-stat-value,
             .security-card-value,
             .setting-value,
-            .hero-stat-value {
-                font-size: 16px !important;
-                line-height: 1.1 !important;
-            }
-
             /* Form labels and inputs */
             .form-group label,
             .input-group label {
@@ -4677,18 +4867,6 @@
             }
 
             /* Validator hero */
-            .validator-hero-title {
-                font-size: 16px !important;
-            }
-
-            .validator-hero-subtitle {
-                font-size: 11px !important;
-            }
-
-            .validator-hero-icon {
-                font-size: 14px !important;
-            }
-
             /* Panel titles */
             .panel-title {
                 font-size: 13px !important;
@@ -5004,30 +5182,6 @@
             }
 
             /* ---- 7) Validator hero: icon + text side by side, not overlap ---- */
-            .validator-hero-content {
-                display: flex !important;
-                align-items: center !important;
-                gap: 10px !important;
-            }
-
-            .validator-hero-icon {
-                flex-shrink: 0 !important;
-                width: 40px !important;
-                height: 40px !important;
-                font-size: 16px !important;
-            }
-
-            .validator-hero-text {
-                min-width: 0 !important;
-                flex: 1 !important;
-            }
-
-            .validator-hero-title,
-            .validator-hero-subtitle {
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-            }
-
             /* ---- 8) Panel header (left icon + right actions) ---- */
             .panel-header-left {
                 display: flex !important;
@@ -5853,12 +6007,6 @@
                 font-size: 12px !important;
             }
 
-            .validator-hero-icon {
-                width: 32px !important;
-                height: 32px !important;
-                font-size: 13px !important;
-            }
-
             .step-number {
                 width: 20px !important;
                 height: 20px !important;
@@ -6010,33 +6158,6 @@
             }
 
             /* Validator hero tighter */
-            .validator-hero-header {
-                padding: 10px;
-                gap: 10px;
-            }
-
-            .validator-hero-icon {
-                width: 32px;
-                height: 32px;
-                font-size: 14px;
-            }
-
-            .validator-hero-title {
-                font-size: 15px;
-            }
-
-            .validator-hero-subtitle {
-                font-size: 10px;
-            }
-
-            .hero-stat-value {
-                font-size: 15px;
-            }
-
-            .hero-stat-label {
-                font-size: 8px;
-            }
-
             .validator-panel-header {
                 padding: 10px;
             }
@@ -6481,14 +6602,6 @@
             }
 
             /* Validator / monitor / API stats 1-col */
-            .hero-stat-item {
-                flex: 1 1 100%;
-            }
-
-            .hero-stat-value {
-                font-size: 18px;
-            }
-
             /* Validator tabs full width on tiny screens */
             .validator-tab-btn,
             .validator-inner-tab-btn,
@@ -14827,83 +14940,6 @@
    ============================ */
 
         /* Hero Header */
-        .validator-hero-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 25px 30px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-            border: 1px solid var(--border-color);
-            border-radius: 15px;
-            margin-bottom: 30px;
-        }
-
-        .validator-hero-content {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .validator-hero-icon {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
-            border-radius: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            color: var(--text-white);
-        }
-
-        .validator-hero-text {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .validator-hero-title {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--text-white);
-            margin: 0;
-        }
-
-        .validator-hero-subtitle {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 14px;
-            color: var(--text-gray);
-            margin: 0;
-        }
-
-        .validator-hero-stats {
-            display: flex;
-            gap: 40px;
-        }
-
-        .hero-stat-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .hero-stat-value {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--text-white);
-        }
-
-        .hero-stat-label {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 12px;
-            color: var(--text-gray);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
         /* Validator Tabs Container */
         .validator-tabs-container {
             margin-bottom: 30px;
@@ -15451,7 +15487,7 @@
 
         .num-row {
             display: grid;
-            grid-template-columns: 30px minmax(0, 1.5fr) minmax(0, 1.15fr) minmax(0, 1fr) 72px 76px;
+            grid-template-columns: 30px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) 76px 82px 18px;
             align-items: center;
             gap: 10px;
             padding: 9px 12px;
@@ -15460,9 +15496,103 @@
         }
 
         .num-row:last-child { border-bottom: none; }
+
+        /* A number block: the one-line summary people scan, and behind it every
+           field the lookup returned. The grid moved onto .num-line so the
+           detail can span the full width underneath. */
+        .num-row-block {
+            display: block;
+            padding: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+        }
+
+        .num-line {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) 76px 82px 18px;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            cursor: pointer;
+        }
+
+        .num-row-block:hover .num-line { background: rgba(255, 255, 255, 0.03); }
+
+        .num-col-number {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            min-width: 0;
+        }
+
+        .num-col-expand {
+            display: grid;
+            place-items: center;
+            color: rgba(255, 255, 255, 0.22);
+            font-size: 9px;
+            transition: transform 0.18s ease, color 0.18s ease;
+        }
+
+        .num-row-block:hover .num-col-expand { color: rgba(255, 255, 255, 0.5); }
+
+        .num-row-block.is-open .num-col-expand { transform: rotate(180deg); }
+
+        .num-detail {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 2px 16px;
+            padding: 4px 12px 14px 52px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            background: rgba(0, 0, 0, 0.16);
+        }
+
+        .num-detail.open { display: grid; }
+
+        .num-detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 6px 0;
+            min-width: 0;
+        }
+
+        .num-detail-wide { grid-column: 1 / -1; }
+
+        .num-detail-label {
+            font-size: 8.5px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .num-detail-value {
+            font-size: 11.5px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.82);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .num-detail-value.is-mono {
+            font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+            letter-spacing: 0.2px;
+        }
+
+        .num-detail-value.is-error { color: #ff8080; }
+
+        .num-flag-svg {
+            display: inline-block;
+            vertical-align: -1px;
+            border-radius: 2px;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
         .num-row:not(.num-row-head):hover { background: rgba(255, 255, 255, 0.03); }
 
         .num-row-head {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) 76px 82px 18px;
+            align-items: center;
+            gap: 10px;
             padding: 8px 12px;
             background: rgba(255, 255, 255, 0.03);
             font-size: 9px;
@@ -15733,6 +15863,20 @@
 
         .hud-row-data:hover { background: rgba(255, 255, 255, 0.03); }
 
+        /* The HUD row became a block so the detail panel can sit under it. */
+        .hud-row-data { display: block; padding: 0; }
+
+        .hud-line {
+            display: grid;
+            grid-template-columns: 10px minmax(0, 1.35fr) minmax(0, 1.1fr) minmax(0, 1fr) 78px 84px 82px;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+        }
+
+        .hud-detail { padding-left: 36px; }
+
         .hud-rows { overflow-y: auto; max-height: 440px; }
 
         .hud-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.25); }
@@ -15766,13 +15910,20 @@
 
         @media (max-width: 1100px) {
             .hud-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-            .hud-row { grid-template-columns: 10px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr) 70px 76px; }
-            .hud-row .hud-time, .hud-row-head span:last-child { display: none; }
+            .hud-line { grid-template-columns: 10px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr) 70px 76px; }
+            .hud-line .hud-time, .hud-row-head span:last-child { display: none; }
         }
 
         @media (max-width: 700px) {
-            .num-row { grid-template-columns: 26px minmax(0, 1.4fr) 84px 70px; }
-            .num-row .num-col-carrier, .num-row .num-col-type { display: none; }
+            .num-line { grid-template-columns: 22px minmax(0, 1fr) auto 14px; }
+            .num-row-head { grid-template-columns: 22px minmax(0, 1fr) auto 14px; }
+            .num-line .num-col-carrier,
+            .num-line .num-col-type,
+            .num-line .num-col-country { display: none; }
+            .num-row-head .num-col-carrier,
+            .num-row-head .num-col-type,
+            .num-row-head .num-col-country { display: none; }
+            .num-detail { padding-left: 34px; grid-template-columns: 1fr 1fr; }
             .hud-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
 
@@ -20442,6 +20593,28 @@
                         <i class="fas fa-sign-in-alt"></i> LOGIN
                     </button>
                     <div class="login-error" id="loginError">Invalid credentials. Please try again.</div>
+
+                    <!-- Where the panel talks to. Defaults to this page's own
+                         origin; set it when the HTML is hosted somewhere other
+                         than the API, e.g. https://api.example.com -->
+                    <button type="button" class="login-server-toggle" id="loginServerToggle"
+                            onclick="toggleServerUrlEditor()">
+                        <i class="fas fa-server"></i>
+                        <span id="loginServerText">localhost:8000</span>
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    <div class="login-server-editor" id="loginServerEditor" style="display: none;">
+                        <label for="loginServerInput">Server URL</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-link"></i>
+                            <input type="url" id="loginServerInput" placeholder="https://api.example.com"
+                                   spellcheck="false" autocomplete="off">
+                        </div>
+                        <div class="login-server-actions">
+                            <button type="button" class="login-server-save" onclick="saveServerUrl()">Save &amp; reload</button>
+                            <button type="button" class="login-server-reset" onclick="resetServerUrl()">Use this host</button>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>
@@ -23457,28 +23630,6 @@
 
             <!-- Validator Section -->
             <section class="panel-section" id="validatorSection">
-                <div class="validator-hero-header">
-                    <div class="validator-hero-content">
-                        <div class="validator-hero-icon">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                        <div class="validator-hero-text">
-                            <h1 class="validator-hero-title">Validator</h1>
-                            <p class="validator-hero-subtitle">Verify and validate your email addresses and phone numbers with precision</p>
-                        </div>
-                    </div>
-                    <div class="validator-hero-stats">
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value" id="totalValidations">0</span>
-                            <span class="hero-stat-label">Total Validations</span>
-                        </div>
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value" id="validRate">0%</span>
-                            <span class="hero-stat-label">Success Rate</span>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Validator Sub-Tabs -->
                 <div class="validator-tabs-container">
                     <div class="validator-tabs-wrapper">
@@ -23993,6 +24144,7 @@
                                             <span class="num-col-carrier">Carrier</span>
                                             <span class="num-col-type">Type</span>
                                             <span class="num-col-status">Status</span>
+                                            <span></span>
                                         </div>
                                         <div class="num-rows" id="phoneMatrixRows">
                                             <div class="num-empty">
@@ -24079,6 +24231,53 @@
                                             <div class="launch-readout-item">
                                                 <span class="launch-readout-label">Country</span>
                                                 <span class="launch-readout-value" id="launchCountry">—</span>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <!-- ============ veriphone key pool ============ -->
+                                    <!-- One veriphone key runs out at its monthly
+                                         allowance, so a list needs a pool. Each key
+                                         carries its own limit, and the pool spends
+                                         the key with the most headroom left. -->
+                                    <section class="launch-block launch-block-keys">
+                                        <div class="launch-section-label">
+                                            Veriphone keys
+                                            <span class="keycap-pill" id="veriphoneKeyCapacity">—</span>
+                                        </div>
+
+                                        <div class="keycap-note" id="veriphoneKeyNote">
+                                            Add keys to run without ScrapingBee. Each key resets on the 1st of the month.
+                                        </div>
+
+                                        <div class="keycap-input-row">
+                                            <textarea id="veriphoneKeyPaste" class="keycap-textarea"
+                                                      rows="3" spellcheck="false" autocomplete="off"
+                                                      placeholder="Paste keys, one per line&#10;vp_live_xxxxxxxxxxxxxxxx&#10;vp_live_yyyyyyyyyyyyyyyy 1000   ← optional per-key limit"></textarea>
+                                        </div>
+
+                                        <div class="keycap-input-row keycap-input-tight">
+                                            <label class="keycap-field">
+                                                <span class="keycap-field-label">Default limit / month</span>
+                                                <input type="number" id="veriphoneKeyLimit" class="form-control keycap-limit"
+                                                       min="1" step="1" value="500" placeholder="500">
+                                            </label>
+                                            <button type="button" class="keycap-file-btn" onclick="document.getElementById('veriphoneKeyFile').click()">
+                                                <i class="fas fa-file-import"></i> Upload CSV / TXT
+                                            </button>
+                                            <input type="file" id="veriphoneKeyFile" accept=".csv,.txt" style="display: none;"
+                                                   onchange="handleVeriphoneKeyFile(event)">
+                                            <button type="button" class="montserrat-btn montserrat-btn-primary montserrat-btn-sm" id="veriphoneKeyAddBtn"
+                                                    onclick="addVeriphoneKeys()">
+                                                <span class="btn-icon"><i class="fas fa-plus"></i></span>
+                                                <span class="btn-text">Add keys</span>
+                                            </button>
+                                        </div>
+
+                                        <div class="keycap-list" id="veriphoneKeyList">
+                                            <div class="keycap-empty">
+                                                <i class="fas fa-key"></i>
+                                                <span>No keys added yet</span>
                                             </div>
                                         </div>
                                     </section>
@@ -34387,6 +34586,7 @@
 
         // Mobile: tap inbox sidebar header to collapse/expand mailbox drawer
         document.addEventListener('DOMContentLoaded', () => {
+            initServerUrlEditor();
             const inboxSidebarHeader = document.querySelector('.inbox-sidebar-header');
             if (inboxSidebarHeader) {
                 inboxSidebarHeader.addEventListener('click', (e) => {
@@ -37679,6 +37879,300 @@
             }
         }
 
+        // ------------------------------------------------------------------ server
+        // Which host the panel talks to. Stored separately from the token so a
+        // page opened from a fleet machine can be pointed at the real server
+        // without editing the file.
+        function currentServerUrl() {
+            return SERVER_URL;
+        }
+
+        function initServerUrlEditor() {
+            const text = document.getElementById('loginServerText');
+            const input = document.getElementById('loginServerInput');
+            if (text) text.textContent = SERVER_URL.replace(/^https?:\/\//, '');
+            if (input) input.value = localStorage.getItem('fvs_server_url') || '';
+            if (input) input.placeholder = window.location.origin || 'http://localhost:8000';
+        }
+
+        function toggleServerUrlEditor() {
+            const editor = document.getElementById('loginServerEditor');
+            if (!editor) return;
+            const showing = editor.style.display !== 'none';
+            editor.style.display = showing ? 'none' : 'block';
+            if (!showing) {
+                const input = document.getElementById('loginServerInput');
+                if (input) input.focus();
+            }
+        }
+
+        function normaliseServerUrl(value) {
+            let url = (value || '').trim();
+            if (!url) return '';
+            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+            return url.replace(/\/+$/, '');
+        }
+
+        function saveServerUrl() {
+            const input = document.getElementById('loginServerInput');
+            const url = normaliseServerUrl(input && input.value);
+            if (!url) {
+                showToast('Enter a server URL first', 'warning');
+                return;
+            }
+            try {
+                // A URL that will not parse is caught here rather than turning
+                // every request into a network error after the reload.
+                void new URL(url);
+            } catch (e) {
+                showToast('That does not look like a URL', 'error');
+                return;
+            }
+            localStorage.setItem('fvs_server_url', url);
+            localStorage.removeItem('fvs_token');
+            localStorage.removeItem('fvs_user_id');
+            showToast(`Server set to ${url} — reloading`, 'success');
+            setTimeout(() => window.location.reload(), 600);
+        }
+
+        function resetServerUrl() {
+            localStorage.removeItem('fvs_server_url');
+            localStorage.removeItem('fvs_token');
+            localStorage.removeItem('fvs_user_id');
+            showToast('Using this page\'s own host — reloading', 'info');
+            setTimeout(() => window.location.reload(), 600);
+        }
+
+        // ------------------------------------------------------------------ key pool
+        // A veriphone key stops answering when its monthly allowance is spent,
+        // so keys are a pool. Each row shows how much of its month is gone and
+        // can be tested, re-limited, paused or removed.
+        let veriphoneKeyState = { keys: [], capacity: 0, count: 0, period: '' };
+
+        async function loadVeriphoneKeys() {
+            const list = document.getElementById('veriphoneKeyList');
+            try {
+                const response = await fetchWithAuth('/validator/veriphone/keys');
+                if (!response.ok) throw new Error('load failed');
+                veriphoneKeyState = await response.json();
+                renderVeriphoneKeys();
+            } catch (e) {
+                if (list) {
+                    list.innerHTML = `<div class="keycap-empty">
+                        <i class="fas fa-triangle-exclamation"></i>
+                        <span>Could not read the key list</span>
+                    </div>`;
+                }
+            }
+        }
+
+        function renderVeriphoneKeys() {
+            const list = document.getElementById('veriphoneKeyList');
+            const pill = document.getElementById('veriphoneKeyCapacity');
+            const state = veriphoneKeyState || {};
+            const keys = state.keys || [];
+
+            if (pill) {
+                pill.textContent = keys.length
+                    ? `${(state.capacity || 0).toLocaleString()} left · ${state.period}`
+                    : 'empty';
+            }
+
+            if (!list) return;
+
+            if (!keys.length) {
+                list.innerHTML = `<div class="keycap-empty">
+                    <i class="fas fa-key"></i>
+                    <span>No keys added yet</span>
+                </div>`;
+                return;
+            }
+
+            list.innerHTML = keys.map(key => {
+                const limit = Number(key.monthly_limit) || 0;
+                const used = Number(key.used) || 0;
+                const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+                const fillClass = key.status === 'exhausted' || key.status === 'bad'
+                    ? 'is-dead'
+                    : (pct >= 80 ? 'is-low' : '');
+
+                const statusText = key.status === 'active'
+                    ? 'active'
+                    : key.status === 'exhausted' ? 'limit reached'
+                    : key.status === 'bad' ? (key.last_error || 'rejected')
+                    : 'paused';
+
+                return `
+                    <div class="keycap-row is-${escapeHtml(key.status)}" data-key-id="${escapeHtml(key.id)}">
+                        <div class="keycap-row-id">
+                            <span class="keycap-key" title="${escapeHtml(key.masked)}">${escapeHtml(key.masked)}</span>
+                            <span class="keycap-meta">${escapeHtml(statusText)}${key.last_used_at ? ' · last used ' + escapeHtml(String(key.last_used_at).slice(0, 10)) : ''}</span>
+                        </div>
+                        <div class="keycap-meter">
+                            <div class="keycap-meter-bar">
+                                <div class="keycap-meter-fill ${fillClass}" style="width:${pct}%"></div>
+                            </div>
+                            <div class="keycap-meter-text">
+                                <span class="keycap-remaining">${(key.remaining || 0).toLocaleString()} left</span>
+                                <span>${used.toLocaleString()} / ${limit.toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div class="keycap-actions">
+                            <input type="number" class="keycap-limit-input" min="1" step="1"
+                                   value="${limit}" title="Monthly limit"
+                                   onchange="editVeriphoneKeyLimit('${escapeHtml(key.id)}', this.value)">
+                            <button type="button" class="keycap-icon-btn" title="Test this key"
+                                    onclick="testVeriphoneKey('${escapeHtml(key.id)}', this)">
+                                <i class="fas fa-vial"></i>
+                            </button>
+                            <button type="button" class="keycap-icon-btn" title="${key.disabled ? 'Enable' : 'Pause'} this key"
+                                    onclick="toggleVeriphoneKey('${escapeHtml(key.id)}', ${key.disabled ? 'false' : 'true'})">
+                                <i class="fas fa-${key.disabled ? 'play' : 'pause'}"></i>
+                            </button>
+                            <button type="button" class="keycap-icon-btn danger" title="Remove from the list"
+                                    onclick="removeVeriphoneKey('${escapeHtml(key.id)}', '${escapeHtml(key.masked)}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        async function addVeriphoneKeys() {
+            const paste = document.getElementById('veriphoneKeyPaste');
+            const limitInput = document.getElementById('veriphoneKeyLimit');
+            const button = document.getElementById('veriphoneKeyAddBtn');
+            const raw = (paste && paste.value || '').trim();
+            if (!raw) {
+                showToast('Paste at least one key', 'warning');
+                return;
+            }
+
+            const limit = Number(limitInput && limitInput.value) || 500;
+            if (button) button.classList.add('is-busy');
+
+            try {
+                const response = await fetchWithAuth('/validator/veriphone/keys', {
+                    method: 'POST',
+                    body: JSON.stringify({ keys: raw, monthly_limit: limit })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Could not add keys');
+
+                veriphoneKeyState = data;
+                renderVeriphoneKeys();
+                if (paste) paste.value = '';
+
+                const added = (data.added || []).length;
+                const skipped = (data.skipped || []).length;
+                if (added) {
+                    showToast(`Added ${added} key${added === 1 ? '' : 's'}` +
+                              (skipped ? `, skipped ${skipped}` : ''), 'success');
+                } else {
+                    showToast(`Nothing added — ${skipped} already in the list`, 'info');
+                }
+            } catch (e) {
+                showToast(e.message || 'Could not add keys', 'error');
+            } finally {
+                if (button) button.classList.remove('is-busy');
+            }
+        }
+
+        async function handleVeriphoneKeyFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const paste = document.getElementById('veriphoneKeyPaste');
+                if (paste) {
+                    // Read into the box first so the keys can be seen before
+                    // they are added -- a file is not an instant action.
+                    paste.value = text.trim();
+                    showToast(`Read ${text.trim().split(/\r?\n/).filter(Boolean).length} lines — review, then Add keys`, 'info');
+                }
+            } catch (e) {
+                showToast('Could not read that file', 'error');
+            }
+            event.target.value = '';
+        }
+
+        async function testVeriphoneKey(keyId, button) {
+            if (button) button.classList.add('is-busy');
+            try {
+                const response = await fetchWithAuth(`/validator/veriphone/keys/${keyId}/test`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    const s = data.sample || {};
+                    showToast(`Key works — ${s.carrier || 'unknown carrier'}, ${s.type || 'unknown type'}`, 'success');
+                } else {
+                    showToast(`Key failed: ${data.error || 'unknown error'}`, 'error');
+                }
+                if (data.keys) {
+                    veriphoneKeyState = data;
+                    renderVeriphoneKeys();
+                } else {
+                    await loadVeriphoneKeys();
+                }
+            } catch (e) {
+                showToast('Test failed', 'error');
+                await loadVeriphoneKeys();
+            } finally {
+                if (button) button.classList.remove('is-busy');
+            }
+        }
+
+        async function editVeriphoneKeyLimit(keyId, value) {
+            const limit = Number(value);
+            if (!limit || limit < 1) {
+                showToast('Limit must be at least 1', 'warning');
+                await loadVeriphoneKeys();
+                return;
+            }
+            try {
+                const response = await fetchWithAuth(`/validator/veriphone/keys/${keyId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ monthly_limit: limit })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Could not update');
+                veriphoneKeyState = data;
+                renderVeriphoneKeys();
+                showToast(`Limit set to ${limit.toLocaleString()}/month`, 'success');
+            } catch (e) {
+                showToast(e.message || 'Could not update the limit', 'error');
+            }
+        }
+
+        async function toggleVeriphoneKey(keyId, disabled) {
+            try {
+                const response = await fetchWithAuth(`/validator/veriphone/keys/${keyId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ disabled })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Could not update');
+                veriphoneKeyState = data;
+                renderVeriphoneKeys();
+            } catch (e) {
+                showToast(e.message || 'Could not update the key', 'error');
+            }
+        }
+
+        async function removeVeriphoneKey(keyId, masked) {
+            if (!confirm(`Remove ${masked} from the key list?`)) return;
+            try {
+                const response = await fetchWithAuth(`/validator/veriphone/keys/${keyId}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Could not remove');
+                veriphoneKeyState = data;
+                renderVeriphoneKeys();
+                showToast('Key removed', 'success');
+            } catch (e) {
+                showToast(e.message || 'Could not remove the key', 'error');
+            }
+        }
+
         // ------------------------------------------------------------------ console
         // Every phone lookup prints one line per number, so a bad run can be read
         // straight out of the browser console instead of guessed at from the UI.
@@ -37774,12 +38268,82 @@
             return { name: name || iso || '—', iso: iso };
         }
 
+        // Windows does not ship flag emoji, so a regional-indicator pair renders
+        // as "NG" in letter boxes there. Emoji is used when it can be drawn and
+        // an inline SVG flag otherwise -- no icon set, no new assets, one path
+        // per country generated from the ISO code.
+        const FLAG_EMOJI_SUPPORTED = (() => {
+            try {
+                const canvas = document.createElement('canvas');
+                if (!canvas.getContext) return false;
+                const ctx = canvas.getContext('2d');
+                ctx.font = '16px sans-serif';
+                const emoji = '\u{1F1F3}\u{1F1EC}';      // 🇳🇬
+                const plain = 'NG';
+                return ctx.measureText(emoji).width !== ctx.measureText(plain).width;
+            } catch (e) {
+                return false;
+            }
+        })();
+
+        // Deterministic colours from the ISO code, so the same country keeps the
+        // same flag between renders and sessions.
+        function flagPalette(iso) {
+            let h = 0;
+            for (const ch of iso) h = (h * 31 + ch.charCodeAt(0)) % 360;
+            const light = `hsl(${h}, 62%, 58%)`;
+            const dark = `hsl(${(h + 40) % 360}, 55%, 32%)`;
+            const accent = `hsl(${(h + 180) % 360}, 70%, 62%)`;
+            return { base: dark, band: light, accent };
+        }
+
+        function phoneFlagSvg(iso) {
+            const { base, band, accent } = flagPalette(iso);
+            const variant = (iso.charCodeAt(0) + iso.charCodeAt(1)) % 3;
+            let shape = '';
+            if (variant === 0) {
+                shape = `<rect width="7" height="14" fill="${band}"/><rect x="7" width="7" height="14" fill="${accent}"/>`;
+            } else if (variant === 1) {
+                shape = `<rect y="4" width="21" height="6" fill="${band}"/>`;
+            } else {
+                shape = `<rect width="21" height="14" fill="${band}"/><polygon points="0,0 10.5,7 0,14" fill="${accent}"/>`;
+            }
+            return `<svg class="num-flag-svg" viewBox="0 0 21 14" width="18" height="12" aria-hidden="true">
+                        <rect width="21" height="14" rx="2" fill="${base}"/>${shape}
+                    </svg>`;
+        }
+
         function phoneFlag(countryCode, countryName) {
             const c = phoneCountryLabel({ country_code: countryCode, country: countryName });
             if (!/^[A-Z]{2}$/.test(c.iso)) return '<span class="num-flag-none">—</span>';
-            const base = 0x1F1E6;
-            const flag = String.fromCodePoint(...[...c.iso].map(ch => base + ch.charCodeAt(0) - 65));
-            return '<span class="num-flag" title="' + c.iso + '">' + flag + '</span>';
+
+            const inner = FLAG_EMOJI_SUPPORTED
+                ? String.fromCodePoint(...[...c.iso].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65))
+                : phoneFlagSvg(c.iso);
+            return '<span class="num-flag" title="' + c.iso + '">' + inner + '</span>';
+        }
+
+        // Everything the veriphone API sent, ready to render. A row used to show
+        // six columns and drop the rest; this is the whole answer.
+        function phoneFields(n) {
+            const country = phoneCountryLabel(n);
+            const tz = Array.isArray(n.timezone) ? n.timezone.join(', ') : (n.timezone || '');
+            const dial = phoneCleanToken(n.dial_code, 8)
+                || (n.country_prefix ? '+' + String(n.country_prefix).replace(/^\+/, '') : '');
+
+            return [
+                { key: 'number', label: 'Number', value: phoneCleanNumber(n.formatted_number || n.e164 || n.number), mono: true },
+                { key: 'local', label: 'Local', value: phoneCleanToken(n.local_number, 28), mono: true },
+                { key: 'dial', label: 'Dial code', value: dial, mono: true },
+                { key: 'country', label: 'Country', value: country.name && country.name !== '—' ? country.name : '', flag: true, iso: country.iso },
+                { key: 'region', label: 'Region', value: phoneCleanToken(n.region, 40) },
+                { key: 'carrier', label: 'Carrier', value: phoneCleanToken(n.carrier, 40) },
+                { key: 'type', label: 'Type', value: n.line_type ? phoneLineType(n) : '' },
+                { key: 'timezone', label: 'Timezone', value: phoneCleanToken(tz, 44) },
+                { key: 'geographical', label: 'Geographic', value: n.geographical === true ? 'Yes' : (n.geographical === false ? 'No' : '') },
+                { key: 'prepaid', label: 'Prepaid', value: n.is_prepaid === true ? 'Yes' : (n.is_prepaid === false ? 'No' : '') },
+                { key: 'confidence', label: 'Confidence', value: n.confidence ? n.confidence + '%' : '' },
+            ].filter(f => f.value);
         }
 
         function phoneLineType(n) {
@@ -37841,16 +38405,43 @@
         function renderNumRow(n, index) {
             const status = phoneRowStatus(n);
             const country = phoneCountryLabel(n);
-            const detail = phoneDetailLine(n);
+            const fields = phoneFields(n);
+            const facts = fields.filter(f => f.key !== 'number');
+            const rowId = 'numrow-' + index;
             return `
-                <div class="num-row" data-status="${status.key}">
-                    <span class="num-col-index">${index}</span>
-                    <span class="num-col-number">${escapeHtml(phoneRowNumber(n))}</span>
-                    <span class="num-col-country">${phoneFlag(n.country_code, n.country)}<span class="num-country-name">${escapeHtml(country.name)}</span></span>
-                    <span class="num-col-carrier">${escapeHtml(phoneCarrier(n))}${detail ? `<span class="num-cell-sub">${escapeHtml(detail)}</span>` : ''}</span>
-                    <span class="num-col-type">${escapeHtml(phoneLineType(n))}</span>
-                    <span class="num-col-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
+                <div class="num-row num-row-block" data-status="${status.key}">
+                    <div class="num-line" onclick="toggleNumRow('${rowId}')">
+                        <span class="num-col-index">${index}</span>
+                        <span class="num-col-number">${phoneFlag(n.country_code, n.country)}${escapeHtml(phoneRowNumber(n))}</span>
+                        <span class="num-col-country"><span class="num-country-name">${escapeHtml(country.name)}</span></span>
+                        <span class="num-col-carrier">${escapeHtml(phoneCarrier(n))}</span>
+                        <span class="num-col-type">${escapeHtml(n.line_type ? phoneLineType(n) : '—')}</span>
+                        <span class="num-col-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
+                        <span class="num-col-expand"><i class="fas fa-chevron-down"></i></span>
+                    </div>
+                    <div class="num-detail" id="${rowId}">
+                        ${facts.map(f => `
+                            <div class="num-detail-item">
+                                <span class="num-detail-label">${escapeHtml(f.label)}</span>
+                                <span class="num-detail-value${f.mono ? ' is-mono' : ''}">${f.flag ? phoneFlag(f.iso) + ' ' : ''}${escapeHtml(f.value)}</span>
+                            </div>`).join('')}
+                        ${n.error ? `
+                            <div class="num-detail-item num-detail-wide">
+                                <span class="num-detail-label">Error</span>
+                                <span class="num-detail-value is-error">${escapeHtml(n.error)}</span>
+                            </div>` : ''}
+                    </div>
                 </div>`;
+        }
+
+        function toggleNumRow(rowId) {
+            const el = document.getElementById(rowId);
+            if (!el) return;
+            const open = el.classList.toggle('open');
+            // The chevron lives in the sibling summary line, so the block
+            // carries the state rather than the panel.
+            const block = el.parentElement;
+            if (block) block.classList.toggle('is-open', open);
         }
 
         async function renderPhoneMatrix(listId) {
@@ -39479,6 +40070,8 @@
         }
 
         async function loadScraperPanel() {
+            // The key pool sits beside the service card and loads with it.
+            loadVeriphoneKeys();
             try {
                 const response = await fetchWithAuth('/validator/scraper');
                 if (!response.ok) {
@@ -39768,15 +40361,31 @@
                     const detail = phoneDetailLine(n);
                     const checked = n.validated_at ? new Date(n.validated_at).toLocaleTimeString() : '—';
                     const conf = n.confidence ? `<span class="hud-conf">${n.confidence}%</span>` : '';
+                    const hudId = 'hud-' + phoneRowNumber(n).replace(/[^0-9a-zA-Z]/g, '');
+                    const facts = phoneFields(n).filter(f => f.key !== 'number');
                     return `
                         <div class="hud-row hud-row-data" data-status="${status.key}">
-                            <span class="hud-dot ${status.key}"></span>
-                            <span class="hud-number">${escapeHtml(phoneRowNumber(n))}${detail ? `<span class="hud-number-sub">${escapeHtml(detail)}</span>` : ''}</span>
-                            <span class="hud-country">${phoneFlag(n.country_code, n.country)}<span>${escapeHtml(country.name)}</span></span>
-                            <span class="hud-carrier">${escapeHtml(phoneCarrier(n))}${conf}</span>
-                            <span class="hud-type">${escapeHtml(phoneLineType(n))}</span>
-                            <span class="hud-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
-                            <span class="hud-time">${escapeHtml(checked)}</span>
+                            <div class="hud-line" onclick="toggleNumRow('${hudId}')">
+                                <span class="hud-dot ${status.key}"></span>
+                                <span class="hud-number">${escapeHtml(phoneRowNumber(n))}${detail ? `<span class="hud-number-sub">${escapeHtml(detail)}</span>` : ''}</span>
+                                <span class="hud-country">${phoneFlag(n.country_code, n.country)}<span>${escapeHtml(country.name)}</span></span>
+                                <span class="hud-carrier">${escapeHtml(phoneCarrier(n))}${conf}</span>
+                                <span class="hud-type">${escapeHtml(n.line_type ? phoneLineType(n) : '—')}</span>
+                                <span class="hud-status"><span class="status-badge ${status.key}" title="${escapeHtml(status.title || '')}">${status.label}</span></span>
+                                <span class="hud-time">${escapeHtml(checked)}</span>
+                            </div>
+                            <div class="num-detail hud-detail" id="${hudId}">
+                                ${facts.map(f => `
+                                    <div class="num-detail-item">
+                                        <span class="num-detail-label">${escapeHtml(f.label)}</span>
+                                        <span class="num-detail-value${f.mono ? ' is-mono' : ''}">${f.flag ? phoneFlag(f.iso) + ' ' : ''}${escapeHtml(f.value)}</span>
+                                    </div>`).join('')}
+                                ${n.error ? `
+                                    <div class="num-detail-item num-detail-wide">
+                                        <span class="num-detail-label">Error</span>
+                                        <span class="num-detail-value is-error">${escapeHtml(n.error)}</span>
+                                    </div>` : ''}
+                            </div>
                         </div>`;
                 }).join('');
             }

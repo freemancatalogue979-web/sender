@@ -2146,3 +2146,109 @@ def test_no_route_handler_shadows_its_own_library_function():
                 offenders.append(node.name)
 
     assert not offenders, f"handler calls itself instead of the library: {offenders}"
+
+
+# =============================================================================
+# Veriphone key pool
+#
+# A key has a monthly allowance and stops answering when it is spent. A real
+# list needs many keys, each with its own limit, and the pool has to spend them
+# without re-trying a dead one on every number.
+# =============================================================================
+
+
+def test_keys_from_pasted_text_get_a_default_limit(tmp_path):
+    report = ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_aaaa111122223333")
+    assert len(report["added"]) == 1
+    assert report["keys"][0]["monthly_limit"] == ev.VERIPHONE_DEFAULT_MONTHLY_LIMIT == 500
+
+
+def test_a_line_can_carry_its_own_limit(tmp_path):
+    report = ev.import_veriphone_keys(
+        "u", tmp_path, raw_text="vp_live_aaaa111122223333\nvp_live_bbbb444455556666 1000"
+    )
+    limits = {k["masked"]: k["monthly_limit"] for k in report["keys"]}
+    assert sorted(limits.values()) == [500, 1000]
+
+
+def test_csv_header_and_comments_are_not_keys(tmp_path):
+    report = ev.import_veriphone_keys(
+        "u", tmp_path,
+        raw_text="key,limit\n# notes\nvp_live_aaaa111122223333\n",
+    )
+    assert len(report["keys"]) == 1
+
+
+def test_the_same_key_is_not_added_twice(tmp_path):
+    ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_aaaa111122223333")
+    second = ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_aaaa111122223333")
+    assert second["added"] == []
+    assert second["count"] == 1
+
+
+def test_a_key_stops_being_used_when_its_allowance_is_spent(tmp_path):
+    ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_small111122223333", monthly_limit=2)
+    for _ in range(2):
+        ev.mark_veriphone_key_result("u", tmp_path, "vp_live_small111122223333", True)
+
+    listed = ev.list_veriphone_keys("u", tmp_path)
+    assert listed["keys"][0]["status"] == "exhausted"
+    assert listed["capacity"] == 0
+    assert ev.next_veriphone_key("u", tmp_path) is None
+
+
+def test_the_key_with_most_room_is_used_first(tmp_path):
+    ev.import_veriphone_keys(
+        "u", tmp_path,
+        raw_text="vp_live_tiny111122223333 10\nvp_live_big111122223333 9000",
+    )
+    chosen = ev.next_veriphone_key("u", tmp_path)
+    assert chosen["key"] == "vp_live_big111122223333"
+
+
+def test_a_rejected_key_is_retired(tmp_path):
+    ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_dead111122223333")
+    ev.mark_veriphone_key_result(
+        "u", tmp_path, "vp_live_dead111122223333", False,
+        "veriphone rejected the API key (401/403)",
+    )
+    assert ev.list_veriphone_keys("u", tmp_path)["keys"][0]["status"] == "bad"
+
+    # Re-enabling clears the rejection rather than leaving it stuck.
+    key_id = ev.list_veriphone_keys("u", tmp_path)["keys"][0]["id"]
+    ev.update_veriphone_key("u", tmp_path, key_id, disabled=False)
+    assert ev.list_veriphone_keys("u", tmp_path)["keys"][0]["status"] == "active"
+
+
+def test_allowance_resets_when_the_month_turns(tmp_path):
+    ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_aaaa111122223333", monthly_limit=5)
+    for _ in range(5):
+        ev.mark_veriphone_key_result("u", tmp_path, "vp_live_aaaa111122223333", True)
+    assert ev.list_veriphone_keys("u", tmp_path)["keys"][0]["status"] == "exhausted"
+
+    path = ev._veriphone_pool_path("u", tmp_path)
+    stored = json.loads(path.read_text())
+    stored[0]["period"] = "2020-01"
+    path.write_text(json.dumps(stored))
+
+    listed = ev.list_veriphone_keys("u", tmp_path)
+    assert listed["keys"][0]["used"] == 0
+    assert listed["keys"][0]["status"] == "active"
+    assert listed["keys"][0]["remaining"] == 5
+
+
+def test_removing_a_key_takes_it_out_of_the_pool(tmp_path):
+    report = ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_aaaa111122223333")
+    key_id = report["keys"][0]["id"]
+    assert ev.remove_veriphone_key("u", tmp_path, key_id) is True
+    assert ev.list_veriphone_keys("u", tmp_path)["count"] == 0
+    assert ev.remove_veriphone_key("u", tmp_path, key_id) is False
+
+
+def test_pool_key_is_masked_and_never_returned():
+    """The API must not hand a full key back to the browser."""
+    import inspect
+
+    source = inspect.getsource(ev.list_veriphone_keys)
+    assert '"masked"' in source
+    assert '"key":' not in source and '"key" :' not in source

@@ -307,6 +307,364 @@ def save_veriphone_settings(
 
 
 # =============================================================================
+# VERIPHONE KEY POOL
+# =============================================================================
+#
+# Every veriphone key has a monthly allowance and stops answering when it is
+# spent. A list of 100k numbers needs many keys, so keys are a pool rather than
+# a single credential: each one carries its own monthly limit, its usage is
+# counted as lookups succeed, and a key that reports itself exhausted is retired
+# until its reset date instead of being retried on every number.
+#
+# Usage is counted by us, per calendar month, because the API does not tell us
+# what is left -- only whether the key still works.
+
+VERIPHONE_DEFAULT_MONTHLY_LIMIT = 500
+_VERIPHONE_POOL_FILE = "veriphone-keys.json"
+
+
+def veriphone_month_stamp(now: Optional[float] = None) -> str:
+    """The billing period a lookup belongs to, as ``YYYY-MM``."""
+    return time.strftime("%Y-%m", time.gmtime(now if now is not None else time.time()))
+
+
+def _veriphone_pool_path(user_id: str, base_path: Path) -> Path:
+    return Path(base_path) / f"fv-s-{user_id}" / "validator-config" / _VERIPHONE_POOL_FILE
+
+
+def _read_veriphone_pool(user_id: str, base_path: Path) -> list:
+    path = _veriphone_pool_path(user_id, base_path)
+    if not path.exists():
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _write_veriphone_pool(user_id: str, base_path: Path, keys: list) -> None:
+    path = _veriphone_pool_path(user_id, base_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(keys, f, indent=2)
+
+
+def _mask_key(key: str) -> str:
+    """Enough of a key to recognise it, never enough to use it."""
+    key = (key or "").strip()
+    if len(key) <= 8:
+        return "*" * len(key)
+    return f"{key[:4]}…{key[-4:]}"
+
+
+def _key_fingerprint(key: str) -> str:
+    import hashlib
+
+    return hashlib.sha256((key or "").strip().encode("utf-8")).hexdigest()[:16]
+
+
+def _roll_key_period(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Reset a key's counter when the month has turned over."""
+    period = veriphone_month_stamp()
+    if entry.get("period") != period:
+        entry["period"] = period
+        entry["used"] = 0
+        entry["exhausted_at"] = None
+        entry["exhausted_reason"] = None
+    return entry
+
+
+def key_status(entry: Dict[str, Any]) -> str:
+    """
+    ``active``, ``exhausted`` (out of allowance), ``disabled`` (switched off),
+    or ``bad`` (the API rejected the key).
+    """
+    _roll_key_period(entry)
+    if entry.get("disabled"):
+        return "disabled"
+    if entry.get("invalid_at"):
+        return "bad"
+    limit = int(entry.get("monthly_limit") or VERIPHONE_DEFAULT_MONTHLY_LIMIT)
+    used = int(entry.get("used") or 0)
+    if limit > 0 and used >= limit:
+        return "exhausted"
+    if entry.get("exhausted_at"):
+        return "exhausted"
+    return "active"
+
+
+def key_remaining(entry: Dict[str, Any]) -> int:
+    limit = int(entry.get("monthly_limit") or VERIPHONE_DEFAULT_MONTHLY_LIMIT)
+    if limit <= 0:
+        return 0
+    return max(0, limit - int(entry.get("used") or 0))
+
+
+def list_veriphone_keys(user_id: str, base_path: Path) -> Dict[str, Any]:
+    """Every key in the pool, plus what the pool can still do this month."""
+    keys = _read_veriphone_pool(user_id, base_path)
+    public = []
+    for entry in keys:
+        status = key_status(entry)
+        public.append({
+            "id": entry.get("id"),
+            "masked": entry.get("masked") or _mask_key(entry.get("key", "")),
+            "label": entry.get("label") or "",
+            "monthly_limit": int(entry.get("monthly_limit") or VERIPHONE_DEFAULT_MONTHLY_LIMIT),
+            "used": int(entry.get("used") or 0),
+            "remaining": key_remaining(entry),
+            "status": status,
+            "period": entry.get("period"),
+            "added_at": entry.get("added_at"),
+            "last_used_at": entry.get("last_used_at"),
+            "last_error": entry.get("last_error"),
+            "disabled": bool(entry.get("disabled")),
+        })
+
+    active = [k for k in public if k["status"] == "active"]
+    return {
+        "keys": public,
+        "count": len(public),
+        "active_count": len(active),
+        "capacity": sum(k["remaining"] for k in active),
+        "used": sum(k["used"] for k in public),
+        "period": veriphone_month_stamp(),
+        "default_limit": VERIPHONE_DEFAULT_MONTHLY_LIMIT,
+    }
+
+
+def import_veriphone_keys(
+    user_id: str,
+    base_path: Path,
+    raw_text: str = "",
+    keys: Optional[List[str]] = None,
+    monthly_limit: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Add a batch of keys, from pasted text or a file's contents.
+
+    One key per line, and a line may carry its own limit -- ``KEY,1000`` or
+    ``KEY 1000`` -- because the keys in a real account rarely share a ceiling.
+    Anything that already exists is left alone rather than duplicated, and a
+    bare key defaults to 500/month.
+    """
+    limit_default = int(monthly_limit or VERIPHONE_DEFAULT_MONTHLY_LIMIT)
+    candidates = list(keys or [])
+
+    for line in (raw_text or "").splitlines():
+        line = line.strip().strip('"').strip("'")
+        if not line or line.startswith("#"):
+            continue
+        # A header row from a CSV is not a key.
+        if line.lower().replace(",", " ").split()[0] in ("key", "api_key", "apikey", "keys", "token"):
+            continue
+        candidates.append(line)
+
+    existing = _read_veriphone_pool(user_id, base_path)
+    known = {_key_fingerprint(e.get("key", "")) for e in existing}
+
+    added, skipped = [], []
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    for candidate in candidates:
+        parts = [p for p in candidate.replace("	", " ").replace(",", " ").split(" ") if p.strip()]
+        if not parts:
+            continue
+        key = parts[0].strip()
+        if not key or len(key) < 8:
+            skipped.append({"value": _mask_key(key), "reason": "too short to be a key"})
+            continue
+
+        limit = limit_default
+        for extra in parts[1:]:
+            digits = "".join(ch for ch in extra if ch.isdigit())
+            if digits:
+                limit = int(digits)
+                break
+
+        fingerprint = _key_fingerprint(key)
+        if fingerprint in known:
+            skipped.append({"value": _mask_key(key), "reason": "already in the list"})
+            continue
+
+        existing.append({
+            "id": fingerprint[:12],
+            "key": key,
+            "masked": _mask_key(key),
+            "label": "",
+            "monthly_limit": max(1, limit),
+            "used": 0,
+            "period": veriphone_month_stamp(),
+            "added_at": now,
+            "last_used_at": None,
+            "last_error": None,
+            "exhausted_at": None,
+            "disabled": False,
+        })
+        known.add(fingerprint)
+        added.append({"value": _mask_key(key), "monthly_limit": max(1, limit)})
+
+    if added:
+        _write_veriphone_pool(user_id, base_path, existing)
+        _sync_pool_into_settings(user_id, base_path, existing)
+
+    return {**list_veriphone_keys(user_id, base_path), "added": added, "skipped": skipped}
+
+
+def update_veriphone_key(
+    user_id: str,
+    base_path: Path,
+    key_id: str,
+    monthly_limit: Optional[int] = None,
+    disabled: Optional[bool] = None,
+    label: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Edit one key's limit, label, or on/off state."""
+    keys = _read_veriphone_pool(user_id, base_path)
+    found = None
+    for entry in keys:
+        if entry.get("id") != key_id:
+            continue
+        if monthly_limit is not None:
+            entry["monthly_limit"] = max(1, int(monthly_limit))
+            entry.pop("exhausted_at", None)
+        if disabled is not None:
+            entry["disabled"] = bool(disabled)
+            if not disabled:
+                entry.pop("invalid_at", None)
+                entry.pop("exhausted_at", None)
+        if label is not None:
+            entry["label"] = label.strip()
+        entry.pop("last_error", None) if disabled is False else None
+        found = entry
+        break
+
+    if found is None:
+        return None
+
+    _write_veriphone_pool(user_id, base_path, keys)
+    _sync_pool_into_settings(user_id, base_path, keys)
+    return found
+
+
+def remove_veriphone_key(user_id: str, base_path: Path, key_id: str) -> bool:
+    keys = _read_veriphone_pool(user_id, base_path)
+    kept = [e for e in keys if e.get("id") != key_id]
+    if len(kept) == len(keys):
+        return False
+    _write_veriphone_pool(user_id, base_path, kept)
+    _sync_pool_into_settings(user_id, base_path, kept)
+    return True
+
+
+def _sync_pool_into_settings(user_id: str, base_path: Path, keys: list) -> None:
+    """
+    Keep a single usable key in the legacy ``veriphone.json``.
+
+    Everything downstream reads ``api_key`` from there; the pool is the source
+    of truth but the resolved key has to exist for a lookup to be possible at
+    all, even before the pool is consulted.
+    """
+    working = next((e for e in keys if key_status(e) == "active"), None)
+
+    cfg_dir = Path(base_path) / f"fv-s-{user_id}" / "validator-config"
+    cfg_file = cfg_dir / "veriphone.json"
+    payload = {}
+    if cfg_file.exists():
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except Exception:
+            payload = {}
+
+    if working is None:
+        # The pool is empty or fully spent. Leaving the old key in place meant a
+        # removed key kept being used until the next panel save.
+        if not keys and payload.get("api_key"):
+            payload["api_key"] = ""
+            payload["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+        return
+
+    payload["api_key"] = encrypt_secret(working["key"])
+    payload["api_url"] = payload.get("api_url") or VERIPHONE_API_URL
+    payload["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    with open(cfg_file, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def mark_veriphone_key_result(
+    user_id: str,
+    base_path: Path,
+    key: str,
+    ok: bool,
+    reason: str = "",
+    counts_against_limit: bool = True,
+) -> None:
+    """
+    Record what a lookup did to a key.
+
+    A success spends one unit of the monthly allowance. A 401/403 means the key
+    is dead, so it is retired. An exhausted/quota answer is what veriphone says
+    when the allowance is gone, and the key is skipped until the month turns.
+    """
+    keys = _read_veriphone_pool(user_id, base_path)
+    fingerprint = _key_fingerprint(key)
+    changed = False
+    for entry in keys:
+        if _key_fingerprint(entry.get("key", "")) != fingerprint:
+            continue
+        _roll_key_period(entry)
+        entry["last_used_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        if ok:
+            if counts_against_limit:
+                entry["used"] = int(entry.get("used") or 0) + 1
+            entry["last_error"] = None
+        else:
+            entry["last_error"] = (reason or "lookup failed")[:200]
+            lowered = (reason or "").lower()
+            if any(t in lowered for t in ("invalid key", "unauthorized", "forbidden", "401", "403")):
+                entry["invalid_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            if any(t in lowered for t in ("quota", "exceed", "limit reached", "too many")):
+                entry["exhausted_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+                entry["exhausted_reason"] = reason[:200]
+        changed = True
+        break
+
+    if changed:
+        _write_veriphone_pool(user_id, base_path, keys)
+
+
+def next_veriphone_key(user_id: str, base_path: Path) -> Optional[Dict[str, Any]]:
+    """
+    The key to use for the next lookup: the most headroom, this month.
+
+    Picking the emptiest key first spreads the load so every key is used rather
+    than one being drained while the others sit idle.
+    """
+    keys = _read_veriphone_pool(user_id, base_path)
+    usable = [e for e in keys if key_status(e) == "active"]
+    if not usable:
+        return None
+    usable.sort(key=lambda e: (-key_remaining(e), e.get("used") or 0))
+    entry = usable[0]
+    return {"key": entry["key"], "id": entry.get("id"), "remaining": key_remaining(entry)}
+
+
+def resolve_veriphone_pool_key(
+    user_id: Optional[str] = None,
+    base_path: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    """Pool key for a user, or None when the pool is empty (env key path)."""
+    if not user_id or not base_path:
+        return None
+    return next_veriphone_key(user_id, base_path)
+
+
+# =============================================================================
 # SCRAPER PROVIDER SELECTION (persisted per user)
 # =============================================================================
 #
@@ -1702,10 +2060,21 @@ def _call_veriphone_api(e164: str, settings: Dict[str, Any]) -> Dict[str, Any]:
     vendor, and callers only need failed-vs-unknown).
     """
     api_key = settings.get("api_key")
+    pool_key = None
+
+    # A pool of keys is the normal case for a large list: pick the one with the
+    # most allowance left this month, and let the result update its counter.
+    user_id = settings.get("user_id")
+    base_path = settings.get("base_path")
+    if user_id and base_path:
+        candidate = next_veriphone_key(user_id, base_path)
+        if candidate:
+            pool_key = candidate
+            api_key = candidate["key"]
+
     if not api_key:
         raise DecodoError(
-            "No veriphone API key configured. Set FV_S_VERIPHONE_API_KEY or save one "
-            "in the validator settings."
+            "No veriphone API key configured. Add keys in the validator settings."
         )
 
     url = settings.get("api_url") or VERIPHONE_API_URL
@@ -1721,29 +2090,56 @@ def _call_veriphone_api(e164: str, settings: Dict[str, Any]) -> Dict[str, Any]:
     try:
         response = requests.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
     except requests.exceptions.Timeout as exc:
+        if pool_key and user_id and base_path:
+            mark_veriphone_key_result(
+                user_id, base_path, pool_key["key"], False, "request timed out",
+                counts_against_limit=False,
+            )
         raise DecodoError("veriphone request timed out") from exc
     except requests.exceptions.RequestException as exc:
         raise DecodoError(f"veriphone request failed: {exc}") from exc
 
+    def _fail(message: str, counts: bool = False) -> None:
+        if pool_key and user_id and base_path:
+            mark_veriphone_key_result(
+                user_id, base_path, pool_key["key"], False, message,
+                counts_against_limit=counts,
+            )
+
     if response.status_code in (401, 403):
-        raise DecodoError("veriphone rejected the API key (401/403)")
+        # Dead key: retire it so the rest of the list does not burn time on it.
+        message = "veriphone rejected the API key (401/403)"
+        _fail(message)
+        raise DecodoError(message)
     if response.status_code == 429:
-        raise DecodoError("veriphone rate limit hit (429)")
+        message = "veriphone rate limit hit (429) — key allowance spent"
+        _fail(message)
+        raise DecodoError(message)
     if response.status_code != 200:
         snippet = (response.text or "")[:200].replace("\n", " ")
-        raise DecodoError(f"veriphone error {response.status_code}: {snippet}")
+        message = f"veriphone error {response.status_code}: {snippet}"
+        _fail(message)
+        raise DecodoError(message)
 
     try:
         payload = response.json()
     except ValueError as exc:
+        _fail("veriphone returned non-JSON response")
         raise DecodoError("veriphone returned non-JSON response") from exc
 
     if not isinstance(payload, dict):
+        _fail("veriphone returned an unexpected payload")
         raise DecodoError("veriphone returned an unexpected payload")
 
     # veriphone reports failures in-band.
     if str(payload.get("status", "")).lower() == "error":
-        raise DecodoError(f"veriphone error: {payload.get('message') or payload.get('error')}")
+        message = f"veriphone error: {payload.get('message') or payload.get('error')}"
+        _fail(message)
+        raise DecodoError(message)
+
+    # A real answer: this key just spent one of its monthly lookups.
+    if pool_key and user_id and base_path:
+        mark_veriphone_key_result(user_id, base_path, pool_key["key"], True)
 
     return payload
 
@@ -2680,7 +3076,7 @@ def validate_phone(
 
     vp = settings if settings is not None else load_veriphone_settings()
 
-    if vp.get("api_key"):
+    if vp.get("api_key") or vp.get("user_id"):
         try:
             payload = _call_veriphone_api(e164, vp)
             return _result_from_veriphone_api(payload, phone_number, e164)
