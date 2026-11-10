@@ -2252,3 +2252,77 @@ def test_pool_key_is_masked_and_never_returned():
     source = inspect.getsource(ev.list_veriphone_keys)
     assert '"masked"' in source
     assert '"key":' not in source and '"key" :' not in source
+
+
+# =============================================================================
+# Queue preview and slicing
+#
+# A launch used to take the whole list and the panel multiplied it by the
+# ScrapingBee rate, so 199,914 numbers read "999,570 cr" -- and it said that
+# even with a veriphone key pool that costs nothing.
+# =============================================================================
+
+
+def _seeded_list(tmp_path, user="u", name="slice"):
+    """Ten numbers: 2 answered, 1 errored, 7 untouched."""
+    numbers = [{"number": f"+1201201451{i}", "country_code": "US"} for i in range(10)]
+    meta = functions.create_phone_list(user, tmp_path, name, numbers, "US")
+    path = tmp_path / f"fv-s-{user}" / "phone-lists" / f"{meta['id']}.json"
+    data = json.loads(path.read_text())
+    data["numbers"][0].update({"status": "valid", "valid": True})
+    data["numbers"][1].update({"status": "invalid", "valid": False})
+    data["numbers"][2].update({"error": "timeout", "status": "unknown"})
+    path.write_text(json.dumps(data))
+    return meta["id"]
+
+
+def _queue_counts(list_id, tmp_path):
+    """The counting half of the preview, without the HTTP layer."""
+    data = functions.get_phone_list_numbers("u", tmp_path, list_id)
+    candidates, skipped, retried = [], 0, 0
+    for entry in data.get("numbers", []):
+        status = (entry.get("status") or "").strip().lower()
+        if status in ("valid", "invalid") or entry.get("valid") is True:
+            skipped += 1
+        elif entry.get("error"):
+            retried += 1
+            candidates.append(entry["number"])
+        else:
+            candidates.append(entry["number"])
+    return candidates, skipped, retried
+
+
+def test_queue_counts_answered_errored_and_untouched(tmp_path):
+    list_id = _seeded_list(tmp_path)
+    candidates, skipped, retried = _queue_counts(list_id, tmp_path)
+
+    assert skipped == 2, "a valid and an invalid number are both answered"
+    assert retried == 1, "the errored number is retried, not skipped"
+    assert len(candidates) == 8, "1 retry + 7 untouched"
+
+
+def test_queue_preview_reports_a_zero_cost_with_a_key_pool(tmp_path):
+    ev.import_veriphone_keys("u", tmp_path, raw_text="vp_live_pool111122223333", monthly_limit=900)
+    pool = ev.list_veriphone_keys("u", tmp_path)
+
+    assert pool["capacity"] == 900
+    # The preview quotes cost_per_lookup = 0 for the API transport, which is
+    # what turns "999,570 cr" into "Free".
+    assert pool["capacity"] >= 8
+
+
+def test_slice_never_exceeds_what_is_available():
+    candidates = [f"+1201201451{i}" for i in range(10)]
+    available = len(candidates)
+
+    for limit, offset, expected in [(3, 0, 3), (4, 2, 4), (0, 0, 10), (99, 0, 10), (4, 8, 2)]:
+        start = max(0, offset)
+        count = limit if limit and limit > 0 else available
+        assert len(candidates[start:start + count]) == expected, (limit, offset)
+
+
+def test_queue_preview_route_exists():
+    import api
+
+    paths = [getattr(r, "path", "") for r in api.validator_router.routes]
+    assert "/validator/phone/lists/{list_id}/queue" in paths

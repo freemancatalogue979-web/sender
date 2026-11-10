@@ -7188,6 +7188,98 @@ async def rename_phone_list(
     raise HTTPException(status_code=400, detail="Failed to rename phone list")
 
 
+@validator_router.get("/phone/lists/{list_id}/queue")
+async def phone_list_queue(
+    list_id: str,
+    limit: int = 0,
+    offset: int = 0,
+    retry_failed: bool = True,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    What a launch from this list would actually do, without starting it.
+
+    Counts what is unchecked, what would be retried, what is skipped as already
+    answered, and how many lookups that costs -- so the panel can show the bill
+    before the run rather than after it.
+    """
+    user_id = current_user["user_id"]
+
+    from email_validator import (
+        VERIPHONE_DEFAULT_MONTHLY_LIMIT,
+        list_veriphone_keys,
+        load_scraper_provider,
+        load_scrapingbee_settings,
+    )
+
+    data = get_phone_list_numbers(user_id, USERS_BASE_PATH, list_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Phone list not found")
+
+    candidates, skipped, retried = [], 0, 0
+    for entry in data.get("numbers", []) or []:
+        num = entry.get("number") or entry.get("formatted_number") or entry.get("phone")
+        if not num:
+            continue
+        status = (entry.get("status") or "").strip().lower()
+        errored = bool(entry.get("error"))
+        if status in ("valid", "invalid") or entry.get("valid") is True:
+            skipped += 1
+            continue
+        if errored:
+            if not retry_failed:
+                skipped += 1
+                continue
+            retried += 1
+        candidates.append(str(num))
+
+    available = len(candidates)
+    start = max(0, offset or 0)
+    count = limit if limit and limit > 0 else available
+    selected = candidates[start:start + count]
+
+    # Cost depends on the transport the next run would use.
+    provider = load_scraper_provider(user_id, USERS_BASE_PATH) or "scrapingbee"
+    pool = list_veriphone_keys(user_id, USERS_BASE_PATH)
+    has_pool = bool(pool.get("capacity"))
+
+    scrapingbee = load_scrapingbee_settings(user_id, USERS_BASE_PATH) or {}
+    per_lookup = 25 if scrapingbee.get("premium_proxy") else 5
+
+    if has_pool:
+        transport, unit, cost = "veriphone-api", "lookup", 0
+        capacity = pool.get("capacity", 0)
+    elif provider == "local":
+        transport, unit, cost, capacity = "local", "lookup", 0, None
+    elif provider == "decodo":
+        transport, unit, cost, capacity = "decodo-scrape", "lookup", 0, None
+    else:
+        transport, unit, cost, capacity = "scrapingbee", "credit", per_lookup, None
+
+    needed = len(selected)
+    return {
+        "list_id": list_id,
+        "list_name": data.get("name"),
+        "country_code": data.get("country_code") or (data.get("country_codes") or [None])[0],
+        "total": int(data.get("total_numbers") or len(data.get("numbers", []))),
+        "skipped_verified": skipped,
+        "retried_failed": retried,
+        "available": available,
+        "offset": start,
+        "limit": count,
+        "selected": needed,
+        "remaining_after": max(0, available - (start + needed)),
+        "transport": transport,
+        "unit": unit,
+        "cost_per_lookup": cost,
+        "estimated_cost": needed * cost,
+        "cost_currency": "credits" if unit == "credit" else ("lookups" if cost else None),
+        "pool_capacity": capacity,
+        "shortfall": max(0, needed - capacity) if capacity is not None else 0,
+        "pool_limit_default": VERIPHONE_DEFAULT_MONTHLY_LIMIT,
+    }
+
+
 @validator_router.post("/phone/start")
 async def start_phone_validation(
     request_data: dict,
@@ -7241,6 +7333,30 @@ async def start_phone_validation(
                     continue
                 retried_failed += 1
             phone_numbers.append(str(num))
+
+    # How many of this list to actually check. A 200k list at 5 credits a lookup
+    # is a bill nobody wants to discover afterwards, so the run takes a slice:
+    # "first 500", a count, or a range like "1-500" -- the numbers are in list
+    # order, so a range is a window into the file as imported.
+    limit = request_data.get("limit")
+    offset = request_data.get("offset")
+    if limit is not None or offset is not None:
+        try:
+            start = max(0, int(offset or 0))
+            count = int(limit) if limit not in (None, "", 0, "0") else None
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="limit and offset must be numbers")
+
+        if count is not None:
+            if start:
+                phone_numbers = phone_numbers[start:start + count]
+            else:
+                phone_numbers = phone_numbers[:count]
+        elif start:
+            phone_numbers = phone_numbers[start:]
+
+    candidate_total = len(phone_numbers)
+    queued_count = len(phone_numbers)
 
     if not phone_numbers and list_id:
         # Every number in the list already has a verdict. Say so instead of
@@ -7311,6 +7427,8 @@ async def start_phone_validation(
         # Shown in the launch summary: "1,240 already checked, 12 retried".
         "skipped_verified": skipped_verified,
         "retried_failed": retried_failed,
+        "queued": queued_count,
+        "remaining_after": max(0, candidate_total - queued_count),
         "nothing_to_check": not formatted_numbers,
     }
 

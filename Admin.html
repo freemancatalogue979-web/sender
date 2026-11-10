@@ -17931,36 +17931,150 @@
         .launch-list-change:hover { background: rgba(255, 255, 255, 0.12); }
 
         /* ---------- readout ---------- */
+        /* Every number in the panel is set in a monospace face, so columns of
+           them line up and a digit cannot be misread for another. */
         .launch-readout {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
         }
 
         .launch-readout-item {
-            padding: 11px 12px;
-            border-radius: 11px;
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            background: rgba(0, 0, 0, 0.18);
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
+            padding: 10px 11px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(0, 0, 0, 0.2);
         }
 
         .launch-readout-label {
-            display: block;
-            font-size: 9px;
+            font-size: 8.5px;
             font-weight: 700;
-            letter-spacing: 0.7px;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: var(--text-gray);
-            margin-bottom: 5px;
+            color: rgba(255, 255, 255, 0.32);
         }
 
         .launch-readout-value {
             display: block;
-            font-size: 17px;
+            font-family: 'Courier New', Courier, ui-monospace, monospace;
+            font-size: 19px;
             font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.05;
             color: var(--text-white);
-            line-height: 1.1;
-            word-break: break-word;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .launch-readout-value.is-accent { color: #8ff3ff; }
+
+        .launch-readout-sub {
+            font-family: 'Courier New', Courier, ui-monospace, monospace;
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+            color: rgba(255, 255, 255, 0.3);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-height: 11px;
+        }
+
+        /* ---- how many of the list this run takes ---- */
+        .launch-slice {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .launch-slice-label {
+            font-size: 8.5px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .launch-slice-chips { display: flex; gap: 4px; }
+
+        .launch-chip {
+            padding: 4px 9px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: transparent;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: 'Courier New', Courier, ui-monospace, monospace;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .launch-chip:hover { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
+
+        .launch-chip.active {
+            background: rgba(0, 229, 255, 0.14);
+            border-color: rgba(0, 229, 255, 0.4);
+            color: #8ff3ff;
+        }
+
+        .launch-slice-custom {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.24);
+        }
+
+        .launch-slice-input {
+            width: 76px;
+            padding: 4px 7px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--text-white);
+            font-family: 'Courier New', Courier, ui-monospace, monospace;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .launch-slice-input:focus { outline: none; border-color: rgba(0, 229, 255, 0.45); }
+
+        /* ---------- numbers are monospace everywhere ---------- */
+        /* One rule for every place a phone number, count or credit figure can
+           appear, so they share a face and their columns line up. */
+        .num-col-number,
+        .num-card-number,
+        .num-card-value.is-mono,
+        .num-detail-value.is-mono,
+        .hud-number,
+        .hud-number-sub,
+        .num-cell-sub,
+        .keycap-key,
+        .keycap-meter-text,
+        .launch-readout-value,
+        .launch-readout-sub,
+        .list-card-count,
+        .list-card-breakdown,
+        .num-card-index,
+        .num-col-index,
+        .phone-power-cell .power-value,
+        .hud-stat-value,
+        .keycap-stat-value {
+            /* !important because several of these already declare a face; the
+               point is that every figure in the panel shares one. */
+            font-family: 'Courier New', Courier, ui-monospace, monospace !important;
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: 'tnum' 1;
         }
 
         /* ---------- transport card ---------- */
@@ -26056,17 +26170,44 @@
 
                                         <div class="launch-readout">
                                             <div class="launch-readout-item">
-                                                <span class="launch-readout-label">Numbers</span>
-                                                <span class="launch-readout-value" id="launchNumberCount">0</span>
+                                                <span class="launch-readout-label">In list</span>
+                                                <span class="launch-readout-value" id="launchListTotal">0</span>
+                                                <span class="launch-readout-sub" id="launchListTotalSub">—</span>
+                                            </div>
+                                            <div class="launch-readout-item">
+                                                <span class="launch-readout-label">Will check</span>
+                                                <span class="launch-readout-value is-accent" id="launchNumberCount">0</span>
+                                                <span class="launch-readout-sub" id="launchNumberSub">nothing yet</span>
                                             </div>
                                             <div class="launch-readout-item">
                                                 <span class="launch-readout-label">Est. cost</span>
                                                 <span class="launch-readout-value" id="launchEstimatedCost">—</span>
+                                                <span class="launch-readout-sub" id="launchCostSub"></span>
                                             </div>
                                             <div class="launch-readout-item">
                                                 <span class="launch-readout-label">Country</span>
                                                 <span class="launch-readout-value" id="launchCountry">—</span>
+                                                <span class="launch-readout-sub" id="launchTransportSub"></span>
                                             </div>
+                                        </div>
+
+                                        <!-- How much of the list this run takes. A slice,
+                                             not all of it: a 200k list at 5 credits a
+                                             lookup is a bill you find out about later. -->
+                                        <div class="launch-slice">
+                                            <span class="launch-slice-label">How many</span>
+                                            <div class="launch-slice-chips">
+                                                <button type="button" class="launch-chip" data-slice="100" onclick="setLaunchSlice(100)">100</button>
+                                                <button type="button" class="launch-chip" data-slice="500" onclick="setLaunchSlice(500)">500</button>
+                                                <button type="button" class="launch-chip" data-slice="1000" onclick="setLaunchSlice(1000)">1k</button>
+                                                <button type="button" class="launch-chip" data-slice="0" onclick="setLaunchSlice(0)">All</button>
+                                            </div>
+                                            <label class="launch-slice-custom">
+                                                <span>or</span>
+                                                <input type="number" id="launchSliceInput" class="launch-slice-input"
+                                                       min="1" step="1" placeholder="count" onchange="setLaunchSlice(this.value)"
+                                                       oninput="updateLaunchSlicePreview()">
+                                            </label>
                                         </div>
                                     </section>
 
@@ -40431,78 +40572,163 @@
 
         // Fill the Launch Controls summary: which list, how many numbers, what
         // it will cost, and what the launch button will actually do.
+        // How many of the selected list this run takes. 0 means "all of them".
+        window.fvLaunchSlice = 0;
+        window.fvQueuePreview = null;
+
+        function setLaunchSlice(value) {
+            const n = Number(value) || 0;
+            window.fvLaunchSlice = Math.max(0, Math.floor(n));
+            document.querySelectorAll('.launch-chip').forEach(chip => {
+                const v = Number(chip.dataset.slice) || 0;
+                chip.classList.toggle('active', v === window.fvLaunchSlice);
+            });
+            const input = document.getElementById('launchSliceInput');
+            if (input && Number(input.value) !== window.fvLaunchSlice) {
+                input.value = window.fvLaunchSlice || '';
+            }
+            updateLaunchSlicePreview();
+        }
+
+        // Ask the server what this slice would actually cost. The readout used
+        // to multiply the whole list by the ScrapingBee rate, so a 200k list
+        // read "999,570 cr" even with a veriphone key pool that costs nothing.
+        let queuePreviewTimer = null;
+        function updateLaunchSlicePreview() {
+            const list = validatorState.phone.selectedList;
+            if (!list) return;
+
+            clearTimeout(queuePreviewTimer);
+            queuePreviewTimer = setTimeout(async () => {
+                const input = document.getElementById('launchSliceInput');
+                const slice = input && input.value !== ''
+                    ? Math.max(0, Number(input.value) || 0)
+                    : window.fvLaunchSlice;
+
+                try {
+                    const params = new URLSearchParams({ retry_failed: 'true' });
+                    if (slice > 0) params.set('limit', String(slice));
+                    const response = await fetchWithAuth(
+                        `/validator/phone/lists/${list.id}/queue?${params.toString()}`
+                    );
+                    if (!response.ok) return;
+                    window.fvQueuePreview = await response.json();
+                    renderLaunchReadout(window.fvQueuePreview);
+                } catch (e) {
+                    /* the readout keeps its last good values */
+                }
+            }, 220);
+        }
+
+        const fmtInt = (n) => Number(n || 0).toLocaleString('en-US');
+
+        function renderLaunchReadout(preview) {
+            if (!preview) return;
+
+            const set = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
+
+            const total = preview.total || 0;
+            const available = preview.available || 0;
+            const selected = preview.selected || 0;
+
+            set('launchListTotal', fmtInt(total));
+            set('launchListTotalSub',
+                preview.skipped_verified
+                    ? `${fmtInt(preview.skipped_verified)} already checked`
+                    : `${fmtInt(available)} waiting`);
+
+            set('launchNumberCount', fmtInt(selected));
+            set('launchNumberSub',
+                preview.remaining_after
+                    ? `${fmtInt(preview.remaining_after)} left for later`
+                    : (selected ? 'the whole queue' : 'nothing to check'));
+
+            // Cost is quoted in the currency the transport actually bills in.
+            let costText = '—';
+            let costSub = '';
+            if (preview.cost_per_lookup === 0) {
+                if (preview.transport === 'veriphone-api') {
+                    costText = 'Free';
+                    costSub = `keys · ${fmtInt(preview.pool_capacity)} left`;
+                } else if (preview.transport === 'local') {
+                    costText = 'Free';
+                    costSub = 'offline tables';
+                } else {
+                    costText = 'Plan';
+                    costSub = 'flat monthly';
+                }
+            } else {
+                costText = fmtInt(preview.estimated_cost);
+                costSub = `${preview.unit}s @ ${preview.cost_per_lookup}`;
+            }
+
+            // A pool that cannot cover the slice is the thing to say out loud.
+            if (preview.transport === 'veriphone-api' && preview.shortfall > 0) {
+                costSub = `short ${fmtInt(preview.shortfall)} — add keys`;
+                costText = 'Short';
+            }
+
+            set('launchEstimatedCost', costText);
+            set('launchCostSub', costSub);
+
+            set('launchCountry', preview.country_code || 'auto');
+            set('launchTransportSub', scraperProviderLabel(
+                preview.transport === 'veriphone-api' ? 'veriphone' : preview.transport
+            ));
+
+            const title = document.getElementById('launchRunTitle');
+            if (title) {
+                title.textContent = selected
+                    ? `${fmtInt(selected)} numbers ready`
+                    : 'Nothing to check';
+            }
+            const sub = document.getElementById('launchRunSub');
+            if (sub) {
+                const list = validatorState.phone.selectedList;
+                sub.textContent = selected
+                    ? `Through ${scraperProviderLabel(preview.transport === 'veriphone-api' ? 'veriphone' : preview.transport)} — ${list && list.name || 'selected list'}`
+                    : 'Every number in this list already has a verdict';
+            }
+        }
+
         function refreshLaunchSummary(providerHint) {
             const list = validatorState.phone.selectedList;
             const empty = document.getElementById('launchListEmpty');
             const filled = document.getElementById('launchListFilled');
-            const title = document.getElementById('launchRunTitle');
-            const sub = document.getElementById('launchRunSub');
-
-            const provider = providerHint
-                || (document.getElementById('scraperProviderSelect') || {}).value
-                || 'scrapingbee';
 
             if (!list) {
                 if (empty) empty.style.display = 'flex';
                 if (filled) filled.style.display = 'none';
-                const n = document.getElementById('launchNumberCount');
-                if (n) n.textContent = '0';
+                ['launchListTotal', 'launchNumberCount'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = '0';
+                });
                 const c = document.getElementById('launchEstimatedCost');
                 if (c) c.textContent = '—';
                 const cc = document.getElementById('launchCountry');
                 if (cc) cc.textContent = '—';
+                const title = document.getElementById('launchRunTitle');
                 if (title) title.textContent = 'No list selected';
+                const sub = document.getElementById('launchRunSub');
                 if (sub) sub.textContent = 'Pick a list in Command Center to enable launch';
                 return;
             }
-
-            const total = Number(list.total_numbers || list.total || 0);
-            const valid = Number(list.valid_count || list.valid || 0);
-            const invalid = Number(list.invalid_count || list.invalid || 0);
-            const pending = Math.max(0, total - valid - invalid);
 
             if (empty) empty.style.display = 'none';
             if (filled) filled.style.display = 'flex';
 
             const nameEl = document.getElementById('launchListName');
             if (nameEl) nameEl.textContent = list.name || 'Untitled list';
-
             const metaEl = document.getElementById('launchListMeta');
             if (metaEl) {
-                metaEl.textContent = pending + ' pending · ' + total + ' total';
+                metaEl.textContent = `${fmtInt(list.total_numbers || 0)} numbers · ${fmtInt(list.valid_count || 0)} valid`;
             }
 
-            const countEl = document.getElementById('launchNumberCount');
-            if (countEl) countEl.textContent = pending.toLocaleString();
-
-            const countryEl = document.getElementById('launchCountry');
-            if (countryEl) {
-                countryEl.textContent = list.country_code
-                    || (list.country_codes && list.country_codes[0])
-                    || 'auto';
-            }
-
-            // Cost is only meaningful when the transport meters per number.
-            const costEl = document.getElementById('launchEstimatedCost');
-            if (costEl) {
-                if (provider === 'local') {
-                    costEl.textContent = 'Free';
-                } else if (provider === 'scrapingbee') {
-                    const premiumEl = document.getElementById('scraperPremiumProxy');
-                    const per = (premiumEl && premiumEl.checked) ? 25 : 5;
-                    costEl.textContent = (pending * per).toLocaleString() + ' cr';
-                } else if (provider === 'decodo') {
-                    costEl.textContent = 'Plan';
-                } else {
-                    costEl.textContent = '~$' + (pending * 0.005).toFixed(0);
-                }
-            }
-
-            if (title) title.textContent = pending.toLocaleString() + ' numbers ready';
-            if (sub) {
-                sub.textContent = 'Through ' + scraperProviderLabel(provider === 'veriphone-api' ? 'scrapingbee' : provider) +
-                                  ' — ' + (list.name || 'selected list');
-            }
+            // The chips and the count field reflect the remembered slice.
+            setLaunchSlice(window.fvLaunchSlice);
         }
 
         // Select phone list
@@ -40857,7 +41083,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         list_id: validatorState.phone.selectedList.id,
-                        country_code: validatorState.phone.selectedList.country_code || 'US'
+                        country_code: validatorState.phone.selectedList.country_code || 'US',
+                        // The slice chosen in the readout. 0/blank means all.
+                        limit: window.fvLaunchSlice || undefined
                     })
                 });
                 
