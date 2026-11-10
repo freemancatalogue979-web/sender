@@ -2326,3 +2326,82 @@ def test_queue_preview_route_exists():
 
     paths = [getattr(r, "path", "") for r in api.validator_router.routes]
     assert "/validator/phone/lists/{list_id}/queue" in paths
+
+
+# =============================================================================
+# Runs survive a page reload
+#
+# The browser used to drive each batch, so closing or reloading the panel
+# stopped a validation that was already being paid for, and the page came back
+# blank because nothing told it a run existed.
+# =============================================================================
+
+
+def test_runner_persists_results_between_batches(tmp_path):
+    """A batch writes its verdicts to the list immediately, not at the end."""
+    meta = functions.create_phone_list(
+        "u", tmp_path, "resumable",
+        [{"number": "+12012014514"}, {"number": "+12012014515"}], "US",
+    )
+    session = {
+        "list_id": meta["id"],
+        "list_name": "resumable",
+        "country_code": "US",
+        "results": [{"number": "+12012014514", "status": "valid", "valid": True}],
+    }
+    functions.save_phone_results_to_list("u", tmp_path, session)
+
+    stored = functions.get_phone_list_numbers("u", tmp_path, meta["id"])
+    by_number = {n["number"]: n for n in stored["numbers"]}
+    assert by_number["+12012014514"]["status"] == "valid"
+    assert "+12012014515" in by_number
+    assert by_number["+12012014515"].get("status") is None
+
+
+def test_runner_registry_tracks_and_stops_a_session():
+    """start_phone_runner is idempotent per session and stoppable."""
+    import threading
+
+    # A stopped thread appears dead instantly, which is all the registry needs.
+    key = functions._runner_key("u", "sess")
+    stop = threading.Event()
+    dead = threading.Thread(target=lambda: None)
+    dead.start()
+    dead.join()
+    functions._PHONE_RUNNERS[key] = {"stop": stop, "thread": dead}
+
+    try:
+        assert functions.phone_runner_is_active("u", "sess") is False
+        assert functions.stop_phone_runner("u", "sess") is True
+        assert stop.is_set()
+        assert functions.stop_phone_runner("u", "nope") is False
+    finally:
+        functions._PHONE_RUNNERS.pop(key, None)
+
+
+def test_active_run_route_exists():
+    import api
+
+    paths = [getattr(r, "path", "") for r in api.validator_router.routes]
+    assert "/validator/phone/active" in paths
+
+
+def test_the_browser_no_longer_drives_batches():
+    """
+    The poll loop must not post /phone/validate.
+
+    That call was the run itself: with it in the page, a reload stopped the
+    validation. Keeping this assertion is cheaper than rediscovering it.
+    """
+    import re
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parent.parent / "Admin.html").read_text(encoding="utf-8")
+    start = html.index("async function pollPhoneValidationProgress()")
+    end = html.index("function updateEmailProgressUI", start)
+    poll_body = html[start:end]
+
+    assert "/validator/phone/validate/" not in poll_body, (
+        "the page is driving batches again; the server must own the run"
+    )
+    assert "setTimeout(pollPhoneValidationProgress" in poll_body, "polling must still continue"

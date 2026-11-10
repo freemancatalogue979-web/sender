@@ -26907,7 +26907,17 @@
                     loadServerStats();
                     loadEmailLists();
                     loadMailboxCredentials();
-                    
+
+                    // This is the reload path. If a validation is running on
+                    // the server, attach to it: same session, same counts, same
+                    // HUD. Nothing is restarted and nothing is lost.
+                    (async () => {
+                        try {
+                            await loadPhoneLists();
+                        } catch (e) { /* lists are optional for resume */ }
+                        await resumeActivePhoneRun();
+                    })();
+
                     // Start periodic session validation
                     startSessionValidation();
                 } else {
@@ -26979,7 +26989,17 @@
                     loadServerStats();
                     loadEmailLists();
                     loadMailboxCredentials();
-                    
+
+                    // A run may already be going on the server. Attach to it
+                    // before anything else touches the phone panel, so the page
+                    // comes back showing the run rather than an idle panel.
+                    (async () => {
+                        try {
+                            await loadPhoneLists();
+                        } catch (e) { /* lists are optional for resume */ }
+                        await resumeActivePhoneRun();
+                    })();
+
                     // Start session validation
                     startSessionValidation();
                     return true;
@@ -41271,6 +41291,120 @@
         }
         
         // Poll phone validation progress
+        // ------------------------------------------------------------------ resume
+        // Come back to a run the server is doing. Called after login and on
+        // load, so a reload shows the same numbers it showed before, with the
+        // same list selected and the HUD already populated.
+        async function resumeActivePhoneRun() {
+            try {
+                const response = await fetchWithAuth('/validator/phone/active');
+                if (!response.ok) return false;
+                const run = await response.json();
+                if (!run.running) {
+                    phoneLog('no active run');
+                    return false;
+                }
+
+                phoneLog('reconnected to a run', {
+                    session: run.session_id, status: run.status,
+                    processed: run.processed, total: run.total,
+                    runner: run.runner_alive,
+                });
+
+                // Reattach to the session rather than starting a new one.
+                validatorState.phone.sessionId = run.session_id;
+                validatorState.phone.isValidating =
+                    ['pending', 'running', 'processing', 'paused'].includes(run.status);
+                validatorState.phone.isPaused = run.status === 'paused';
+
+                // Select the list it belongs to, so the panel and the readout
+                // describe the run instead of whatever was last clicked.
+                if (run.list_id && !(validatorState.phone.selectedList
+                        && validatorState.phone.selectedList.id === run.list_id)) {
+                    const list = (validatorState.phone.lists || [])
+                        .find(l => l.id === run.list_id);
+                    if (list) {
+                        validatorState.phone.selectedList = list;
+                    } else {
+                        await loadPhoneLists();
+                        const reloaded = (validatorState.phone.lists || [])
+                            .find(l => l.id === run.list_id);
+                        if (reloaded) validatorState.phone.selectedList = reloaded;
+                    }
+                    updatePhoneListsUI();
+                    refreshLaunchSummary();
+                }
+
+                // Repaint the HUD from the results already collected.
+                (run.last_results || []).forEach(result => {
+                    phoneLogResult(result);
+                    addPhoneNumberLogEntry(result);
+                });
+                if (run.list_id) renderPhoneMatrix(run.list_id);
+
+                // Put the panel into its running state.
+                const progressSection = document.getElementById('phoneProgressSection');
+                if (progressSection) progressSection.style.display = 'block';
+                const startBtn = document.getElementById('startPhoneValidationBtn');
+                if (startBtn) startBtn.style.display = 'none';
+                const pauseBtn = document.getElementById('pausePhoneValidationBtn');
+                if (pauseBtn) pauseBtn.style.display = run.status === 'paused' ? 'none' : 'inline-flex';
+                const resumeBtn = document.getElementById('resumePhoneValidationBtn');
+                if (resumeBtn) resumeBtn.style.display = run.status === 'paused' ? 'inline-flex' : 'none';
+                const stopBtn = document.getElementById('stopPhoneValidationBtn');
+                if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+                updatePhoneProgressUI({
+                    status: run.status,
+                    progress: {
+                        processed: run.processed, total: run.total,
+                        valid: run.valid, invalid: run.invalid, failed: run.failed,
+                        verified_per_minute: run.verified_per_minute,
+                        elapsed: run.elapsed_seconds,
+                    },
+                    last_batch_results: run.last_results || [],
+                });
+
+                const title = document.getElementById('launchRunTitle');
+                if (title) {
+                    title.textContent = run.status === 'paused'
+                        ? 'Paused on the server'
+                        : `Running — ${fmtInt(run.processed)} / ${fmtInt(run.total)}`;
+                }
+                const sub = document.getElementById('launchRunSub');
+                if (sub) {
+                    sub.textContent = run.runner_alive
+                        ? 'The server is working; this page is watching'
+                        : 'Run exists but its worker is not alive — resume to continue';
+                }
+                const hint = document.getElementById('phoneLaunchHint');
+                if (hint) {
+                    hint.textContent = 'Resumed — ' + scraperProviderLabel(
+                        run.transport === 'veriphone-api' ? 'veriphone' : (run.transport || 'scrapingbee')
+                    );
+                }
+
+                if (validatorState.phone.isValidating) {
+                    window.phoneValidationStartTime = window.phoneValidationStartTime
+                        || (Date.now() - (run.elapsed_seconds || 0) * 1000);
+                    if (!run.elapsed_seconds) startPhoneTimer();
+                    else startPhoneTimer();
+                    pollPhoneValidationProgress();
+                }
+
+                showToast(
+                    run.status === 'paused'
+                        ? 'Reconnected — run is paused on the server'
+                        : `Reconnected — ${fmtInt(run.processed)} of ${fmtInt(run.total)} already checked`,
+                    'info'
+                );
+                return true;
+            } catch (error) {
+                phoneLog('resume failed', String(error));
+                return false;
+            }
+        }
+
         async function pollPhoneValidationProgress() {
             if (!validatorState.phone.sessionId || !validatorState.phone.isValidating) return;
             
@@ -41297,17 +41431,11 @@
 
                     const status = data.status;
 
-                    // Drive the next batch. The backend has no worker: without
-                    // this the session would sit at "pending" forever.
+                    // Observe, never drive. The server owns the run now, so
+                    // closing this page cannot stop it and reloading can only
+                    // reconnect. The old code posted the next batch from here,
+                    // which is exactly why a reload killed a paid-for run.
                     if (status === 'pending' || status === 'running' || status === 'processing') {
-                        try {
-                            await fetchWithAuth(
-                                `/validator/phone/validate/${validatorState.phone.sessionId}`,
-                                { method: 'POST' }
-                            );
-                        } catch (batchError) {
-                            phoneLog('batch failed', { session: validatorState.phone.sessionId, error: String(batchError) });
-                        }
                         setTimeout(pollPhoneValidationProgress, 2000);
                     } else if (status === 'paused') {
                         setTimeout(pollPhoneValidationProgress, 2000);

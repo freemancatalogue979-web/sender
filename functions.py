@@ -15,6 +15,7 @@ import imaplib
 import time
 import secrets
 import asyncio
+import threading
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -11153,8 +11154,10 @@ async def process_phone_validation(
     update_validator_progress(user_id, base_path, session_id, updates)
     session.update(updates)
 
-    if updates.get("status") == "completed":
-        save_phone_results_to_list(user_id, base_path, session)
+    # Save every batch, not just the last one. A run that is stopped, or a
+    # server that dies mid-queue, used to lose everything it had already paid
+    # for because results only reached the list on completion.
+    save_phone_results_to_list(user_id, base_path, session)
 
     return {
         "success": True,
@@ -11479,6 +11482,121 @@ def consolidate_phone_lists(user_id: str, base_path: Path) -> dict:
     index.sort(key=lambda l: l.get("created_at") or "", reverse=True)
     write_phone_list_index(user_id, base_path, index)
     return {"merged": merged_names, "removed": removed, "lists": len(index)}
+
+
+# -----------------------------------------------------------------------------
+# Server-side phone runner
+# -----------------------------------------------------------------------------
+#
+# The browser used to drive a run: it polled, then called the next batch, then
+# polled again. Closing or reloading the tab therefore stopped a validation that
+# was already paid for, and reloading lost the progress view because nothing
+# told the page a run was in flight. The run now lives here -- a thread per
+# session -- and the page only reads it. A reload reconnects to the same run.
+
+_PHONE_RUNNERS: Dict[str, Dict[str, Any]] = {}
+_PHONE_RUNNERS_LOCK = threading.Lock()
+
+# Pause between batches. The batches already run MAX_WORKERS lookups at once;
+# this only stops the loop from spinning when a batch returns instantly.
+PHONE_RUNNER_GAP_SECONDS = 1.0
+
+
+def _runner_key(user_id: str, session_id: str) -> str:
+    return f"{user_id}:{session_id}"
+
+
+def phone_runner_is_active(user_id: str, session_id: str) -> bool:
+    with _PHONE_RUNNERS_LOCK:
+        entry = _PHONE_RUNNERS.get(_runner_key(user_id, session_id))
+        if not entry:
+            return False
+        return not entry["stop"].is_set() and entry["thread"].is_alive()
+
+
+def stop_phone_runner(user_id: str, session_id: str) -> bool:
+    """Ask a running session to finish its current batch and stop."""
+    with _PHONE_RUNNERS_LOCK:
+        entry = _PHONE_RUNNERS.get(_runner_key(user_id, session_id))
+    if not entry:
+        return False
+    entry["stop"].set()
+    return True
+
+
+def start_phone_runner(
+    user_id: str,
+    base_path: Path,
+    session_id: str,
+    country_code: str = "",
+    batch_size: int = None,
+) -> Dict[str, Any]:
+    """
+    Run a session to completion in the background, independent of any browser.
+
+    The loop stops on: the queue emptying, the session being stopped or paused
+    from the panel, an explicit stop, or a batch that keeps failing -- in which
+    case it says why rather than spinning.
+    """
+    key = _runner_key(user_id, session_id)
+    with _PHONE_RUNNERS_LOCK:
+        existing = _PHONE_RUNNERS.get(key)
+        if existing and existing["thread"].is_alive() and not existing["stop"].is_set():
+            return {"started": False, "reason": "already running"}
+
+        stop_event = threading.Event()
+        holder: Dict[str, Any] = {"stop": stop_event, "thread": None}
+        _PHONE_RUNNERS[key] = holder
+
+    def _loop() -> None:
+        consecutive_errors = 0
+        try:
+            while not stop_event.is_set():
+                session = get_validator_session(user_id, base_path, session_id) or {}
+                status = (session.get("status") or "").lower()
+
+                if status in ("stopped", "completed", "error"):
+                    break
+                if status == "paused":
+                    # The operator paused it; keep the thread alive so Resume
+                    # does not have to start a second one.
+                    stop_event.wait(1.0)
+                    continue
+
+                queue = session.get("queue") or []
+                if not queue:
+                    break
+
+                try:
+                    result = asyncio.run(
+                        process_phone_validation(user_id, base_path, session_id)
+                    )
+                except Exception as exc:  # noqa: BLE001 -- one bad batch must not kill the run
+                    logger.exception("Phone runner batch failed for %s", session_id)
+                    consecutive_errors += 1
+                    result = {"error": str(exc)}
+                else:
+                    consecutive_errors = 0 if result.get("success", True) else consecutive_errors + 1
+
+                if result.get("completed"):
+                    break
+                if consecutive_errors >= 3:
+                    logger.error(
+                        "Phone runner stopping after %s failed batches: %s",
+                        consecutive_errors, result.get("error"),
+                    )
+                    break
+
+                # refresh the queue we read at the top of the next pass
+                stop_event.wait(PHONE_RUNNER_GAP_SECONDS)
+        finally:
+            with _PHONE_RUNNERS_LOCK:
+                _PHONE_RUNNERS.pop(key, None)
+
+    thread = threading.Thread(target=_loop, name=f"phone-runner-{session_id}", daemon=True)
+    holder["thread"] = thread
+    thread.start()
+    return {"started": True, "session_id": session_id}
 
 
 def save_phone_results_to_list(

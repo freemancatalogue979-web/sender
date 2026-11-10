@@ -7030,6 +7030,55 @@ async def get_phone_validator_status(current_user: dict = Depends(get_current_us
     return {"running": False}
 
 
+@validator_router.get("/phone/active")
+async def phone_active_run(current_user: dict = Depends(get_current_user)):
+    """
+    Everything the page needs to resume a run it did not start in this tab.
+
+    A reload used to come back blank: no session id, no counts, no list -- and
+    because the browser drove the batches, the run itself stopped. This returns
+    the run the server is doing right now, with its progress and its last
+    results, so the panel can attach to it instead of pretending nothing is
+    happening.
+    """
+    user_id = current_user["user_id"]
+
+    from functions import get_active_validator_session, phone_runner_is_active
+
+    session = get_active_validator_session(user_id, USERS_BASE_PATH, "phone")
+    if not session:
+        return {"running": False}
+
+    session_id = session.get("session_id")
+    total = int(session.get("total_items") or 0)
+    processed = int(session.get("processed") or 0)
+    results = session.get("results") or []
+
+    return {
+        "running": True,
+        "session_id": session_id,
+        "status": session.get("status"),
+        "runner_alive": phone_runner_is_active(user_id, session_id),
+        "list_id": session.get("list_id"),
+        "list_name": session.get("list_name"),
+        "country_code": session.get("country_code"),
+        "transport": session.get("transport"),
+        "total": total,
+        "processed": processed,
+        "valid": int(session.get("valid") or 0),
+        "invalid": int(session.get("invalid") or 0),
+        "failed": int(session.get("failed") or 0),
+        "remaining": len(session.get("queue") or []),
+        "percent": round((processed / total) * 100, 1) if total else 0,
+        "started_at": session.get("started_at") or session.get("created_at"),
+        "elapsed_seconds": session.get("elapsed_seconds") or 0,
+        "verified_per_minute": session.get("verified_per_minute") or 0,
+        # Enough results to repaint the HUD and the numbers panel; the list
+        # itself is read separately so this stays a status call.
+        "last_results": results[-60:],
+    }
+
+
 @validator_router.get("/phone/lists")
 async def list_phone_lists(current_user: dict = Depends(get_current_user)):
     """Get all phone number lists"""
@@ -7413,10 +7462,24 @@ async def start_phone_validation(
     
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error"))
-    
+
+    # The run lives on the server from here. The page only watches it, so a
+    # reload -- or a closed laptop -- no longer stops something already paid
+    # for, and reconnecting is just reading this session back.
+    from functions import start_phone_runner
+
+    runner = start_phone_runner(
+        user_id,
+        USERS_BASE_PATH,
+        result.get("session_id"),
+        country_code=country_code or "",
+        batch_size=batch_size,
+    )
+
     return {
         "success": True,
         "session_id": result.get("session_id"),
+        "runner_started": runner.get("started"),
         "total_numbers": len(formatted_numbers),
         "list_name": list_name,
         "list_id": list_id,
@@ -7503,13 +7566,33 @@ async def stop_phone_validation(
     """Stop phone validation process"""
     user_id = current_user["user_id"]
     
+    from functions import save_phone_results_to_list, stop_phone_runner
+
+    # A run now lives in a server thread; setting the status alone would let it
+    # finish the queue behind the panel's back.
+    runner_stopped = stop_phone_runner(user_id, session_id)
+
     updates = {"status": "stopped"}
     success = update_validator_progress(user_id, USERS_BASE_PATH, session_id, updates)
-    
+
     if success:
+        # Keep what the run already found. Stopping used to log the work done so
+        # far as nothing, because results only reached the list on completion.
+        session = get_validator_session(user_id, USERS_BASE_PATH, session_id)
+        if session:
+            try:
+                save_phone_results_to_list(user_id, USERS_BASE_PATH, session)
+            except Exception:
+                pass
+
         # Clear active session state
         clear_active_session(user_id, USERS_BASE_PATH, "phone")
-        return {"success": True, "message": "Validation stopped"}
+        return {
+            "success": True,
+            "message": "Validation stopped",
+            "runner_stopped": runner_stopped,
+            "saved_results": len((session or {}).get("results") or []),
+        }
     
     raise HTTPException(status_code=400, detail="Failed to stop validation")
 
@@ -7543,7 +7626,17 @@ async def resume_phone_validation(
     success = update_validator_progress(user_id, USERS_BASE_PATH, session_id, updates)
     
     if success:
-        return {"success": True, "message": "Validation resumed"}
+        # Resume means restart the server thread if it had exited, so a paused
+        # run continues whether or not this page stays open.
+        from functions import start_phone_runner
+
+        session = get_validator_session(user_id, USERS_BASE_PATH, session_id) or {}
+        runner = start_phone_runner(
+            user_id, USERS_BASE_PATH, session_id,
+            country_code=session.get("country_code") or "",
+        )
+        return {"success": True, "message": "Validation resumed",
+                "runner_started": runner.get("started")}
     
     raise HTTPException(status_code=400, detail="Failed to resume validation")
 
