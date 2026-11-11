@@ -2405,3 +2405,63 @@ def test_the_browser_no_longer_drives_batches():
         "the page is driving batches again; the server must own the run"
     )
     assert "setTimeout(pollPhoneValidationProgress" in poll_body, "polling must still continue"
+
+
+def test_boot_resumes_live_runs_and_leaves_paused_alone(tmp_path):
+    """
+    A restart kills a run's thread; the queue on disk does not die with it.
+
+    Resumed on boot so the work carries on without anyone opening the panel.
+    Paused stays paused: that was a decision someone made.
+    """
+    sessions = tmp_path / "fv-s-bootuser" / "validator-sessions"
+    sessions.mkdir(parents=True)
+
+    def write(session_id, status, queue):
+        (sessions / f"{session_id}.json").write_text(json.dumps({
+            "session_id": session_id, "type": "phone", "status": status,
+            "queue": queue, "results": [], "country_code": "US",
+            "total_items": len(queue),
+        }))
+
+    write("live", "running", ["+12012014514", "+12012014515"])
+    write("held", "paused", ["+12012014516"])
+    write("finished", "completed", [])
+    write("empty", "running", [])
+
+    started = []
+    real_start = functions.start_phone_runner
+    functions.start_phone_runner = lambda user_id, base, sid, **kw: (
+        started.append(sid) or {"started": True, "session_id": sid}
+    )
+    try:
+        report = functions.resume_phone_runs_on_boot(tmp_path)
+    finally:
+        functions.start_phone_runner = real_start
+
+    assert report["started"] == ["live"]
+    assert report["paused"] == ["held"]
+    assert started == ["live"]
+
+
+def test_a_finished_run_prunes_its_list_server_side(tmp_path):
+    """
+    Pruning is the server's job now.
+
+    It used to run in the browser when polling noticed "completed", so a run
+    that finished while the tab was closed left its invalid numbers in the list.
+    """
+    meta = functions.create_phone_list("u", tmp_path, "prunable", [], "US")
+    functions.save_phone_results_to_list("u", tmp_path, {
+        "list_id": meta["id"], "list_name": "prunable", "country_code": "US",
+        "results": [
+            {"number": "+12012014514", "status": "valid", "valid": True},
+            {"number": "+2347069977000", "status": "invalid", "valid": False},
+        ],
+    })
+
+    report = functions.prune_phone_list("u", tmp_path, meta["id"])
+    kept = functions.get_phone_list_numbers("u", tmp_path, meta["id"])["numbers"]
+
+    assert report["removed"] == 1
+    assert [n["number"] for n in kept] == ["+12012014514"]

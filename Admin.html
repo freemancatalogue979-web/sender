@@ -41444,9 +41444,8 @@
                         stopPhoneTimer();
                         resetPhoneValidationUI();
                         showToast(`Phone validation ${status}`, status === 'completed' ? 'success' : 'info');
-                        // The run has landed its results; drop the numbers it
-                        // proved invalid and keep the errors for the next try.
-                        await pruneSelectedPhoneList();
+                        // The server prunes a finished run itself. This page only
+                        // reloads to show the result -- it does not edit the list.
                         await loadPhoneLists();
                     }
                 } else {

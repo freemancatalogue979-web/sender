@@ -125,6 +125,14 @@ async def lifespan(app: FastAPI):
     if recovered:
         print(f"Recovered {recovered} interrupted campaign session(s)")
 
+    # A phone validation is server-side work with a queue on disk. A restart
+    # kills its thread, so pick the work back up here rather than waiting for
+    # someone to open the panel and press Resume. Paused runs stay paused.
+    from functions import resume_phone_runs_on_boot
+    phone_runs = resume_phone_runs_on_boot(USERS_BASE_PATH)
+    if phone_runs["started"]:
+        print(f"Resumed {len(phone_runs['started'])} phone validation run(s)")
+
     from imap_manager import get_connection_manager
     await get_connection_manager()
     print("IMAP Connection Manager initialized")

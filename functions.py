@@ -7983,6 +7983,61 @@ def recover_interrupted_sessions(base_path: Path) -> int:
     return recovered
 
 
+def resume_phone_runs_on_boot(base_path: Path) -> Dict[str, Any]:
+    """
+    Restart every phone run that was in flight when the server last stopped.
+
+    A reload cannot stop a run -- the thread is not in the browser -- but a
+    server restart does kill it. The session file survives with its queue and
+    its results, so the work can simply carry on. Anything left in
+    running/pending is started again; paused is left paused on purpose.
+    """
+    started, skipped, paused = [], [], []
+
+    base = Path(base_path)
+    if not base.exists():
+        return {"started": started, "skipped": skipped, "paused": paused}
+
+    for user_folder in base.iterdir():
+        if not user_folder.is_dir() or not user_folder.name.startswith("fv-s-"):
+            continue
+        user_id = user_folder.name[len("fv-s-"):]
+        sessions_dir = user_folder / "validator-sessions"
+        if not sessions_dir.exists():
+            continue
+
+        for session_file in sessions_dir.glob("*.json"):
+            if session_file.name.startswith("active_"):
+                continue
+            try:
+                session = json.loads(session_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+
+            if session.get("type") != "phone":
+                continue
+            status = (session.get("status") or "").lower()
+            session_id = session.get("session_id") or session_file.stem
+
+            if status == "paused":
+                paused.append(session_id)
+                continue
+            if status not in ("running", "pending", "processing"):
+                continue
+            if not (session.get("queue") or []):
+                continue
+            if phone_runner_is_active(user_id, session_id):
+                continue
+
+            result = start_phone_runner(
+                user_id, base_path, session_id,
+                country_code=session.get("country_code") or "",
+            )
+            (started if result.get("started") else skipped).append(session_id)
+
+    return {"started": started, "skipped": skipped, "paused": paused}
+
+
 def initialize_user_folder(base_path: Path, user_id: str) -> bool:
     """Initialize user folder with all required files (for existing users)"""
     from config import FileNames
@@ -11579,6 +11634,15 @@ def start_phone_runner(
                     consecutive_errors = 0 if result.get("success", True) else consecutive_errors + 1
 
                 if result.get("completed"):
+                    # The run has landed its results; drop the numbers it proved
+                    # invalid and keep the errors. Done here, on the server, so
+                    # it happens whether or not a panel is open.
+                    try:
+                        list_id = (session or {}).get("list_id")
+                        if list_id:
+                            prune_phone_list(user_id, base_path, list_id)
+                    except Exception:
+                        logger.exception("Prune failed for list %s", (session or {}).get("list_id"))
                     break
                 if consecutive_errors >= 3:
                     logger.error(
